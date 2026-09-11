@@ -5,8 +5,10 @@
 #include <Logging.h>
 #include <WiFi.h>
 
+#include <optional>
 #include <string>
 
+#include "WifiCredentialStore.h"
 #include "network/HttpDownloader.h"
 
 // Base URL of the local publication server (see backend/goto/server.py). It is a
@@ -23,8 +25,51 @@ constexpr char kCacheDir[] = "/goto";
 constexpr char kCacheEditionsDir[] = "/goto/editions";
 constexpr char kCacheManifestPath[] = "/goto/current.json";
 
-bool wifiUp() {
-  return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
+// Bounded silent-reconnect budget. A known 2.4 GHz AP typically associates and
+// gets DHCP in ~2-4 s on the ESP32-C3; 6 s covers a slow DHCP lease while staying
+// well under a "did it hang?" feel. It is a one-time cost on GOTO entry, and only
+// when we are not already connected but a saved network exists. The poll uses
+// delay() (yields to the RTOS / feeds the watchdog), matching the existing
+// blocking network work already done in onEnter.
+constexpr uint32_t kReconnectTimeoutMs = 6000;
+constexpr uint32_t kReconnectPollMs = 200;
+
+bool wifiUp() { return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0); }
+
+// If Wi-Fi is not connected but CrossPoint has a saved network, attempt a SILENT
+// reconnect (no picker, no prompt, no new credential storage) using the last-
+// connected saved credential. Returns true only once actually connected. Never
+// opens UI and never blocks longer than kReconnectTimeoutMs.
+bool ensureWifiConnected() {
+  if (wifiUp()) return true;
+  if (WIFI_STORE.getCredentialCount() == 0) return false;  // nothing saved -> stay offline
+
+  std::optional<WifiCredential> cred;
+  const std::string last = WIFI_STORE.getLastConnectedSsid();
+  if (!last.empty()) cred = WIFI_STORE.findCredential(last);
+  if (!cred) cred = WIFI_STORE.getCredentialAt(0);
+  if (!cred) return false;
+
+  LOG_INF("GOTO", "Wi-Fi down; silent reconnect to saved network %s", cred->ssid.c_str());
+  WiFi.persistent(false);  // credentials owned by WifiCredentialStore, not SDK NVS
+  WiFi.mode(WIFI_STA);
+  if (!cred->password.empty()) {
+    WiFi.begin(cred->ssid.c_str(), cred->password.c_str());
+  } else {
+    WiFi.begin(cred->ssid.c_str());
+  }
+
+  const uint32_t start = millis();
+  while (millis() - start < kReconnectTimeoutMs) {
+    if (wifiUp()) {
+      WIFI_STORE.setLastConnectedSsid(cred->ssid);
+      LOG_INF("GOTO", "silent reconnect succeeded (%.1fs)", (millis() - start) / 1000.0);
+      return true;
+    }
+    delay(kReconnectPollMs);
+  }
+  LOG_INF("GOTO", "silent reconnect timed out; staying offline");
+  return false;
 }
 
 std::string cacheEditionPath(const std::string& editionId) {
@@ -55,10 +100,10 @@ bool loadFromCache(GotoEdition& out, std::string& editionId) {
 GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
   GotoLoadResult result;
 
-  // 1) Network path — only when Wi-Fi is already provisioned/connected. The
-  //    reader open path never launches interactive Wi-Fi selection; provisioning
-  //    stays in the existing CrossPoint flow so GOTO opens offline-first.
-  if (wifiUp()) {
+  // 1) Network path. If Wi-Fi is down but a saved network exists, attempt a
+  //    bounded SILENT reconnect first (no interactive picker, no prompt). The
+  //    reader open path never provisions Wi-Fi; that stays in CrossPoint's flow.
+  if (ensureWifiConnected()) {
     std::string manifestJson;
     if (HttpDownloader::fetchUrl(std::string(kServerBase) + "/current.json", manifestJson)) {
       std::string editionId;

@@ -15,8 +15,12 @@
 
 namespace {
 // --- Fonts (built-in only; fixed GOTO choices, never theme-derived). --------
-constexpr int kMastheadFont = NOTOSANS_16_FONT_ID;      // "GOTO" wordmark
-constexpr int kHeadlineFont = NOTOSERIF_18_FONT_ID;     // serif bold headline
+constexpr int kMastheadFont = NOTOSANS_16_FONT_ID;   // "GOTO" wordmark
+constexpr int kHeadlineFont = NOTOSERIF_18_FONT_ID;  // preferred serif headline
+// Adaptive serif headline ladder (largest first): fit the COMPLETE headline at
+// the biggest size that stays within the headline height budget, stepping down
+// before ellipsizing. Built-in serif faces only; no external font assets.
+constexpr int kHeadlineFonts[] = {NOTOSERIF_18_FONT_ID, NOTOSERIF_16_FONT_ID, NOTOSERIF_14_FONT_ID};
 constexpr int kBodyFont = NOTOSANS_14_FONT_ID;          // lead paragraph (normal)
 constexpr int kBodyFallbackFont = NOTOSANS_12_FONT_ID;  // lead paragraph (one step smaller)
 constexpr int kMetaFont = NOTOSANS_12_FONT_ID;          // dateline, kicker, source, pager
@@ -56,7 +60,8 @@ void GotoActivity::onEnter() {
   // picked up on the next entry (Back -> Home -> GOTO), never mid-session.
   const GotoLoadResult r = loadCurrentGotoEdition(edition);
   loaded = r.origin != GotoEditionOrigin::None && !edition.stories.empty();
-  pageIndex = 0;  // reset to the first page on every (re-)entry
+  origin = r.origin;  // Network -> no marker; Cache -> CACHED; Builtin -> OFFLINE
+  pageIndex = 0;      // reset to the first page on every (re-)entry
   requestUpdate();
 }
 
@@ -110,6 +115,28 @@ int GotoActivity::contentTopY() const {
   return kTopSafe + renderer.getLineHeight(kMastheadFont) + kMastheadRuleGap + kMastheadContentGap;
 }
 
+void GotoActivity::chooseHeadline(const std::string& headline, int width, int budgetPx, int& outFont,
+                                  std::vector<std::string>& outLines) const {
+  // Largest serif size whose COMPLETE wrap fits inside budgetPx wins.
+  for (const int font : kHeadlineFonts) {
+    const int lh = renderer.getLineHeight(font);
+    const int maxLines = lh > 0 ? budgetPx / lh : 1;
+    std::vector<std::string> lines =
+        renderer.wrappedText(font, headline.c_str(), width, maxLines + 1, EpdFontFamily::BOLD);
+    if (static_cast<int>(lines.size()) <= maxLines) {
+      outFont = font;
+      outLines = std::move(lines);
+      return;
+    }
+  }
+  // Nothing fit in full: ellipsize at the smallest serif size, bounded to the
+  // budget (wrappedText appends U+2026 on the last visible line).
+  outFont = kHeadlineFonts[sizeof(kHeadlineFonts) / sizeof(kHeadlineFonts[0]) - 1];
+  const int lh = renderer.getLineHeight(outFont);
+  const int maxLines = lh > 0 ? budgetPx / lh : 1;
+  outLines = renderer.wrappedText(outFont, headline.c_str(), width, maxLines, EpdFontFamily::BOLD);
+}
+
 // GOTO masthead: "GOTO" wordmark + right-aligned dateline + a thin rule. Drawn
 // directly so it is identical under every theme (no GUI.drawHeader dependency).
 void GotoActivity::drawMasthead() {
@@ -152,12 +179,19 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   renderer.drawText(kMetaFont, kMargin, y, kicker, true, EpdFontFamily::BOLD);
   y += metaLH + kSectionGap;
 
-  // Headline (serif bold, wrapped; auto-ellipsized past kHeadlineMaxLines).
-  const std::vector<std::string> headlineLines =
-      renderer.wrappedText(kHeadlineFont, story.headline.c_str(), width, kHeadlineMaxLines, EpdFontFamily::BOLD);
+  // Headline (serif bold). Adaptive: prefer the large size, but fit the COMPLETE
+  // headline within a fixed vertical budget by stepping the serif size down
+  // before ellipsizing (last resort). The budget is the preferred size's max
+  // lines, so a smaller size buys extra lines from the same height — body space
+  // below stays bounded (deterministic), so the lead never gets squeezed.
+  const int headlineBudgetPx = kHeadlineMaxLines * headlineLH;
+  int headlineFont = kHeadlineFont;
+  std::vector<std::string> headlineLines;
+  chooseHeadline(story.headline, width, headlineBudgetPx, headlineFont, headlineLines);
+  const int chosenHeadlineLH = renderer.getLineHeight(headlineFont);
   for (const std::string& line : headlineLines) {
-    renderer.drawText(kHeadlineFont, kMargin, y, line.c_str(), true, EpdFontFamily::BOLD);
-    y += headlineLH;
+    renderer.drawText(headlineFont, kMargin, y, line.c_str(), true, EpdFontFamily::BOLD);
+    y += chosenHeadlineLH;
   }
   y += kHeadlineBodyGap;
 
@@ -227,6 +261,17 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   drawChevron(fsChevronLeft, pagerRowTop + metaLH / 2, true);
   // No persistent PREV/NEXT hints: navigation uses the X4's native front rocker
   // and side buttons (see loop()), which CrossPoint does not label on-screen.
+
+  // --- Subtle liveness marker (centered between pager and FULL STORY). A live
+  // network fetch this session shows nothing; a cached/fixture render is marked
+  // so the post-reboot state is never ambiguous. ---
+  const char* marker = origin == GotoEditionOrigin::Cache     ? "CACHED"
+                       : origin == GotoEditionOrigin::Builtin ? "OFFLINE"
+                                                              : nullptr;
+  if (marker != nullptr) {
+    const int markerX = (renderer.getScreenWidth() - renderer.getTextWidth(kMetaFont, marker)) / 2;
+    renderer.drawText(kMetaFont, markerX, pagerRowTop, marker, true);
+  }
 }
 
 void GotoActivity::render(RenderLock&&) {

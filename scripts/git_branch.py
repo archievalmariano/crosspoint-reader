@@ -76,6 +76,11 @@ def get_base_version(project_dir):
     return config.get('crosspoint', 'version')
 
 
+def _sanitize(value):
+    # Strip characters that would break a C string literal.
+    return ''.join(c for c in value if c not in '"\\')
+
+
 def inject_version(env):
     # Only applies to development environments; release envs set the
     # version via build_flags in platformio.ini and are unaffected.
@@ -84,9 +89,24 @@ def inject_version(env):
 
     project_dir = env['PROJECT_DIR']
     base_version = get_base_version(project_dir)
-    branch = get_git_branch(project_dir)
-    short_sha = get_git_short_sha(project_dir)
-    version_string = f'{base_version}-dev-{branch}-{short_sha}'
+
+    # An explicit, concise dev identifier can be supplied via GOTO_DEV_LABEL
+    # (e.g. "GOTO E1B2.1") so the Settings header shows a short string that does
+    # not overlap the title. The real base version is always preserved.
+    label = _sanitize(os.environ.get('GOTO_DEV_LABEL', '').strip())
+    if label:
+        version_string = f'v{base_version} · {label}'
+    else:
+        # Otherwise derive from git, but drop the branch-type prefix and cap the
+        # branch length so long dev branch names cannot overrun the header slot.
+        branch = get_git_branch(project_dir)
+        for prefix in ('feature/', 'fix/', 'refactor/', 'docs/', 'chore/'):
+            if branch.startswith(prefix):
+                branch = branch[len(prefix):]
+                break
+        branch = branch[:16]
+        short_sha = get_git_short_sha(project_dir)
+        version_string = f'{base_version}-dev-{branch}-{short_sha}'
 
     env.Append(CPPDEFINES=[('CROSSPOINT_VERSION', f'\\"{version_string}\\"')])
     print(f'CrossPoint build version: {version_string}')

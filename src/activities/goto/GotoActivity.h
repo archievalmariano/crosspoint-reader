@@ -1,6 +1,10 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "GotoEdition.h"
+#include "GotoEditionSource.h"
 #include "activities/Activity.h"
 
 // GOTO morning edition reader: a finite, glanceable newspaper. One story per
@@ -18,11 +22,16 @@ class GotoActivity final : public Activity {
   GotoEdition edition;
   int pageIndex = 0;
   bool loaded = false;
+  GotoEditionOrigin origin = GotoEditionOrigin::None;  // drives the CACHED/OFFLINE marker
 
   int contentTopY() const;
   void drawMasthead();
   void drawStoryPage(const GotoStory& story);
   void drawChevron(int leftX, int cy, bool pointRight);
+  // Pick the largest built-in serif size whose full headline fits within
+  // budgetPx; ellipsize at the smallest size only as a last resort.
+  void chooseHeadline(const std::string& headline, int width, int budgetPx, int& outFont,
+                      std::vector<std::string>& outLines) const;
 
  public:
   GotoActivity(GfxRenderer& renderer, MappedInputManager& mappedInput) : Activity("Goto", renderer, mappedInput) {}
