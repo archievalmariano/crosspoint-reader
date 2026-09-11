@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "GotoEditionSource.h"
 #include "MappedInputManager.h"
 #include "fontIds.h"
 
@@ -50,7 +51,11 @@ void toUpperAscii(const char* in, char* out, size_t outSize) {
 
 void GotoActivity::onEnter() {
   Activity::onEnter();
-  loaded = loadBuiltinGotoEdition(edition);
+  // Load once per session (offline-first: network -> SD cache -> builtin). The
+  // edition is fixed for this reading session; a server-side change is only
+  // picked up on the next entry (Back -> Home -> GOTO), never mid-session.
+  const GotoLoadResult r = loadCurrentGotoEdition(edition);
+  loaded = r.origin != GotoEditionOrigin::None && !edition.stories.empty();
   pageIndex = 0;  // reset to the first page on every (re-)entry
   requestUpdate();
 }

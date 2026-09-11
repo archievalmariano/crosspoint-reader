@@ -84,7 +84,11 @@ bool parseGotoEdition(const char* json, GotoEdition& out) {
   // dateline is optional; fall back to the raw ISO date when absent.
   out.dateline = doc["dateline"] | out.dateIso.c_str();
 
-  const JsonArrayConst pages = doc["pages"].as<JsonArrayConst>();
+  // Published editions use "stories" (E1A+); the compiled-in fixture uses
+  // "pages". Accept either; the per-story fields are identical (published adds
+  // slot/publishedAtIso, which the device ignores).
+  JsonArrayConst pages = doc["stories"].as<JsonArrayConst>();
+  if (pages.isNull()) pages = doc["pages"].as<JsonArrayConst>();
   out.stories.clear();
   out.stories.reserve(pages.size());
   for (const JsonObjectConst page : pages) {
