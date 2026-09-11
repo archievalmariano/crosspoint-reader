@@ -140,9 +140,11 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
           Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
           const String cached = Storage.readFile(localPath.c_str());
           if (cached.length() > 0 && parseGotoEdition(cached.c_str(), out)) {
-            result.origin = GotoEditionOrigin::Cache;
+            // Live-verified: manifest fetched this session confirms this is the
+            // current edition. Served from cache bytes, but not stale -> no marker.
+            result.origin = GotoEditionOrigin::CacheCurrent;
             result.editionId = editionId;
-            LOG_INF("GOTO", "edition %s already cached; serving cache", editionId.c_str());
+            LOG_INF("GOTO", "edition %s confirmed current; serving cache (live)", editionId.c_str());
             return result;
           }
         }
@@ -155,12 +157,12 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
     // Any network failure falls through to the offline cache below.
   }
 
-  // 2) Offline cache.
+  // 2) Offline cache — last-known SD edition, used WITHOUT live verification.
   std::string cachedId;
   if (loadFromCache(out, cachedId)) {
-    result.origin = GotoEditionOrigin::Cache;
+    result.origin = GotoEditionOrigin::CacheStale;
     result.editionId = cachedId;
-    LOG_INF("GOTO", "loaded edition %s from SD cache (offline)", cachedId.c_str());
+    LOG_INF("GOTO", "loaded edition %s from SD cache (unverified/offline)", cachedId.c_str());
     return result;
   }
 
@@ -173,4 +175,15 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
 
   result.origin = GotoEditionOrigin::None;
   return result;
+}
+
+bool cachedCurrentIsTogo() {
+  // Home launcher label only — read the persisted manifest, never the network.
+  if (!Storage.exists(kCacheManifestPath)) return false;
+  const String manifest = Storage.readFile(kCacheManifestPath);
+  if (manifest.length() == 0) return false;
+  JsonDocument doc;
+  if (deserializeJson(doc, manifest.c_str())) return false;
+  const char* edition = doc["edition"] | "";
+  return std::string(edition) == "TOGO";
 }

@@ -60,7 +60,7 @@ void GotoActivity::onEnter() {
   // picked up on the next entry (Back -> Home -> GOTO), never mid-session.
   const GotoLoadResult r = loadCurrentGotoEdition(edition);
   loaded = r.origin != GotoEditionOrigin::None && !edition.stories.empty();
-  origin = r.origin;  // Network -> no marker; Cache -> CACHED; Builtin -> OFFLINE
+  origin = r.origin;  // Network/CacheCurrent -> no marker; CacheStale -> CACHED; Builtin -> OFFLINE
   pageIndex = 0;      // reset to the first page on every (re-)entry
   requestUpdate();
 }
@@ -262,12 +262,14 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   // No persistent PREV/NEXT hints: navigation uses the X4's native front rocker
   // and side buttons (see loop()), which CrossPoint does not label on-screen.
 
-  // --- Subtle liveness marker (centered between pager and FULL STORY). A live
-  // network fetch this session shows nothing; a cached/fixture render is marked
-  // so the post-reboot state is never ambiguous. ---
-  const char* marker = origin == GotoEditionOrigin::Cache     ? "CACHED"
-                       : origin == GotoEditionOrigin::Builtin ? "OFFLINE"
-                                                              : nullptr;
+  // --- Subtle liveness marker (centered between pager and FULL STORY). Live
+  // states show nothing: a fresh network fetch (Network) OR a cached edition the
+  // server manifest confirmed current this session (CacheCurrent). CACHED is
+  // reserved for a stale/unverified SD edition (network/server failed); OFFLINE
+  // for the builtin fixture. Keeps the post-reboot state unambiguous. ---
+  const char* marker = origin == GotoEditionOrigin::CacheStale ? "CACHED"
+                       : origin == GotoEditionOrigin::Builtin  ? "OFFLINE"
+                                                               : nullptr;
   if (marker != nullptr) {
     const int markerX = (renderer.getScreenWidth() - renderer.getTextWidth(kMetaFont, marker)) / 2;
     renderer.drawText(kMetaFont, markerX, pagerRowTop, marker, true);

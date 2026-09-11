@@ -19,6 +19,7 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
+#include "activities/goto/GotoEditionSource.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -114,6 +115,8 @@ void HomeActivity::onEnter() {
   Activity::onEnter();
 
   hasOpdsServers = OPDS_STORE.hasServers();
+  // Reflect the cached current edition in the launcher label (no network here).
+  currentEditionIsTogo = cachedCurrentIsTogo();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   loadRecentBooks(metrics.homeRecentBooksCount);
@@ -308,8 +311,10 @@ void HomeActivity::render(RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
+  // The edition launcher reflects the cached current edition (TOGO vs GOTO).
+  const char* editionLabel = currentEditionIsTogo ? tr(STR_TOGO) : tr(STR_GOTO);
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE), tr(STR_GOTO)};
+                                        tr(STR_SETTINGS_TITLE), editionLabel};
   std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings, Book};
 
   if (hasOpdsServers) {

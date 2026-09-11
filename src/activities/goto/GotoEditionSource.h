@@ -4,8 +4,14 @@
 
 #include "GotoEdition.h"
 
-// Where the loaded edition came from (for logging / future status UI).
-enum class GotoEditionOrigin { Network, Cache, Builtin, None };
+// Where the loaded edition came from, and how "live" it is:
+//   Network      - downloaded fresh this session.
+//   CacheCurrent - served from SD, but the server manifest was fetched this
+//                  session and confirmed this editionId is current (live).
+//   CacheStale   - network/server unavailable; last-known SD edition used
+//                  WITHOUT live verification (shows the CACHED marker).
+//   Builtin      - no network and no cache; compiled-in fixture (OFFLINE).
+enum class GotoEditionOrigin { Network, CacheCurrent, CacheStale, Builtin, None };
 
 struct GotoLoadResult {
   GotoEditionOrigin origin = GotoEditionOrigin::None;
@@ -24,3 +30,8 @@ struct GotoLoadResult {
 // re-fetches mid-session, so an edition that flips server-side while the user is
 // reading does not swap underneath them — exit/reopen picks up the newer one.
 GotoLoadResult loadCurrentGotoEdition(GotoEdition& out);
+
+// Report whether the persisted cache manifest's current edition is TOGO (vs
+// GOTO), for the Home launcher label. Reads only the SD cache manifest — NO
+// network request — and falls back to false (GOTO) if no valid manifest exists.
+bool cachedCurrentIsTogo();
