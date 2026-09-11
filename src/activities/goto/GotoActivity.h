@@ -4,18 +4,25 @@
 #include "activities/Activity.h"
 
 // GOTO morning edition reader: a finite, glanceable newspaper. One story per
-// 800x480 page, showing masthead, section, headline, 1-2 source excerpt
-// paragraphs (deterministic fit/fallback, never scrolls), source + time, page
-// number, and a visual-only "FULL STORY" affordance. Physical page buttons move
-// between stories (clamped at both ends); Back returns Home; re-entering resets
-// to page 1. E0.5: static compiled-in fixture, built-in fonts only, no network.
+// 800x480 page, showing masthead, section, headline, the first source excerpt
+// paragraph (never scrolls), source + time, page number, and a visual-only
+// "FULL STORY" affordance. Physical page buttons cycle between stories
+// (circular, both directions); Back returns Home; re-entering resets to page 1.
+//
+// E0.6: the page geometry is deliberately theme-INDEPENDENT — GOTO draws its own
+// masthead/rules with fixed layout constants and built-in font IDs, and uses
+// fixed top/bottom safe zones, so the selected CrossPoint theme never shifts the
+// headline, body, source, pager, or hints or clips the bottom controls. Built-in
+// fonts only; static compiled-in fixture; no network.
 class GotoActivity final : public Activity {
   GotoEdition edition;
   int pageIndex = 0;
   bool loaded = false;
 
+  int contentTopY() const;
+  void drawMasthead();
   void drawStoryPage(const GotoStory& story);
-  void drawFullStoryAffordance(int rightEdge, int rowTop);
+  void drawChevron(int leftX, int cy, bool pointRight);
 
  public:
   GotoActivity(GfxRenderer& renderer, MappedInputManager& mappedInput) : Activity("Goto", renderer, mappedInput) {}

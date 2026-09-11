@@ -5,10 +5,10 @@
 
 // A single glanceable story = one 800x480 page in the GOTO reader.
 //
-// V1 shows source-derived excerpts, not an AI summary: excerptParagraphs holds
-// the first 1-2 meaningful body paragraphs of the source article, kept as
-// separate strings because paragraph boundaries are editorially meaningful and
-// drive the render-time fit/fallback. All fields are display-ready DATA
+// V1 shows source-derived excerpts, not an AI summary. excerptParagraphs holds
+// the source article's leading body paragraphs as separate strings (boundaries
+// are editorially meaningful); the E0.6 renderer draws only the FIRST one, but
+// the array is kept for future compatibility. All fields are display-ready DATA
 // prepared upstream; the device does not summarize, rank, or interpret.
 struct GotoStory {
   std::string section;                         // placement label, e.g. "TOP STORY"
