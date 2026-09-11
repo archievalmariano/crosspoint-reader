@@ -14,10 +14,11 @@
 
 namespace {
 // --- Fonts (built-in only; fixed GOTO choices, never theme-derived). --------
-constexpr int kMastheadFont = NOTOSANS_16_FONT_ID;   // "GOTO" wordmark
-constexpr int kHeadlineFont = NOTOSERIF_18_FONT_ID;  // serif bold headline
-constexpr int kBodyFont = NOTOSANS_14_FONT_ID;       // lead paragraph
-constexpr int kMetaFont = NOTOSANS_12_FONT_ID;       // dateline, kicker, source, pager, hints
+constexpr int kMastheadFont = NOTOSANS_16_FONT_ID;      // "GOTO" wordmark
+constexpr int kHeadlineFont = NOTOSERIF_18_FONT_ID;     // serif bold headline
+constexpr int kBodyFont = NOTOSANS_14_FONT_ID;          // lead paragraph (normal)
+constexpr int kBodyFallbackFont = NOTOSANS_12_FONT_ID;  // lead paragraph (one step smaller)
+constexpr int kMetaFont = NOTOSANS_12_FONT_ID;          // dateline, kicker, source, pager
 
 // --- GOTO layout constants (device pixels; theme-INDEPENDENT). --------------
 // Vertical positions derive only from these and the fixed font line heights, so
@@ -32,7 +33,7 @@ constexpr int kSectionGap = 12;          // section kicker -> headline
 constexpr int kHeadlineBodyGap = 14;     // headline -> lead paragraph
 constexpr int kBodySourceGap = 16;       // body bottom boundary -> source line
 constexpr int kSourceRuleGap = 8;        // source line -> footer rule
-constexpr int kFooterRowGap = 10;        // footer rule <-> pager <-> nav row spacing
+constexpr int kRulePagerGap = 10;        // footer rule -> pager row
 constexpr int kHeadlineMaxLines = 4;     // headline wraps to at most this many lines
 
 constexpr int kChevronReach = 5;    // horizontal length of a drawn "‹"/"›"
@@ -55,24 +56,33 @@ void GotoActivity::onEnter() {
 }
 
 void GotoActivity::loop() {
-  // Back always returns Home, even before content loads.
-  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+  using Button = MappedInputManager::Button;
+
+  // Left-rocker left = Back: exit GOTO, even before content loads.
+  if (mappedInput.wasReleased(Button::Back)) {
     activityManager.goHome();
     return;
   }
 
+  // Left-rocker right = Select (Button::Confirm) is intentionally UNHANDLED: a
+  // clean no-op reserved for the future contextual action (Read Full Story ->
+  // QR). Not consuming it here keeps it from triggering anything unrelated.
+
   if (!loaded || edition.stories.empty()) return;
 
-  // Circular paging within the loaded edition (never between editions). Both
-  // directions always move, so no control ever disappears at an "end".
+  // Story navigation via CrossPoint's native NavNext/NavPrevious, which resolve
+  // (MappedInputManager::mapButton) to BOTH the side page buttons (Up/Down) and
+  // the front right rocker (Left/Right), with orientation handling. No separate
+  // button grammar; no physical overlap between the two directions. Circular
+  // within the loaded edition (never between editions).
   const int count = static_cast<int>(edition.stories.size());
-  if (mappedInput.wasPressed(MappedInputManager::Button::PageForward)) {
-    pageIndex = (pageIndex + 1) % count;
+  if (mappedInput.wasPressed(Button::NavNext)) {
+    pageIndex = (pageIndex + 1) % count;  // next story (side Down / front Right)
     requestUpdate();
     return;
   }
-  if (mappedInput.wasPressed(MappedInputManager::Button::PageBack)) {
-    pageIndex = (pageIndex - 1 + count) % count;
+  if (mappedInput.wasPressed(Button::NavPrevious)) {
+    pageIndex = (pageIndex - 1 + count) % count;  // previous story (side Up / front Left)
     requestUpdate();
     return;
   }
@@ -120,10 +130,11 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   const int bodyLH = renderer.getLineHeight(kBodyFont);
   const int headlineLH = renderer.getLineHeight(kHeadlineFont);
 
-  // --- Bottom-anchored footer (fixed; independent of theme + body length). ---
-  const int navRowTop = screenHeight - kBottomSafe - metaLH;
-  const int pagerRowTop = navRowTop - kFooterRowGap - metaLH;
-  const int footerRuleY = pagerRowTop - kFooterRowGap;
+  // --- Bottom-anchored footer (fixed; independent of theme + body length).
+  // The pager row is the bottom-most element now (no persistent nav hints);
+  // that reclaims a row of vertical space for the lead paragraph. ---
+  const int pagerRowTop = screenHeight - kBottomSafe - metaLH;
+  const int footerRuleY = pagerRowTop - kRulePagerGap;
   const int sourceTop = footerRuleY - kSourceRuleGap - metaLH;
   const int bodyBottom = sourceTop - kBodySourceGap;  // the lead paragraph must end at/above this
 
@@ -145,19 +156,43 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   }
   y += kHeadlineBodyGap;
 
-  // --- Lead paragraph only (V1). Wrap to the fixed body area; wrappedText adds
-  // an ellipsis on the last line only if the paragraph overflows. Never shrinks
-  // fonts, never scrolls, never overlaps the source/footer. ---
+  // --- Lead paragraph (V1). Prefer the COMPLETE first paragraph: (A) try the
+  // normal body font; (B) if it doesn't fully fit, retry once at the one smaller
+  // built-in body size; (C) only if it still doesn't fit, truncate at the
+  // smaller size with an ellipsis. Ellipsis is a last resort; fonts never shrink
+  // beyond the single approved fallback; never scrolls, never overlaps footer. ---
   const int bodyTop = y;
   const int bodyAvail = bodyBottom - bodyTop;
-  if (bodyAvail >= bodyLH && !story.excerptParagraphs.empty()) {
-    const int maxLines = bodyAvail / bodyLH;
-    const std::vector<std::string> lines =
-        renderer.wrappedText(kBodyFont, story.excerptParagraphs[0].c_str(), width, maxLines);
+  const int fallbackLH = renderer.getLineHeight(kBodyFallbackFont);
+  if (bodyAvail >= fallbackLH && !story.excerptParagraphs.empty()) {
+    const char* lead = story.excerptParagraphs[0].c_str();
+
+    // True (unbounded) wraps at each size, to know whether the whole lead fits.
+    const std::vector<std::string> normalLines =
+        renderer.wrappedText(kBodyFont, lead, width, screenHeight / bodyLH + 2);
+
+    int bodyFont = kBodyFont;
+    int lineHeight = bodyLH;
+    std::vector<std::string> lines;
+    if (static_cast<int>(normalLines.size()) * bodyLH <= bodyAvail) {
+      lines = normalLines;  // STEP A: full paragraph at the normal size
+    } else {
+      const std::vector<std::string> fallbackLines =
+          renderer.wrappedText(kBodyFallbackFont, lead, width, screenHeight / fallbackLH + 2);
+      bodyFont = kBodyFallbackFont;
+      lineHeight = fallbackLH;
+      if (static_cast<int>(fallbackLines.size()) * fallbackLH <= bodyAvail) {
+        lines = fallbackLines;  // STEP B: full paragraph at the smaller size
+      } else {
+        // STEP C (last resort): bound to the fitting lines; wrappedText ellipsizes.
+        lines = renderer.wrappedText(kBodyFallbackFont, lead, width, bodyAvail / fallbackLH);
+      }
+    }
+
     int ly = bodyTop;
     for (const std::string& line : lines) {
-      renderer.drawText(kBodyFont, kMargin, ly, line.c_str(), true);
-      ly += bodyLH;
+      renderer.drawText(bodyFont, kMargin, ly, line.c_str(), true);
+      ly += lineHeight;
     }
   }
 
@@ -185,20 +220,8 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   const int fsLabelX = fsChevronLeft - kChevronTextGap - renderer.getTextWidth(kMetaFont, fullStory);
   renderer.drawText(kMetaFont, fsLabelX, pagerRowTop, fullStory, true);
   drawChevron(fsChevronLeft, pagerRowTop + metaLH / 2, true);
-
-  // --- Minimal unboxed nav hints: "‹ PREV" ... "NEXT ›" (both always shown,
-  // since paging is circular). No boxes, no wrapping, no theme dependency. ---
-  const int hintCy = navRowTop + metaLH / 2;
-  char prev[16];
-  toUpperAscii(tr(STR_GOTO_PREV), prev, sizeof(prev));
-  drawChevron(kMargin, hintCy, false);
-  renderer.drawText(kMetaFont, kMargin + kChevronReach + kChevronTextGap, navRowTop, prev, true);
-  char next[16];
-  toUpperAscii(tr(STR_GOTO_NEXT), next, sizeof(next));
-  const int nextChevronLeft = right - kChevronReach;
-  const int nextLabelX = nextChevronLeft - kChevronTextGap - renderer.getTextWidth(kMetaFont, next);
-  renderer.drawText(kMetaFont, nextLabelX, navRowTop, next, true);
-  drawChevron(nextChevronLeft, hintCy, true);
+  // No persistent PREV/NEXT hints: navigation uses the X4's native front rocker
+  // and side buttons (see loop()), which CrossPoint does not label on-screen.
 }
 
 void GotoActivity::render(RenderLock&&) {
