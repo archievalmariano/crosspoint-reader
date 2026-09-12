@@ -42,7 +42,10 @@ bool wifiUp() { return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddr
 // opens UI and never blocks longer than kReconnectTimeoutMs.
 bool ensureWifiConnected() {
   if (wifiUp()) return true;
-  if (WIFI_STORE.getCredentialCount() == 0) return false;  // nothing saved -> stay offline
+  if (WIFI_STORE.getCredentialCount() == 0) {
+    LOG_DBG("GOTO", "no saved Wi-Fi network; staying offline");
+    return false;
+  }
 
   std::optional<WifiCredential> cred;
   const std::string last = WIFI_STORE.getLastConnectedSsid();
@@ -50,9 +53,21 @@ bool ensureWifiConnected() {
   if (!cred) cred = WIFI_STORE.getCredentialAt(0);
   if (!cred) return false;
 
-  LOG_INF("GOTO", "Wi-Fi down; silent reconnect to saved network %s", cred->ssid.c_str());
+  LOG_INF("GOTO", "Wi-Fi down (status=%d); silent reconnect to saved network %s", (int)WiFi.status(),
+          cred->ssid.c_str());
+
+  // Mirror CrossPoint's own Settings connection path (WifiSelectionActivity::
+  // attemptConnection). After a boot or deep-sleep wake the radio can be in a
+  // half-initialized / stale SDK auto-connect state where WiFi.begin() alone
+  // does not associate; disconnect(true,true) tears that down (and clears the
+  // SDK's NVS-saved SSID) so begin() starts a clean association — the exact
+  // state transition the manual "connect to saved network" flow performs.
   WiFi.persistent(false);  // credentials owned by WifiCredentialStore, not SDK NVS
   WiFi.mode(WIFI_STA);
+  WiFi.disconnect(true, true);
+  delay(100);
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
   if (!cred->password.empty()) {
     WiFi.begin(cred->ssid.c_str(), cred->password.c_str());
   } else {
@@ -60,15 +75,22 @@ bool ensureWifiConnected() {
   }
 
   const uint32_t start = millis();
+  wl_status_t lastStatus = WL_IDLE_STATUS;
   while (millis() - start < kReconnectTimeoutMs) {
     if (wifiUp()) {
       WIFI_STORE.setLastConnectedSsid(cred->ssid);
-      LOG_INF("GOTO", "silent reconnect succeeded (%.1fs)", (millis() - start) / 1000.0);
+      LOG_INF("GOTO", "silent reconnect succeeded (%.1fs, ip=%s)", (millis() - start) / 1000.0,
+              WiFi.localIP().toString().c_str());
       return true;
+    }
+    const wl_status_t now = WiFi.status();
+    if (now != lastStatus) {
+      LOG_DBG("GOTO", "reconnect status %d -> %d @ %lums", (int)lastStatus, (int)now, millis() - start);
+      lastStatus = now;
     }
     delay(kReconnectPollMs);
   }
-  LOG_INF("GOTO", "silent reconnect timed out; staying offline");
+  LOG_INF("GOTO", "silent reconnect timed out (status=%d); staying offline", (int)WiFi.status());
   return false;
 }
 

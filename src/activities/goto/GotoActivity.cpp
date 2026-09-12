@@ -35,8 +35,8 @@ constexpr int kBottomSafe = 28;          // bottom safe zone (below the last hin
 constexpr int kMastheadRuleGap = 8;      // masthead text -> rule
 constexpr int kMastheadContentGap = 16;  // rule -> section kicker
 constexpr int kSectionGap = 12;          // section kicker -> headline
-constexpr int kHeadlineBodyGap = 14;     // headline -> lead paragraph
-constexpr int kBodySourceGap = 16;       // body bottom boundary -> source line
+constexpr int kHeadlineBodyGap = 12;     // headline -> lead paragraph (body reclaims 2px)
+constexpr int kBodySourceGap = 12;       // body bottom boundary -> source line (body reclaims 4px; source/footer fixed)
 constexpr int kSourceRuleGap = 8;        // source line -> footer rule
 constexpr int kRulePagerGap = 10;        // footer rule -> pager row
 constexpr int kHeadlineMaxLines = 4;     // headline wraps to at most this many lines
@@ -79,6 +79,12 @@ void GotoActivity::loop() {
   // QR). Not consuming it here keeps it from triggering anything unrelated.
 
   if (!loaded || edition.stories.empty()) return;
+
+  // One gesture -> one page. render() runs on a separate render task; while it
+  // holds the RenderLock (i.e. a page refresh is in progress) ignore navigation
+  // input, so presses made during a slow refresh cannot queue into a burst of
+  // page skips once it completes. Back is handled above and stays responsive.
+  if (RenderLock::peek()) return;
 
   // Story navigation via CrossPoint's native NavNext/NavPrevious, which resolve
   // (MappedInputManager::mapButton) to BOTH the side page buttons (Up/Down) and
@@ -203,6 +209,7 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   const int bodyTop = y;
   const int bodyAvail = bodyBottom - bodyTop;
   const int fallbackLH = renderer.getLineHeight(kBodyFallbackFont);
+  const char* bodyMode = "empty";  // instrumentation: which fit branch was taken
   if (bodyAvail >= fallbackLH && !story.excerptParagraphs.empty()) {
     const char* lead = story.excerptParagraphs[0].c_str();
 
@@ -215,6 +222,7 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
     std::vector<std::string> lines;
     if (static_cast<int>(normalLines.size()) * bodyLH <= bodyAvail) {
       lines = normalLines;  // STEP A: full paragraph at the normal size
+      bodyMode = "normal-14";
     } else {
       const std::vector<std::string> fallbackLines =
           renderer.wrappedText(kBodyFallbackFont, lead, width, screenHeight / fallbackLH + 2);
@@ -222,9 +230,11 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
       lineHeight = fallbackLH;
       if (static_cast<int>(fallbackLines.size()) * fallbackLH <= bodyAvail) {
         lines = fallbackLines;  // STEP B: full paragraph at the smaller size
+        bodyMode = "fallback-12";
       } else {
         // STEP C (last resort): bound to the fitting lines; wrappedText ellipsizes.
         lines = renderer.wrappedText(kBodyFallbackFont, lead, width, bodyAvail / fallbackLH);
+        bodyMode = "truncated-12";  // content contract (full first paragraph) is the limiter
       }
     }
 
@@ -233,6 +243,11 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
       renderer.drawText(bodyFont, kMargin, ly, line.c_str(), true);
       ly += lineHeight;
     }
+    // Instrumentation (compiled out at LOG_LEVEL=0): confirm on hardware that
+    // refresh mode is uniform (always FAST) and see the per-page fit decision.
+    LOG_DBG("GOTO", "page %d/%d refresh=FAST headline=%dpx x%d bodyAvail=%dpx body=%s lines14=%d", pageIndex + 1,
+            static_cast<int>(edition.stories.size()), chosenHeadlineLH, static_cast<int>(headlineLines.size()),
+            bodyAvail, bodyMode, static_cast<int>(normalLines.size()));
   }
 
   // --- Source attribution + publication time (understated). ---
