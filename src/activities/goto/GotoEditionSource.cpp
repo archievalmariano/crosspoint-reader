@@ -25,13 +25,14 @@ constexpr char kCacheDir[] = "/goto";
 constexpr char kCacheEditionsDir[] = "/goto/editions";
 constexpr char kCacheManifestPath[] = "/goto/current.json";
 
-// Bounded silent-reconnect budget. A known 2.4 GHz AP typically associates and
-// gets DHCP in ~2-4 s on the ESP32-C3; 6 s covers a slow DHCP lease while staying
-// well under a "did it hang?" feel. It is a one-time cost on GOTO entry, and only
-// when we are not already connected but a saved network exists. The poll uses
-// delay() (yields to the RTOS / feeds the watchdog), matching the existing
-// blocking network work already done in onEnter.
-constexpr uint32_t kReconnectTimeoutMs = 6000;
+// Bounded silent-reconnect budget. Matched to CrossPoint's own proven
+// auto-connect path (WifiSelectionActivity::AUTO_CONNECTION_TIMEOUT_MS = 7000),
+// not lengthened arbitrarily: after a cold boot/wake the all-channel scan +
+// associate can take slightly over the previous 6 s, which the Settings picker
+// tolerates and GOTO did not. One-time cost on GOTO entry, only when not already
+// connected and a saved network exists. delay() yields to the RTOS / feeds the
+// watchdog, matching the blocking network work onEnter already does.
+constexpr uint32_t kReconnectTimeoutMs = 7000;
 constexpr uint32_t kReconnectPollMs = 200;
 
 bool wifiUp() { return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0); }
@@ -56,14 +57,21 @@ bool ensureWifiConnected() {
   LOG_INF("GOTO", "Wi-Fi down (status=%d); silent reconnect to saved network %s", (int)WiFi.status(),
           cred->ssid.c_str());
 
-  // Mirror CrossPoint's own Settings connection path (WifiSelectionActivity::
-  // attemptConnection). After a boot or deep-sleep wake the radio can be in a
-  // half-initialized / stale SDK auto-connect state where WiFi.begin() alone
-  // does not associate; disconnect(true,true) tears that down (and clears the
-  // SDK's NVS-saved SSID) so begin() starts a clean association — the exact
-  // state transition the manual "connect to saved network" flow performs.
+  // Mirror the COMPLETE CrossPoint connection lifecycle, not just WiFi.begin().
+  // After a boot or deep-sleep wake the radio starts with modem power-save on
+  // and a stale/half-initialized SDK auto-connect state; begin() alone then does
+  // not reliably associate. CrossPoint's own reliable-STA paths (CrossPointWebServer,
+  // KOReaderAuth) disable modem sleep and enable driver auto-reconnect, and its
+  // Settings picker tears the stale state down before associating. Reproduce all
+  // of it: persistent(false) -> mode(STA) -> setSleep(false) [the missing state
+  // transition: modem power-save off, "critical for reliable operation" per the
+  // web server] -> setAutoReconnect(true) [driver retries transient disconnects]
+  // -> disconnect(true,true)+100ms [clear stale association + SDK NVS SSID] ->
+  // all-channel scan/sort -> begin(). Reuses WifiCredentialStore only.
   WiFi.persistent(false);  // credentials owned by WifiCredentialStore, not SDK NVS
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
   WiFi.disconnect(true, true);
   delay(100);
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
