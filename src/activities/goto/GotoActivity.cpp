@@ -12,6 +12,7 @@
 #include "GotoEditionSource.h"
 #include "MappedInputManager.h"
 #include "fontIds.h"
+#include "util/QrUtils.h"
 
 namespace {
 // --- Fonts (built-in only; fixed GOTO choices, never theme-derived). --------
@@ -55,6 +56,13 @@ void toUpperAscii(const char* in, char* out, size_t outSize) {
     out[i] = static_cast<char>(std::toupper(static_cast<unsigned char>(in[i])));
   out[i] = '\0';
 }
+
+// Minimal V1 sanity for the Full Story QR: a non-empty http(s) URL within the
+// QR encoder's byte capacity. Not a general URL/security validator.
+bool storyUrlIsValid(const std::string& url) {
+  if (url.empty() || url.size() > 2953) return false;
+  return url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0;
+}
 }  // namespace
 
 void GotoActivity::onEnter() {
@@ -72,23 +80,38 @@ void GotoActivity::onEnter() {
 void GotoActivity::loop() {
   using Button = MappedInputManager::Button;
 
-  // Left-rocker left = Back: exit GOTO, even before content loads.
+  // Left-rocker left = Back. Context-sensitive: in the QR detail state it
+  // returns to the SAME article page (no reload, no network, no page reset);
+  // otherwise it exits GOTO to Home. Handled first so Back stays responsive.
   if (mappedInput.wasReleased(Button::Back)) {
-    activityManager.goHome();
+    if (showingQr) {
+      showingQr = false;
+      cleanArticleRefresh = true;  // clear QR ghosting on the way back
+      requestUpdate();
+    } else {
+      activityManager.goHome();
+    }
     return;
   }
 
-  // Left-rocker right = Select (Button::Confirm) is intentionally UNHANDLED: a
-  // clean no-op reserved for the future contextual action (Read Full Story ->
-  // QR). Not consuming it here keeps it from triggering anything unrelated.
-
   if (!loaded || edition.stories.empty()) return;
 
-  // One gesture -> one page. render() runs on a separate render task; while it
-  // holds the RenderLock (i.e. a page refresh is in progress) ignore navigation
-  // input, so presses made during a slow refresh cannot queue into a burst of
-  // page skips once it completes. Back is handled above and stays responsive.
+  // One gesture -> one transition. render() runs on a separate render task;
+  // while it holds the RenderLock (a refresh is in progress) ignore input, so
+  // presses during a slow refresh (a QR full-refresh included) cannot queue a
+  // burst. Back is handled above and stays responsive.
   if (RenderLock::peek()) return;
+
+  // QR detail state: only Back acts (handled above); ignore nav/Select so a
+  // second Select does not re-toggle and paging is inert while the QR shows.
+  if (showingQr) return;
+
+  // Left-rocker right = Select = FULL STORY: open the QR handoff for this story.
+  if (mappedInput.wasReleased(Button::Confirm)) {
+    showingQr = true;
+    requestUpdate();
+    return;
+  }
 
   // Story navigation via CrossPoint's native NavNext/NavPrevious, which resolve
   // (MappedInputManager::mapButton) to BOTH the side page buttons (Up/Down) and
@@ -311,6 +334,49 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   }
 }
 
+// A subtle, unboxed Back cue (no touch-style chrome). STR_BACK already carries a
+// guillemet, so no drawn chevron is needed here.
+void GotoActivity::drawBackHint(int rowTop) { renderer.drawCenteredText(kMetaFont, rowTop, tr(STR_BACK)); }
+
+// FULL STORY: a local, offline QR of the story's canonical GMA URL. The QR is the
+// dominant element; no network, no browser, no backend. Theme-independent, GOTO-
+// styled (masthead already drawn by render()).
+void GotoActivity::drawQrScreen(const GotoStory& story) {
+  const int screenWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
+  const int metaLH = renderer.getLineHeight(kMetaFont);
+
+  int y = contentTopY();
+  char kicker[24];
+  toUpperAscii(tr(STR_GOTO_FULL_STORY), kicker, sizeof(kicker));
+  renderer.drawText(kMetaFont, kMargin, y, kicker, true, EpdFontFamily::BOLD);
+
+  // Fixed bottom-anchored rows: Back hint, and above it the scan caption.
+  const int backRowTop = screenHeight - kBottomSafe - metaLH;
+  const int captionTop = backRowTop - kRulePagerGap - metaLH;
+
+  if (!storyUrlIsValid(story.url)) {
+    renderer.drawCenteredText(kBodyFont, screenHeight / 2, tr(STR_GOTO_LINK_UNAVAILABLE));
+    drawBackHint(backRowTop);
+    return;
+  }
+
+  // QR centered in the space between the kicker and the caption. Integer module
+  // scaling comes from QrUtils; the surrounding white (the cleared page minus
+  // this inset box) is the quiet zone.
+  const int qrTop = y + metaLH + kSectionGap;
+  const int qrBottom = captionTop - kBodySourceGap;
+  const Rect qrBounds(kMargin, qrTop, screenWidth - 2 * kMargin, qrBottom - qrTop);
+  QrUtils::drawQrCode(renderer, qrBounds, story.url);
+
+  // "Scan to read on <source>" — edition-agnostic; source is display DATA.
+  char caption[64];
+  snprintf(caption, sizeof(caption), "%s %s", tr(STR_GOTO_SCAN_TO_READ), story.source.c_str());
+  renderer.drawCenteredText(kMetaFont, captionTop, caption);
+
+  drawBackHint(backRowTop);
+}
+
 void GotoActivity::render(RenderLock&&) {
   renderer.clearScreen();
   drawMasthead();
@@ -321,6 +387,18 @@ void GotoActivity::render(RenderLock&&) {
     return;
   }
 
+  if (showingQr) {
+    // Dense QR geometry scans best off a complete waveform; scan reliability
+    // outranks speed here, so a full refresh on QR entry is worth the flash.
+    drawQrScreen(edition.stories[pageIndex]);
+    renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+    return;
+  }
+
   drawStoryPage(edition.stories[pageIndex]);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  // Returning from the QR uses one HALF_REFRESH to scrub QR ghosting; ordinary
+  // page turns stay on the fast path.
+  const HalDisplay::RefreshMode mode = cleanArticleRefresh ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
+  cleanArticleRefresh = false;
+  renderer.displayBuffer(mode);
 }

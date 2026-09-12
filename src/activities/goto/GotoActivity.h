@@ -23,11 +23,17 @@ class GotoActivity final : public Activity {
   int pageIndex = 0;
   bool loaded = false;
   GotoEditionOrigin origin = GotoEditionOrigin::None;  // drives the CACHED/OFFLINE marker
+  // FULL STORY QR is a detail state OF the current article (not a child
+  // activity), so the edition/pageIndex/session are untouched while it shows.
+  bool showingQr = false;
+  bool cleanArticleRefresh = false;  // one HALF_REFRESH when returning from QR, to clear ghosting
 
   int contentTopY() const;
   void drawMasthead();
   void drawStoryPage(const GotoStory& story);
   void drawChevron(int leftX, int cy, bool pointRight);
+  void drawQrScreen(const GotoStory& story);  // FULL STORY QR (offline, from story.url)
+  void drawBackHint(int rowTop);
   // Pick the largest built-in serif size whose full headline fits within
   // budgetPx; ellipsize at the smallest size only as a last resort.
   void chooseHeadline(const std::string& headline, int width, int budgetPx, int& outFont,
