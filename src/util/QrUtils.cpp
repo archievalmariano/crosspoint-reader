@@ -1,35 +1,30 @@
 #include "QrUtils.h"
 
-#include <Utf8.h>
 #include <qrcode.h>
 
 #include <algorithm>
 #include <memory>
 
 #include "Logging.h"
+#include "QrVersionSelect.h"
 
 void QrUtils::drawQrCode(const GfxRenderer& renderer, const Rect& bounds, const std::string& textPayload) {
-  // Dynamically calculate the QR code version based on text length
-  // Version 4 holds ~114 bytes, Version 10 ~395, Version 20 ~1066, up to 40
-  // qrcode.h max version is 40.
-  // Formula: approx version = size / 26 + 1 (very rough estimate, better to find best fit)
-  size_t len = textPayload.length();
-
-  // Truncate to max QR capacity at a UTF-8 safe boundary to avoid splitting multi-byte sequences
-  static constexpr size_t MAX_QR_CAPACITY = 2953;  // Version 40, ECC_LOW, byte mode
-  std::string truncated;
+  const size_t len = textPayload.length();
   const char* payload = textPayload.c_str();
-  if (len > MAX_QR_CAPACITY) {
-    len = utf8SafeTruncateBuffer(textPayload.c_str(), static_cast<int>(MAX_QR_CAPACITY));
-    truncated = textPayload.substr(0, len);
-    payload = truncated.c_str();
-  }
 
-  int version = 4;
-  if (len > 114) version = 10;
-  if (len > 395) version = 20;
-  if (len > 1066) version = 30;
-  if (len > 2110) version = 40;
+  // Capacity-aware version selection (ECC_LOW, byte mode): pick the smallest
+  // version whose true data capacity holds the payload. This keeps modules as
+  // large as possible and, unlike the old coarse thresholds, never routes a
+  // payload into a version too small to hold it (the encoder does NOT check
+  // capacity: over-capacity data overruns the codeword buffer and overwrites the
+  // ECC region, producing a rendered-but-undecodable code). A payload that
+  // exceeds even version 40 fails gracefully here, before qrcode_initBytes.
+  const int version = selectQrVersionEccLow(len);
+  if (version == 0) {
+    LOG_ERR("QR", "Payload %u bytes exceeds max QR capacity (%u bytes, ECC_LOW)", static_cast<unsigned>(len),
+            static_cast<unsigned>(kQrMaxByteCapacityEccLow));
+    return;
+  }
 
   // Make sure we have a large enough buffer on the heap to avoid blowing the stack
   uint32_t bufferSize = qrcode_getBufferSize(version);
