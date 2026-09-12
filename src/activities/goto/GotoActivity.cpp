@@ -40,6 +40,10 @@ constexpr int kBodySourceGap = 12;       // body bottom boundary -> source line 
 constexpr int kSourceRuleGap = 8;        // source line -> footer rule
 constexpr int kRulePagerGap = 10;        // footer rule -> pager row
 constexpr int kHeadlineMaxLines = 4;     // headline wraps to at most this many lines
+// Defensive layout bound: an 800x480 page holds well under this many lead
+// characters even at the smallest body size, so measuring beyond it is wasted
+// work. Caps render cost for any pathological over-long lead.
+constexpr size_t kBodyMeasureCapChars = 1200;
 
 constexpr int kChevronReach = 5;    // horizontal length of a drawn "‹"/"›"
 constexpr int kChevronHalf = 4;     // half-height of a drawn chevron
@@ -211,7 +215,20 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   const int fallbackLH = renderer.getLineHeight(kBodyFallbackFont);
   const char* bodyMode = "empty";  // instrumentation: which fit branch was taken
   if (bodyAvail >= fallbackLH && !story.excerptParagraphs.empty()) {
-    const char* lead = story.excerptParagraphs[0].c_str();
+    // Defensive measure-bound: never lay out more than can possibly display.
+    // wrappedText scans the whole input, so a pathological multi-hundred-word
+    // lead (e.g. the old flattened live-update payload, now fixed upstream) made
+    // page-1 layout cost seconds. The corrected extractor keeps leads short;
+    // this cap guarantees the render path stays bounded regardless of input.
+    const std::string& src = story.excerptParagraphs[0];
+    std::string capped;
+    const char* lead = src.c_str();
+    if (src.size() > kBodyMeasureCapChars) {
+      const size_t space = src.rfind(' ', kBodyMeasureCapChars);
+      capped = src.substr(0, space == std::string::npos ? kBodyMeasureCapChars : space);
+      lead = capped.c_str();
+    }
+    const uint32_t wrapStartMs = millis();
 
     // True (unbounded) wraps at each size, to know whether the whole lead fits.
     const std::vector<std::string> normalLines =
@@ -244,10 +261,13 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
       ly += lineHeight;
     }
     // Instrumentation (compiled out at LOG_LEVEL=0): confirm on hardware that
-    // refresh mode is uniform (always FAST) and see the per-page fit decision.
-    LOG_DBG("GOTO", "page %d/%d refresh=FAST headline=%dpx x%d bodyAvail=%dpx body=%s lines14=%d", pageIndex + 1,
-            static_cast<int>(edition.stories.size()), chosenHeadlineLH, static_cast<int>(headlineLines.size()),
-            bodyAvail, bodyMode, static_cast<int>(normalLines.size()));
+    // refresh mode is uniform (always FAST) and see the per-page fit decision +
+    // the actual body layout cost (the suspected page-1 latency source).
+    LOG_DBG("GOTO",
+            "page %d/%d refresh=FAST headline=%dpx x%d bodyAvail=%dpx body=%s lines14=%d srcChars=%d wrap=%lums",
+            pageIndex + 1, static_cast<int>(edition.stories.size()), chosenHeadlineLH,
+            static_cast<int>(headlineLines.size()), bodyAvail, bodyMode, static_cast<int>(normalLines.size()),
+            static_cast<int>(story.excerptParagraphs[0].size()), millis() - wrapStartMs);
   }
 
   // --- Source attribution + publication time (understated). ---

@@ -4,7 +4,9 @@
 #include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
+#include <mbedtls/sha256.h>
 
+#include <cstdio>
 #include <optional>
 #include <string>
 
@@ -76,12 +78,26 @@ bool ensureWifiConnected() {
   delay(100);
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
   WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+
+  // Explicit scan before begin(). This is the one concrete step the working
+  // manual path performs that GOTO omitted: Settings->Wi-Fi opens the picker
+  // with auto-connect OFF, which runs WiFi.scanNetworks() to populate the list
+  // BEFORE the user's connect. After a cold boot/wake that scan appears to be
+  // what warms/initializes the radio for a reliable association; a bare begin()
+  // did not. Bounded, synchronous, hidden APs included. (Diagnostic-heavy: the
+  // device is locked/no serial, so these logs are the seam for a future capture.)
+  LOG_DBG("GOTO", "pre-connect: mode=%d status=%d; scanning...", (int)WiFi.getMode(), (int)WiFi.status());
+  const int16_t found = WiFi.scanNetworks(/*async=*/false, /*show_hidden=*/true);
+  LOG_DBG("GOTO", "pre-connect scan found %d networks", (int)found);
+
   if (!cred->password.empty()) {
     WiFi.begin(cred->ssid.c_str(), cred->password.c_str());
   } else {
     WiFi.begin(cred->ssid.c_str());
   }
 
+  // Connect budget measured from begin() (unchanged at kReconnectTimeoutMs); the
+  // scan above is separate warm-up time, not a lengthened connect timeout.
   const uint32_t start = millis();
   wl_status_t lastStatus = WL_IDLE_STATUS;
   while (millis() - start < kReconnectTimeoutMs) {
@@ -106,13 +122,44 @@ std::string cacheEditionPath(const std::string& editionId) {
   return std::string(kCacheEditionsDir) + "/" + editionId + ".json";
 }
 
-// Parse the tiny current.json manifest into the two fields the device needs.
-bool parseManifest(const char* json, std::string& editionId, std::string& editionPath) {
+// Lowercase hex SHA-256 of a byte string (mbedtls; hashing a ~7 KB edition takes
+// a few ms on the C3). Verifies a downloaded edition matches the manifest digest
+// and compares cached vs server content identity.
+std::string computeSha256Hex(const std::string& data) {
+  uint8_t digest[32];
+  mbedtls_sha256_context ctx;
+  mbedtls_sha256_init(&ctx);
+  mbedtls_sha256_starts(&ctx, /*is224=*/0);
+  mbedtls_sha256_update(&ctx, reinterpret_cast<const uint8_t*>(data.data()), data.size());
+  mbedtls_sha256_finish(&ctx, digest);
+  mbedtls_sha256_free(&ctx);
+  char hex[65];
+  for (int i = 0; i < 32; ++i) snprintf(hex + i * 2, 3, "%02x", digest[i]);
+  return std::string(hex, 64);
+}
+
+// Parse the current.json manifest. editionSha256 is absent in pre-E1B2.5
+// manifests -> returned as "" (which forces a re-fetch, safely).
+bool parseManifest(const char* json, std::string& editionId, std::string& editionPath, std::string& editionSha) {
   JsonDocument doc;
   if (deserializeJson(doc, json)) return false;
   editionId = doc["editionId"] | "";
   editionPath = doc["editionPath"] | "";
+  editionSha = doc["editionSha256"] | "";
   return !editionId.empty() && !editionPath.empty();
+}
+
+// Content hash recorded in the SD cache manifest for `editionId` (empty if no
+// manifest, a different editionId, or a pre-hash manifest).
+std::string cachedEditionSha256(const std::string& editionId) {
+  if (!Storage.exists(kCacheManifestPath)) return "";
+  const String manifest = Storage.readFile(kCacheManifestPath);
+  if (manifest.length() == 0) return "";
+  std::string id;
+  std::string path;
+  std::string sha;
+  if (!parseManifest(manifest.c_str(), id, path, sha)) return "";
+  return (id == editionId) ? sha : std::string();
 }
 
 // Load the edition currently recorded in the SD cache manifest. Returns true and
@@ -121,7 +168,8 @@ bool loadFromCache(GotoEdition& out, std::string& editionId) {
   if (!Storage.exists(kCacheManifestPath)) return false;
   const String manifest = Storage.readFile(kCacheManifestPath);
   std::string cachedPath;
-  if (manifest.length() == 0 || !parseManifest(manifest.c_str(), editionId, cachedPath)) return false;
+  std::string cachedSha;
+  if (manifest.length() == 0 || !parseManifest(manifest.c_str(), editionId, cachedPath, cachedSha)) return false;
   const String edition = Storage.readFile(cacheEditionPath(editionId).c_str());
   return edition.length() > 0 && parseGotoEdition(edition.c_str(), out);
 }
@@ -138,45 +186,60 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
     if (HttpDownloader::fetchUrl(std::string(kServerBase) + "/current.json", manifestJson)) {
       std::string editionId;
       std::string editionPath;
-      if (parseManifest(manifestJson.c_str(), editionId, editionPath)) {
+      std::string editionSha;
+      if (parseManifest(manifestJson.c_str(), editionId, editionPath, editionSha)) {
         const std::string localPath = cacheEditionPath(editionId);
+        const std::string cachedSha = cachedEditionSha256(editionId);
 
-        // Download only a newer edition; an already-cached editionId is reused.
-        if (!Storage.exists(localPath.c_str())) {
-          std::string editionJson;
-          if (HttpDownloader::fetchUrl(std::string(kServerBase) + "/" + editionPath, editionJson)) {
-            GotoEdition fresh;
-            if (parseGotoEdition(editionJson.c_str(), fresh)) {
-              // Cache the edition first, then the manifest, so the manifest never
-              // points at an edition file that is not on disk.
-              Storage.ensureDirectoryExists(kCacheDir);
-              Storage.ensureDirectoryExists(kCacheEditionsDir);
-              if (Storage.writeFile(localPath.c_str(), String(editionJson.c_str()))) {
-                Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
-              }
-              out = std::move(fresh);
-              result.origin = GotoEditionOrigin::Network;
-              result.editionId = editionId;
-              LOG_INF("GOTO", "loaded edition %s from network", editionId.c_str());
-              return result;
-            }
-            LOG_ERR("GOTO", "downloaded edition failed to parse; falling back");
-          } else {
-            LOG_ERR("GOTO", "edition download failed; falling back");
-          }
-        } else {
-          // Server's current edition is already cached: refresh the manifest
-          // pointer and serve it from cache (no re-download).
-          Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
+        // Cache identity is (editionId + content hash), not editionId alone: a
+        // same-id --force correction changes editionSha256. Reuse the cache only
+        // when the file exists AND its recorded hash matches the server's (a
+        // pre-hash/empty cachedSha never matches -> re-fetch).
+        const bool cacheIsCurrent = Storage.exists(localPath.c_str()) && !editionSha.empty() && cachedSha == editionSha;
+
+        if (cacheIsCurrent) {
+          Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));  // refresh pointer
           const String cached = Storage.readFile(localPath.c_str());
           if (cached.length() > 0 && parseGotoEdition(cached.c_str(), out)) {
-            // Live-verified: manifest fetched this session confirms this is the
-            // current edition. Served from cache bytes, but not stale -> no marker.
-            result.origin = GotoEditionOrigin::CacheCurrent;
+            result.origin = GotoEditionOrigin::CacheCurrent;  // verified current -> no marker
             result.editionId = editionId;
-            LOG_INF("GOTO", "edition %s confirmed current; serving cache (live)", editionId.c_str());
+            LOG_INF("GOTO", "edition %s hash matches cache; serving cache (live)", editionId.c_str());
             return result;
           }
+          // Cache unreadable despite a hash match: fall through and re-download.
+        }
+
+        // Download the new or revised edition. Verify its bytes against the
+        // manifest hash BEFORE promoting to cache; a mismatch or parse failure
+        // must never replace a good cached edition.
+        std::string editionJson;
+        if (HttpDownloader::fetchUrl(std::string(kServerBase) + "/" + editionPath, editionJson)) {
+          bool hashOk = true;
+          if (!editionSha.empty()) {
+            const std::string dlSha = computeSha256Hex(editionJson);
+            hashOk = (dlSha == editionSha);
+            if (!hashOk)
+              LOG_ERR("GOTO", "edition hash mismatch (got %s want %s); rejecting download", dlSha.c_str(),
+                      editionSha.c_str());
+          }
+          GotoEdition fresh;
+          if (hashOk && parseGotoEdition(editionJson.c_str(), fresh)) {
+            // Edition file written before the manifest, so the manifest never
+            // points at an edition not on disk.
+            Storage.ensureDirectoryExists(kCacheDir);
+            Storage.ensureDirectoryExists(kCacheEditionsDir);
+            if (Storage.writeFile(localPath.c_str(), String(editionJson.c_str()))) {
+              Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
+            }
+            out = std::move(fresh);
+            result.origin = GotoEditionOrigin::Network;
+            result.editionId = editionId;
+            LOG_INF("GOTO", "downloaded edition %s (hash verified); cached", editionId.c_str());
+            return result;
+          }
+          LOG_ERR("GOTO", "downloaded edition invalid; keeping prior cache");
+        } else {
+          LOG_ERR("GOTO", "edition download failed; keeping prior cache");
         }
       } else {
         LOG_ERR("GOTO", "current.json manifest parse failed");
