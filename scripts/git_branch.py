@@ -76,6 +76,22 @@ def get_base_version(project_dir):
     return config.get('crosspoint', 'version')
 
 
+def get_goto_label(project_dir):
+    """Committed public Goto label ([crosspoint] goto_label), or '' if absent.
+
+    This makes the dev build's user-facing identity deterministic without an env
+    var, so Settings never falls back to a git branch/hash string.
+    """
+    ini_path = os.path.join(project_dir, 'platformio.ini')
+    if not os.path.isfile(ini_path):
+        return ''
+    config = configparser.ConfigParser()
+    config.read(ini_path, encoding='utf-8')
+    if not config.has_option('crosspoint', 'goto_label'):
+        return ''
+    return _sanitize(config.get('crosspoint', 'goto_label').strip())
+
+
 def _sanitize(value):
     # Strip characters that would break a C string literal.
     return ''.join(c for c in value if c not in '"\\')
@@ -90,26 +106,35 @@ def inject_version(env):
     project_dir = env['PROJECT_DIR']
     base_version = get_base_version(project_dir)
 
-    # An explicit, concise dev identifier can be supplied via GOTO_DEV_LABEL
-    # (e.g. "GOTO E1B2.1") so the Settings header shows a short string that does
-    # not overlap the title. The real base version is always preserved.
-    label = _sanitize(os.environ.get('GOTO_DEV_LABEL', '').strip())
+    # Always compute the git branch/sha for the build-log diagnostic below, so an
+    # outside developer can still tie a build to its source — it just never goes
+    # into the user-facing version string.
+    branch = get_git_branch(project_dir)
+    short_sha = get_git_short_sha(project_dir)
+
+    # The user-facing on-device identity. Priority:
+    #   1. GOTO_DEV_LABEL env override (other developers' short labels), then
+    #   2. the committed [crosspoint] goto_label (Project Goto's public identity,
+    #      deterministic with no env var — this is what a release build shows), then
+    #   3. only if neither exists, the git branch/sha dev fallback.
+    # (1) and (2) render as `v{base} · {label}` so both axes are visible, e.g.
+    # `v1.6.0 · GOTO v1.0.0`. The git fallback is never the release identity.
+    label = _sanitize(os.environ.get('GOTO_DEV_LABEL', '').strip()) or get_goto_label(project_dir)
     if label:
         version_string = f'v{base_version} · {label}'
     else:
-        # Otherwise derive from git, but drop the branch-type prefix and cap the
-        # branch length so long dev branch names cannot overrun the header slot.
-        branch = get_git_branch(project_dir)
+        # Drop the branch-type prefix and cap the branch length so long dev branch
+        # names cannot overrun the header slot.
         for prefix in ('feature/', 'fix/', 'refactor/', 'docs/', 'chore/'):
             if branch.startswith(prefix):
                 branch = branch[len(prefix):]
                 break
-        branch = branch[:16]
-        short_sha = get_git_short_sha(project_dir)
-        version_string = f'{base_version}-dev-{branch}-{short_sha}'
+        version_string = f'{base_version}-dev-{branch[:16]}-{short_sha}'
 
     env.Append(CPPDEFINES=[('CROSSPOINT_VERSION', f'\\"{version_string}\\"')])
     print(f'CrossPoint build version: {version_string}')
+    # Developer diagnostic (build log only, NOT on-device Settings): source ref.
+    print(f'CrossPoint build source ref: {branch}@{short_sha}')
 
 
 # PlatformIO/SCons entry point — Import and env are SCons builtins injected at runtime.
