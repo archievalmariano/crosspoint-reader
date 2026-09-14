@@ -22,9 +22,10 @@ struct GotoStory {
 // A finite edition (GOTO = morning). label/dateline are display-ready DATA
 // prepared upstream; the device only renders them, it does not format dates.
 struct GotoEdition {
-  std::string label;     // e.g. "GOTO"
-  std::string dateIso;   // machine date, e.g. "2026-09-11"
-  std::string dateline;  // human dateline, e.g. "Friday · 11 September"
+  std::string label;         // e.g. "GOTO"
+  std::string dateIso;       // machine date, e.g. "2026-09-11"
+  std::string dateline;      // human dateline, e.g. "Friday · 11 September"
+  std::string companionUrl;  // hosted whole-edition companion page (from current.json; QR target)
   std::vector<GotoStory> stories;
 };
 

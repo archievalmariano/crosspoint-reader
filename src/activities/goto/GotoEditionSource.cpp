@@ -13,12 +13,14 @@
 #include "WifiCredentialStore.h"
 #include "network/HttpDownloader.h"
 
-// Base URL of the local publication server (see backend/goto/server.py). It is a
-// build-time constant because the device has no UI to enter it; set the dev
-// host's LAN address in platformio.local.ini, e.g.:
-//   build_flags = -DGOTO_SERVER_BASE=\"http://192.168.1.50:8080\"
+// Base URL of the GOTO publication runtime. Production is the hosted Cloudflare
+// Pages endpoint; the device resolves the active edition through
+// <base>/current.json -> <base>/e/<opaque-token>/edition.json (never a
+// date-derived or archive URL). It is a build-time constant because the device
+// has no UI to enter it; a dev host may override it in platformio.local.ini,
+// e.g. build_flags = -DGOTO_SERVER_BASE=\"http://192.168.1.50:8080\".
 #ifndef GOTO_SERVER_BASE
-#define GOTO_SERVER_BASE "http://goto.local:8080"
+#define GOTO_SERVER_BASE "https://goto.archievalmariano.com"
 #endif
 
 namespace {
@@ -140,12 +142,16 @@ std::string computeSha256Hex(const std::string& data) {
 
 // Parse the current.json manifest. editionSha256 is absent in pre-E1B2.5
 // manifests -> returned as "" (which forces a re-fetch, safely).
-bool parseManifest(const char* json, std::string& editionId, std::string& editionPath, std::string& editionSha) {
+bool parseManifest(const char* json, std::string& editionId, std::string& editionPath, std::string& editionSha,
+                   std::string& companionUrl) {
   JsonDocument doc;
   if (deserializeJson(doc, json)) return false;
   editionId = doc["editionId"] | "";
   editionPath = doc["editionPath"] | "";
   editionSha = doc["editionSha256"] | "";
+  // Opaque hosted companion-page URL for the whole-edition QR (may be absent on a
+  // pre-companion manifest); the device never derives it from the date/editionId.
+  companionUrl = doc["companion"]["url"] | "";
   return !editionId.empty() && !editionPath.empty();
 }
 
@@ -158,7 +164,8 @@ std::string cachedEditionSha256(const std::string& editionId) {
   std::string id;
   std::string path;
   std::string sha;
-  if (!parseManifest(manifest.c_str(), id, path, sha)) return "";
+  std::string companionUrl;
+  if (!parseManifest(manifest.c_str(), id, path, sha, companionUrl)) return "";
   return (id == editionId) ? sha : std::string();
 }
 
@@ -169,9 +176,13 @@ bool loadFromCache(GotoEdition& out, std::string& editionId) {
   const String manifest = Storage.readFile(kCacheManifestPath);
   std::string cachedPath;
   std::string cachedSha;
-  if (manifest.length() == 0 || !parseManifest(manifest.c_str(), editionId, cachedPath, cachedSha)) return false;
+  std::string companionUrl;
+  if (manifest.length() == 0 || !parseManifest(manifest.c_str(), editionId, cachedPath, cachedSha, companionUrl))
+    return false;
   const String edition = Storage.readFile(cacheEditionPath(editionId).c_str());
-  return edition.length() > 0 && parseGotoEdition(edition.c_str(), out);
+  if (edition.length() == 0 || !parseGotoEdition(edition.c_str(), out)) return false;
+  out.companionUrl = companionUrl;  // whole-edition QR works offline from cached metadata
+  return true;
 }
 }  // namespace
 
@@ -187,7 +198,8 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
       std::string editionId;
       std::string editionPath;
       std::string editionSha;
-      if (parseManifest(manifestJson.c_str(), editionId, editionPath, editionSha)) {
+      std::string companionUrl;
+      if (parseManifest(manifestJson.c_str(), editionId, editionPath, editionSha, companionUrl)) {
         const std::string localPath = cacheEditionPath(editionId);
         const std::string cachedSha = cachedEditionSha256(editionId);
 
@@ -201,6 +213,7 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
           Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));  // refresh pointer
           const String cached = Storage.readFile(localPath.c_str());
           if (cached.length() > 0 && parseGotoEdition(cached.c_str(), out)) {
+            out.companionUrl = companionUrl;
             result.origin = GotoEditionOrigin::CacheCurrent;  // verified current -> no marker
             result.editionId = editionId;
             LOG_INF("GOTO", "edition %s hash matches cache; serving cache (live)", editionId.c_str());
@@ -232,6 +245,7 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
               Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
             }
             out = std::move(fresh);
+            out.companionUrl = companionUrl;
             result.origin = GotoEditionOrigin::Network;
             result.editionId = editionId;
             LOG_INF("GOTO", "downloaded edition %s (hash verified); cached", editionId.c_str());

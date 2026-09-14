@@ -57,6 +57,7 @@ add_subdirectory(ligature_guard)
 add_subdirectory(page_link)
 add_subdirectory(chapter_position)
 add_subdirectory(qr_version_select)
+add_subdirectory(goto_nav)
 
 add_subdirectory(inflate_stream)
 add_subdirectory(fs_helpers)

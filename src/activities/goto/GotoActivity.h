@@ -5,6 +5,7 @@
 
 #include "GotoEdition.h"
 #include "GotoEditionSource.h"
+#include "GotoNav.h"
 #include "activities/Activity.h"
 
 // GOTO morning edition reader: a finite, glanceable newspaper. One story per
@@ -33,7 +34,13 @@ class GotoActivity final : public Activity {
   void drawStoryPage(const GotoStory& story);
   void drawChevron(int leftX, int cy, bool pointRight);
   void drawQrScreen(const GotoStory& story);  // FULL STORY QR (offline, from story.url)
+  void drawEditionQrScreen();  // terminal "YOUR GOTO/TOGO IS READY" whole-edition QR (from edition.companionUrl)
   void drawBackHint(int rowTop);
+  // The terminal edition page sits at index == story count: one past the last
+  // story, OUTSIDE story pagination (never shown in the n/N pager).
+  bool onTerminalPage() const {
+    return loaded && goto_nav::isTerminal(pageIndex, static_cast<int>(edition.stories.size()));
+  }
   // Pick the largest built-in serif size whose full headline fits within
   // budgetPx; ellipsize at the smallest size only as a last resort.
   void chooseHeadline(const std::string& headline, int width, int budgetPx, int& outFont,

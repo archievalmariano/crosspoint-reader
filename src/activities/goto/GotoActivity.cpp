@@ -106,26 +106,32 @@ void GotoActivity::loop() {
   // second Select does not re-toggle and paging is inert while the QR shows.
   if (showingQr) return;
 
-  // Left-rocker right = Select = FULL STORY: open the QR handoff for this story.
-  if (mappedInput.wasReleased(Button::Confirm)) {
+  // Left-rocker right = Select = FULL STORY: open the per-story QR handoff. Only
+  // on a story page; the terminal edition page is itself a QR, so Select is inert
+  // there (its per-story interaction is unchanged).
+  if (!onTerminalPage() && mappedInput.wasReleased(Button::Confirm)) {
     showingQr = true;
     requestUpdate();
     return;
   }
 
-  // Story navigation via CrossPoint's native NavNext/NavPrevious, which resolve
+  // Navigation via CrossPoint's native NavNext/NavPrevious, which resolve
   // (MappedInputManager::mapButton) to BOTH the side page buttons (Up/Down) and
-  // the front right rocker (Left/Right), with orientation handling. No separate
-  // button grammar; no physical overlap between the two directions. Circular
-  // within the loaded edition (never between editions).
-  const int count = static_cast<int>(edition.stories.size());
+  // the front right rocker (Left/Right), with orientation handling. Circular
+  // within the loaded edition (never between editions). The ring is the stories
+  // PLUS one terminal edition page after the last story: last story -> Next ->
+  // terminal; terminal -> Previous -> last story; terminal -> Next -> story 1.
+  const int storyCount = static_cast<int>(edition.stories.size());
+  const bool leavingTerminal = onTerminalPage();
   if (mappedInput.wasPressed(Button::NavNext)) {
-    pageIndex = (pageIndex + 1) % count;  // next story (side Down / front Right)
+    pageIndex = goto_nav::nextIndex(pageIndex, storyCount);
+    if (leavingTerminal) cleanArticleRefresh = true;  // scrub QR ghosting on the story we land on
     requestUpdate();
     return;
   }
   if (mappedInput.wasPressed(Button::NavPrevious)) {
-    pageIndex = (pageIndex - 1 + count) % count;  // previous story (side Up / front Left)
+    pageIndex = goto_nav::prevIndex(pageIndex, storyCount);
+    if (leavingTerminal) cleanArticleRefresh = true;
     requestUpdate();
     return;
   }
@@ -377,6 +383,39 @@ void GotoActivity::drawQrScreen(const GotoStory& story) {
   drawBackHint(backRowTop);
 }
 
+// Terminal edition page (outside story pagination): "YOUR GOTO/TOGO IS READY" +
+// a whole-edition QR of the hosted companion page (edition.companionUrl) + "SCAN
+// FOR THIS EDITION". Offline: companionUrl comes from the cached manifest. Mirrors
+// drawQrScreen's geometry; masthead already drawn by render(). No pager here.
+void GotoActivity::drawEditionQrScreen() {
+  const int screenWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
+  const int metaLH = renderer.getLineHeight(kMetaFont);
+
+  int y = contentTopY();
+  char kicker[32];
+  snprintf(kicker, sizeof(kicker), tr(STR_GOTO_EDITION_READY), edition.label.c_str());
+  renderer.drawText(kMetaFont, kMargin, y, kicker, true, EpdFontFamily::BOLD);
+
+  const int backRowTop = screenHeight - kBottomSafe - metaLH;
+  const int captionTop = backRowTop - kRulePagerGap - metaLH;
+
+  if (!storyUrlIsValid(edition.companionUrl)) {
+    renderer.drawCenteredText(kBodyFont, screenHeight / 2, tr(STR_GOTO_LINK_UNAVAILABLE));
+    drawBackHint(backRowTop);
+    return;
+  }
+
+  const int qrTop = y + metaLH + kSectionGap;
+  const int qrBottom = captionTop - kBodySourceGap;
+  const Rect qrBounds(kMargin, qrTop, screenWidth - 2 * kMargin, qrBottom - qrTop);
+  QrUtils::drawQrCode(renderer, qrBounds, edition.companionUrl);
+
+  renderer.drawCenteredText(kMetaFont, captionTop, tr(STR_GOTO_SCAN_EDITION));
+
+  drawBackHint(backRowTop);
+}
+
 void GotoActivity::render(RenderLock&&) {
   renderer.clearScreen();
   drawMasthead();
@@ -384,6 +423,14 @@ void GotoActivity::render(RenderLock&&) {
   if (!loaded || edition.stories.empty()) {
     renderer.drawCenteredText(kBodyFont, renderer.getScreenHeight() / 2, tr(STR_PAGE_LOAD_ERROR));
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    return;
+  }
+
+  if (onTerminalPage()) {
+    // The whole-edition QR page after the last story (outside story pagination).
+    // Dense QR geometry scans best off a complete waveform, like the FULL STORY QR.
+    drawEditionQrScreen();
+    renderer.displayBuffer(HalDisplay::FULL_REFRESH);
     return;
   }
 
