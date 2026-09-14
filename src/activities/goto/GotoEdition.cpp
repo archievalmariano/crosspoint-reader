@@ -3,7 +3,10 @@
 #include <ArduinoJson.h>
 #include <Logging.h>
 
+#include <cstring>
 #include <utility>
+
+#include "GotoLimits.h"
 
 // Compiled-in fixture edition (flash-resident). E0.6 source of truth: no SD
 // read, no network. Five morning slots (TOP STORY / WEATHER / WORLD / MONEY /
@@ -79,30 +82,61 @@ bool parseGotoEdition(const char* json, GotoEdition& out) {
     return false;
   }
 
-  out.label = doc["edition"] | "GOTO";
-  out.dateIso = doc["date"] | "";
-  // dateline is optional; fall back to the raw ISO date when absent.
-  out.dateline = doc["dateline"] | out.dateIso.c_str();
+  // Bound untrusted string fields; reject (never truncate) a malformed edition so
+  // an identifier/label can't be silently changed in meaning. See GotoLimits.h.
+  auto bounded = [](const char* s, size_t cap) -> const char* { return (s && strlen(s) <= cap) ? s : nullptr; };
+  const char* label = bounded(doc["edition"] | "GOTO", goto_limits::kMaxLabelLen);
+  const char* dateIso = doc["date"] | "";
+  const char* dateline = bounded(doc["dateline"] | dateIso, goto_limits::kMaxDatelineLen);
+  if (!label || strlen(dateIso) > goto_limits::kMaxDatelineLen || !dateline) {
+    LOG_ERR("GOTO", "edition metadata field over cap; rejecting");
+    return false;
+  }
+  out.label = label;
+  out.dateIso = dateIso;
+  out.dateline = dateline;
 
   // Published editions use "stories" (E1A+); the compiled-in fixture uses
   // "pages". Accept either; the per-story fields are identical (published adds
   // slot/publishedAtIso, which the device ignores).
   JsonArrayConst pages = doc["stories"].as<JsonArrayConst>();
   if (pages.isNull()) pages = doc["pages"].as<JsonArrayConst>();
+  if (pages.size() > goto_limits::kMaxStories) {
+    LOG_ERR("GOTO", "edition story count %u over cap %u; rejecting", static_cast<unsigned>(pages.size()),
+            static_cast<unsigned>(goto_limits::kMaxStories));
+    return false;
+  }
   out.stories.clear();
   out.stories.reserve(pages.size());
   for (const JsonObjectConst page : pages) {
     GotoStory story;
-    story.section = page["section"] | "";
-    story.headline = page["headline"] | "";
-    story.source = page["source"] | "";
-    story.publishedAt = page["publishedAt"] | "";
-    story.url = page["url"] | "";
+    const char* section = bounded(page["section"] | "", goto_limits::kMaxSectionLen);
+    const char* headline = bounded(page["headline"] | "", goto_limits::kMaxHeadlineLen);
+    const char* source = bounded(page["source"] | "", goto_limits::kMaxSourceLen);
+    const char* publishedAt = bounded(page["publishedAt"] | "", goto_limits::kMaxTimeLen);
+    const char* url = bounded(page["url"] | "", goto_limits::kMaxUrlLen);
+    if (!section || !headline || !source || !publishedAt || !url) {
+      LOG_ERR("GOTO", "story field over cap; rejecting edition");
+      return false;
+    }
+    story.section = section;
+    story.headline = headline;
+    story.source = source;
+    story.publishedAt = publishedAt;
+    story.url = url;
 
-    const JsonArrayConst paragraphs = page["excerptParagraphs"].as<JsonArrayConst>();
-    story.excerptParagraphs.reserve(paragraphs.size());
+    JsonArrayConst paragraphs = page["excerptParagraphs"].as<JsonArrayConst>();
+    const size_t pcount =
+        paragraphs.size() < goto_limits::kMaxParagraphs ? paragraphs.size() : goto_limits::kMaxParagraphs;
+    story.excerptParagraphs.reserve(pcount);
+    size_t seen = 0;
     for (const JsonVariantConst paragraph : paragraphs) {
-      const char* text = paragraph | "";
+      if (seen++ >= goto_limits::kMaxParagraphs) break;  // ignore extra paragraphs (device renders only the first)
+      const char* text = bounded(paragraph | "", goto_limits::kMaxParagraphLen);
+      if (!text) {
+        LOG_ERR("GOTO", "paragraph over cap; rejecting edition");
+        return false;
+      }
       if (text[0] != '\0') story.excerptParagraphs.emplace_back(text);
     }
 

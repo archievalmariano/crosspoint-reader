@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 
+#include "GotoLimits.h"
 #include "WifiCredentialStore.h"
 #include "network/HttpDownloader.h"
 
@@ -142,6 +143,29 @@ std::string computeSha256Hex(const std::string& data) {
 
 // Parse the current.json manifest. editionSha256 is absent in pre-E1B2.5
 // manifests -> returned as "" (which forces a re-fetch, safely).
+// Fetch `url` into `out`, aborting (and rejecting) once ACTUAL received bytes
+// exceed `maxBytes` — independent of any declared Content-Length or chunking, so
+// a lying/oversized/streaming response cannot exhaust the heap. On overflow or
+// transport failure, `out` is cleared and false is returned.
+bool fetchBounded(const std::string& url, std::string& out, size_t maxBytes) {
+  out.clear();
+  bool overflow = false;
+  const bool ok = HttpDownloader::fetchUrl(url, [&](const uint8_t* data, size_t len) -> bool {
+    if (out.size() + len > maxBytes) {
+      overflow = true;
+      return false;  // abort the transfer
+    }
+    out.append(reinterpret_cast<const char*>(data), len);
+    return true;
+  });
+  if (overflow) {
+    LOG_ERR("GOTO", "response for %s exceeded %u-byte cap; rejecting", url.c_str(), static_cast<unsigned>(maxBytes));
+    out.clear();
+    return false;
+  }
+  return ok;
+}
+
 bool parseManifest(const char* json, std::string& editionId, std::string& editionPath, std::string& editionSha,
                    std::string& companionUrl) {
   JsonDocument doc;
@@ -152,7 +176,15 @@ bool parseManifest(const char* json, std::string& editionId, std::string& editio
   // Opaque hosted companion-page URL for the whole-edition QR (may be absent on a
   // pre-companion manifest); the device never derives it from the date/editionId.
   companionUrl = doc["companion"]["url"] | "";
-  return !editionId.empty() && !editionPath.empty();
+  // Reject a manifest whose untrusted fields are unsafe or oversized. editionId is
+  // used to build an SD path, so it must pass the safe-filename grammar.
+  if (!goto_limits::isSafeEditionId(editionId)) return false;
+  if (editionPath.empty() || editionPath.size() > goto_limits::kMaxEditionPathLen) return false;
+  if (editionSha.size() > goto_limits::kMaxShaLen) return false;
+  if (companionUrl.size() > goto_limits::kMaxUrlLen) {
+    companionUrl.clear();  // drop an oversized companion URL; the edition still loads
+  }
+  return true;
 }
 
 // Content hash recorded in the SD cache manifest for `editionId` (empty if no
@@ -194,7 +226,7 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
   //    reader open path never provisions Wi-Fi; that stays in CrossPoint's flow.
   if (ensureWifiConnected()) {
     std::string manifestJson;
-    if (HttpDownloader::fetchUrl(std::string(kServerBase) + "/current.json", manifestJson)) {
+    if (fetchBounded(std::string(kServerBase) + "/current.json", manifestJson, goto_limits::kMaxManifestBytes)) {
       std::string editionId;
       std::string editionPath;
       std::string editionSha;
@@ -226,7 +258,7 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
         // manifest hash BEFORE promoting to cache; a mismatch or parse failure
         // must never replace a good cached edition.
         std::string editionJson;
-        if (HttpDownloader::fetchUrl(std::string(kServerBase) + "/" + editionPath, editionJson)) {
+        if (fetchBounded(std::string(kServerBase) + "/" + editionPath, editionJson, goto_limits::kMaxEditionBytes)) {
           bool hashOk = true;
           if (!editionSha.empty()) {
             const std::string dlSha = computeSha256Hex(editionJson);
@@ -241,14 +273,19 @@ GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
             // points at an edition not on disk.
             Storage.ensureDirectoryExists(kCacheDir);
             Storage.ensureDirectoryExists(kCacheEditionsDir);
-            if (Storage.writeFile(localPath.c_str(), String(editionJson.c_str()))) {
-              Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
-            }
+            // Edition file first, manifest pointer only if it succeeded — so the
+            // cache is only advanced when BOTH writes land (never a manifest
+            // pointing past a missing/partial edition). The freshly fetched
+            // edition still renders this session regardless (origin = Network).
+            const bool cached = Storage.writeFile(localPath.c_str(), String(editionJson.c_str())) &&
+                                Storage.writeFile(kCacheManifestPath, String(manifestJson.c_str()));
+            if (!cached) LOG_ERR("GOTO", "edition cache write incomplete; offline copy not updated");
             out = std::move(fresh);
             out.companionUrl = companionUrl;
             result.origin = GotoEditionOrigin::Network;
             result.editionId = editionId;
-            LOG_INF("GOTO", "downloaded edition %s (hash verified); cached", editionId.c_str());
+            LOG_INF("GOTO", "downloaded edition %s (hash verified)%s", editionId.c_str(),
+                    cached ? "; cached" : " [cache write failed]");
             return result;
           }
           LOG_ERR("GOTO", "downloaded edition invalid; keeping prior cache");
