@@ -24,7 +24,7 @@
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 5;  // File Browser, Recents, File transfer, Settings, GOTO
+  int count = 6;  // File Browser, Recents, File transfer, Settings, GOTO, On Point
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -200,6 +200,9 @@ void HomeActivity::loop() {
       case HomeMenuItem::GOTO:
         onGotoOpen();
         break;
+      case HomeMenuItem::ON_POINT:
+        onPointOpen();
+        break;
       default:
         break;
     }
@@ -313,9 +316,10 @@ void HomeActivity::render(RenderLock&&) {
   // Build menu items dynamically
   // The edition launcher reflects the cached current edition (TOGO vs GOTO).
   const char* editionLabel = currentEditionIsTogo ? tr(STR_TOGO) : tr(STR_GOTO);
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE), editionLabel};
-  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings, Book};
+  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES),  tr(STR_MENU_RECENT_BOOKS),
+                                        tr(STR_FILE_TRANSFER), tr(STR_SETTINGS_TITLE),
+                                        editionLabel,          tr(STR_ON_POINT)};
+  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings, Book, Recent};
 
   if (hasOpdsServers) {
     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
@@ -366,3 +370,5 @@ void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 
 void HomeActivity::onGotoOpen() { activityManager.goToGoto(); }
+
+void HomeActivity::onPointOpen() { activityManager.goToOnPoint(); }
