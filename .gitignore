@@ -9,6 +9,9 @@ lib/I18n/I18nKeys.h
 lib/I18n/I18nStrings.h
 lib/I18n/I18nStrings.cpp
 *.generated.h
+# Exception: the Gate content snapshot is committed so the firmware builds
+# without a regen step (regenerate with src/activities/gate/tools/embed_content.py).
+!src/activities/gate/GateContent.generated.h
 .vs
 build
 **/__pycache__/

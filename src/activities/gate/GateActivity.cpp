@@ -1,3 +1,5 @@
+#ifdef GATE_ENABLED
+
 #include "GateActivity.h"
 
 #include <GfxRenderer.h>
@@ -294,3 +296,5 @@ void GateActivity::render(RenderLock&&) {
   drawScreen(s);
   renderer.displayBuffer(sceneChanged ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
 }
+
+#endif  // GATE_ENABLED

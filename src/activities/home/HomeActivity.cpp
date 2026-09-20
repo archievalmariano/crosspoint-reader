@@ -20,13 +20,18 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
+#ifdef GATE_ENABLED
 #include "activities/gate/GateActivity.h"
+#endif
 #include "activities/goto/GotoEditionSource.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 6;  // File Browser, Recents, File transfer, Settings, GOTO, Gate
+  int count = 5;  // File Browser, Recents, File transfer, Settings, GOTO
+#ifdef GATE_ENABLED
+  count += 1;  // + The Gate Is Open!
+#endif
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -202,9 +207,11 @@ void HomeActivity::loop() {
       case HomeMenuItem::GOTO:
         onGotoOpen();
         break;
+#ifdef GATE_ENABLED
       case HomeMenuItem::GATE:
         onGateOpen();
         break;
+#endif
       default:
         break;
     }
@@ -319,8 +326,12 @@ void HomeActivity::render(RenderLock&&) {
   // The edition launcher reflects the cached current edition (TOGO vs GOTO).
   const char* editionLabel = currentEditionIsTogo ? tr(STR_TOGO) : tr(STR_GOTO);
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE), editionLabel, "The Gate Is Open!"};
-  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings, Book, Book};
+                                        tr(STR_SETTINGS_TITLE), editionLabel};
+  std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings, Book};
+#ifdef GATE_ENABLED
+  menuItems.push_back("The Gate Is Open!");
+  menuIcons.push_back(Book);
+#endif
 
   if (hasOpdsServers) {
     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
@@ -372,6 +383,8 @@ void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 
 void HomeActivity::onGotoOpen() { activityManager.goToGoto(); }
 
+#ifdef GATE_ENABLED
 void HomeActivity::onGateOpen() {
   activityManager.pushActivity(std::make_unique<GateActivity>(renderer, mappedInput));
 }
+#endif

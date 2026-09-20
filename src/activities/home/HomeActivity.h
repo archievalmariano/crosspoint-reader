@@ -46,8 +46,10 @@ class HomeActivity final : public Activity {
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
     ++i;
     if (item == HomeMenuItem::GOTO) return i;
+#ifdef GATE_ENABLED
     ++i;
     if (item == HomeMenuItem::GATE) return i;
+#endif
     return 0;
   }
 
@@ -60,7 +62,9 @@ class HomeActivity final : public Activity {
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
     if (idx == i++) return HomeMenuItem::GOTO;
+#ifdef GATE_ENABLED
     if (idx == i) return HomeMenuItem::GATE;
+#endif
     return HomeMenuItem::NONE;
   }
   void onSelectBook(const std::string& path);
@@ -70,7 +74,9 @@ class HomeActivity final : public Activity {
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
   void onGotoOpen();
+#ifdef GATE_ENABLED
   void onGateOpen();
+#endif
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
