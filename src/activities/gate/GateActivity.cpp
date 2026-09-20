@@ -12,6 +12,7 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "gate/GateLayout.h"  // shared layout constants (also used by the desktop preview)
 #include "gate/Loader.h"
 
 namespace {
@@ -23,7 +24,9 @@ constexpr int MENU_FONT = NOTOSANS_16_FONT_ID;
 constexpr int SMALL_FONT = NOTOSANS_14_FONT_ID;
 constexpr int BEAT_FONT = NOTOSERIF_18_FONT_ID;
 
-constexpr int MARGIN = 16;
+// Layout numbers are sourced from the shared gate::layout spec so the on-device
+// renderer and the desktop preview cannot drift.
+constexpr int MARGIN = gate::layout::kMargin;
 
 std::string joinLines(const std::vector<std::string>& lines, const char* sep) {
   std::string out;
@@ -147,7 +150,7 @@ int GateActivity::drawMenu(const gate::Screen& s, int top, int bottomLimit) {
   for (size_t i = 0; i < s.menu.size(); ++i) {
     const auto& item = s.menu[i];
     const bool hasSub = !item.sublabel.empty();
-    const int rowH = labelH + (hasSub ? subH : 0) + 12;
+    const int rowH = labelH + (hasSub ? subH : 0) + gate::layout::kMenuRowPad;
     if (y + rowH > bottomLimit) break;  // never overflow into the footer
     const bool selected = static_cast<int>(i) == s.cursor;
     if (selected) renderer.fillRect(MARGIN, y, W - 2 * MARGIN, rowH, true);
@@ -155,12 +158,15 @@ int GateActivity::drawMenu(const gate::Screen& s, int top, int bottomLimit) {
 
     std::string label = item.label;
     if (!item.enabled) label += "  (n/a)";
-    renderer.drawText(MENU_FONT, MARGIN + 10, y + 6, label.c_str(), black);
+    label = renderer.truncatedText(MENU_FONT, label.c_str(), W - 2 * MARGIN - 2 * gate::layout::kMenuTextInset);
+    renderer.drawText(MENU_FONT, MARGIN + gate::layout::kMenuTextInset, y + 6, label.c_str(), black);
     if (hasSub) {
       auto subLines = renderer.wrappedText(SMALL_FONT, item.sublabel.c_str(), W - 2 * MARGIN - 20, 1);
-      if (!subLines.empty()) renderer.drawText(SMALL_FONT, MARGIN + 10, y + 6 + labelH, subLines[0].c_str(), black);
+      if (!subLines.empty())
+        renderer.drawText(SMALL_FONT, MARGIN + gate::layout::kMenuTextInset, y + 6 + labelH, subLines[0].c_str(),
+                          black);
     }
-    y += rowH + 4;
+    y += rowH + gate::layout::kMenuRowGap;
   }
   return y;
 }
@@ -234,7 +240,8 @@ void GateActivity::drawScreen(const gate::Screen& s) {
     y += renderer.getLineHeight(TITLE_FONT) + 16;
   } else if (!s.title.empty() && s.kind != gate::Screen::Kind::Beat) {
     // Beats stay sparse (no header) for a full-screen moment.
-    renderer.drawText(TITLE_FONT, MARGIN, y, s.title.c_str(), true);
+    renderer.drawText(TITLE_FONT, MARGIN, y, renderer.truncatedText(TITLE_FONT, s.title.c_str(), contentW).c_str(),
+                      true);
     y += renderer.getLineHeight(TITLE_FONT) + 4;
     renderer.drawLine(MARGIN, y, W - MARGIN, y, true);
     y += 10;
@@ -253,16 +260,17 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   const int menuRows = static_cast<int>(s.menu.size());
   int menuBlockH = 0;
   for (const auto& m : s.menu)
-    menuBlockH += menuLabelH + (m.sublabel.empty() ? 0 : renderer.getLineHeight(SMALL_FONT)) + 16;
-  const int menuTop = (menuRows > 0) ? (contentBottom - 6 - menuBlockH) : contentBottom;
+    menuBlockH += menuLabelH + (m.sublabel.empty() ? 0 : renderer.getLineHeight(SMALL_FONT)) +
+                  gate::layout::kMenuRowPad + gate::layout::kMenuRowGap;
+  const int menuTop = (menuRows > 0) ? (contentBottom - gate::layout::kMenuGapAboveBlock - menuBlockH) : contentBottom;
 
   // ---- World events (autonomous reactions), just above the menu ------------
   int weTop = menuTop;
   if (!s.worldEvents.empty()) {
     const std::string joined = std::string("\xC2\xBB ") + joinLines(s.worldEvents, "  \xC2\xBB ");
-    auto weLines = renderer.wrappedText(SMALL_FONT, joined.c_str(), contentW, 3);
+    auto weLines = renderer.wrappedText(SMALL_FONT, joined.c_str(), contentW, gate::layout::kWorldEventsMaxLines);
     const int lh = renderer.getLineHeight(SMALL_FONT);
-    weTop = menuTop - 8 - static_cast<int>(weLines.size()) * lh;
+    weTop = menuTop - gate::layout::kWorldEventsGapBelow - static_cast<int>(weLines.size()) * lh;
     int wy = weTop;
     for (const auto& l : weLines) {
       renderer.drawText(SMALL_FONT, MARGIN, wy, l.c_str(), true);
@@ -292,13 +300,13 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   const bool showArt = !s.art.empty() && (s.kind == gate::Screen::Kind::Dialogue ||
                                           s.kind == gate::Screen::Kind::Intro || s.kind == gate::Screen::Kind::Ending);
   if (showArt) {
-    const int artH = 78;
+    const int artH = gate::layout::kArtBoxHeight;
     if (contentTop + artH + 8 < weTop) {  // only if it doesn't crush the text
       renderer.drawRect(MARGIN, contentTop, contentW, artH, true);
       std::string tag = std::string("[art: ") + s.art + "]";
       renderer.drawCenteredText(SMALL_FONT, contentTop + (artH - renderer.getLineHeight(SMALL_FONT)) / 2, tag.c_str(),
                                 true);
-      bodyTop = contentTop + artH + 10;
+      bodyTop = contentTop + artH + gate::layout::kArtGapBelow;
     }
   }
 
