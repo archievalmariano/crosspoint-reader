@@ -45,14 +45,39 @@ Home menu → **"The Gate Is Open!"** (added as a `HomeMenuItem::GATE` entry in
 `ActivityManager.h` + `HomeActivity`). Back at the Gate title screen returns to
 CrossPoint home.
 
-## Input mapping (button-only X4)
+## Device profile
+
+`GateDeviceProfile.h` is a tiny capability layer (selected from
+`FREEINK_CAP_TOUCH`, not product names): `inputMode` (NavButtons /
+TouchAndButtons), `hasTouch`, `name`, and a one-line `controlHint`. It drives
+input routing and the Title-screen control hint. One profile, one renderer, many
+targets — see [`docs/gate-device-compatibility.md`](../../../docs/gate-device-compatibility.md).
+
+## Input mapping
+
+The X4 physically has Back / Confirm / Left / Right / Up / Down (ADC ladder).
+Gate uses the SDK's device-correct semantic buttons:
 
 | Physical (semantic) button | Gate action |
 |----------------------------|-------------|
-| `NavPrevious` (also `Up`/`PageBack`) | Up |
-| `NavNext` (also `Down`/`PageForward`) | Down |
-| `Confirm` | Select / Continue |
+| `NavPrevious` (= Up / Left; also `PageBack`) | Up |
+| `NavNext` (= Down / Right; also `PageForward`) | Down |
+| `Confirm` | Select / Continue / Begin |
 | `Back` | Back (at Title: exit to CrossPoint home) |
+| screen tap (touch devices only) | Select — seam only, see below |
+
+The on-screen footer is the native theme hint bar (`mapLabels()` +
+`GUI.drawButtonHints()`), so labels appear at the device's real button positions
+instead of generic desktop text. The portable `Screen::footer` (desktop key
+hints) is intentionally ignored on device.
+
+## Touch seam (touch-capable devices only)
+
+On `TouchAndButtons` devices a screen tap routes to `Game::handle(Select)`
+(confirms the highlighted choice), proving taps reach the portable engine. It is
+inert on the button-only X4 (`wasScreenTapped()` returns false). Per-choice
+hit-testing (move the cursor to the tapped row) is the documented next step and
+needs no engine change. **Untested** — no touch hardware here.
 
 ## Refresh behavior
 

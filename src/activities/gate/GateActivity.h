@@ -23,13 +23,14 @@
 #pragma push_macro("Storage")
 #undef Storage
 #include "gate/Content.h"
-#include "gate/Story.h"
 #include "gate/Screen.h"
-#include "gate/platform/Platform.h"
+#include "gate/Story.h"
 #include "gate/app/Game.h"
+#include "gate/platform/Platform.h"
 #pragma pop_macro("Storage")
 
 #include "activities/Activity.h"
+#include "activities/gate/GateDeviceProfile.h"
 
 class GateActivity : public Activity {
  public:
@@ -44,14 +45,16 @@ class GateActivity : public Activity {
   void drawScreen(const gate::Screen& s);
   void drawError();
   int drawMenu(const gate::Screen& s, int top, int bottomLimit);  // returns y below last row
+  void drawHints(const gate::Screen& s);                          // device-correct button-hint bar
 
-  gate::Platform platform_{};        // all-null: display/input/sleep unused on device
+  const gate_device::GateDeviceProfile profile_ = gate_device::activeProfile();
+  gate::Platform platform_{};  // all-null: display/input/sleep unused on device
   gate::Cast cast_;
   std::vector<gate::Story> stories_;
   std::unique_ptr<gate::Game> game_;
 
   bool loadedOk_ = false;
   std::string loadError_;
-  std::string lastSceneKey_;         // full refresh on scene change, fast on cursor move
+  std::string lastSceneKey_;  // full refresh on scene change, fast on cursor move
   bool firstRender_ = true;
 };
