@@ -112,6 +112,19 @@ EpdFont notosans18BoldItalicFont(&notosans_18_bolditalic);
 EpdFontFamily notosans18FontFamily(&notosans18RegularFont, &notosans18BoldFont, &notosans18ItalicFont,
                                    &notosans18BoldItalicFont);
 
+// Gate typography (candidate C) device faces. Single-style families: the weight
+// is baked into the face, so the Gate role -> font-id mapping alone selects the
+// right family + weight (see src/activities/gate/GateActivity.cpp). Menu reuses
+// notosans18FontFamily above.
+EpdFont notoserif19RegularFont(&notoserif_19_regular);
+EpdFontFamily notoserif19FontFamily(&notoserif19RegularFont);
+EpdFont notoserif22BoldFont(&notoserif_22_bold);
+EpdFontFamily notoserif22FontFamily(&notoserif22BoldFont);
+EpdFont notoserif24BoldFont(&notoserif_24_bold);
+EpdFontFamily notoserif24FontFamily(&notoserif24BoldFont);
+EpdFont notosans15RegularFont(&notosans_15_regular);
+EpdFontFamily notosans15FontFamily(&notosans15RegularFont);
+
 #endif  // OMIT_FONTS
 
 EpdFont smallFont(&notosans_8_regular);
@@ -331,6 +344,12 @@ void setupDisplayAndFonts(bool seamless = false) {
   renderer.insertFont(NOTOSANS_14_FONT_ID, notosans14FontFamily);
   renderer.insertFont(NOTOSANS_16_FONT_ID, notosans16FontFamily);
   renderer.insertFont(NOTOSANS_18_FONT_ID, notosans18FontFamily);
+
+  // Gate typography (candidate C) device faces.
+  renderer.insertFont(NOTOSERIF_19_FONT_ID, notoserif19FontFamily);
+  renderer.insertFont(NOTOSERIF_22_BOLD_FONT_ID, notoserif22FontFamily);
+  renderer.insertFont(NOTOSERIF_24_BOLD_FONT_ID, notoserif24FontFamily);
+  renderer.insertFont(NOTOSANS_15_FONT_ID, notosans15FontFamily);
 #endif  // OMIT_FONTS
   renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
   renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);

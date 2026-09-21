@@ -80,6 +80,32 @@ ruby -rdigest -e 'puts [
 ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
 ))"
 
+# Gate typography (candidate C) device faces: single-style, so each id hashes one
+# file (as SMALL_FONT_ID does). See src/activities/gate/GateActivity.cpp.
+echo "#define NOTOSERIF_19_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./notoserif_19_regular.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define NOTOSERIF_22_BOLD_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./notoserif_22_bold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define NOTOSERIF_24_BOLD_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./notoserif_24_bold.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
+echo "#define NOTOSANS_15_FONT_ID ($(
+ruby -rdigest -e 'puts [
+  "./notosans_15_regular.h",
+].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
+))"
+
 echo "#define UI_10_FONT_ID ($(
 ruby -rdigest -e 'puts [
   "./ubuntu_10_regular.h",
@@ -109,6 +135,10 @@ FONT_ID_NAMES=(
   NOTOSANS_14_FONT_ID
   NOTOSANS_16_FONT_ID
   NOTOSANS_18_FONT_ID
+  NOTOSERIF_19_FONT_ID
+  NOTOSERIF_22_BOLD_FONT_ID
+  NOTOSERIF_24_BOLD_FONT_ID
+  NOTOSANS_15_FONT_ID
   UI_10_FONT_ID
   UI_12_FONT_ID
   SMALL_FONT_ID

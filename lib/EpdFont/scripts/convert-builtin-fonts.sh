@@ -28,6 +28,19 @@ for size in ${NOTOSANS_FONT_SIZES[@]}; do
   done
 done
 
+# Gate typography (candidate C) device faces. Only the specific size+weight each
+# Gate role needs -- NOT a full style matrix -- to keep the flash cost minimal.
+# Same flags/repertoire as the reader fonts above (no glyph subsetting). Menu
+# reuses the existing notosans_18. See src/activities/gate/GateActivity.cpp.
+python fontconvert.py notoserif_19_regular 19 ../builtinFonts/source/NotoSerif/NotoSerif-Regular.ttf --2bit --compress --pnum --zopfli > ../builtinFonts/notoserif_19_regular.h
+echo "Generated ../builtinFonts/notoserif_19_regular.h"
+python fontconvert.py notoserif_22_bold 22 ../builtinFonts/source/NotoSerif/NotoSerif-Bold.ttf --2bit --compress --pnum --zopfli > ../builtinFonts/notoserif_22_bold.h
+echo "Generated ../builtinFonts/notoserif_22_bold.h"
+python fontconvert.py notoserif_24_bold 24 ../builtinFonts/source/NotoSerif/NotoSerif-Bold.ttf --2bit --compress --pnum --zopfli > ../builtinFonts/notoserif_24_bold.h
+echo "Generated ../builtinFonts/notoserif_24_bold.h"
+python fontconvert.py notosans_15_regular 15 ../builtinFonts/source/NotoSans/NotoSans-Regular.ttf --2bit --compress --pnum --zopfli > ../builtinFonts/notosans_15_regular.h
+echo "Generated ../builtinFonts/notosans_15_regular.h"
+
 UI_FONT_SIZES=(10 12)
 UI_FONT_STYLES=("Regular" "Bold")
 

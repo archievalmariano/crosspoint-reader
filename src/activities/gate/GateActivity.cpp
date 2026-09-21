@@ -17,12 +17,31 @@
 
 namespace {
 
-// Font roles for this first physical layout (max available size is 18px).
-constexpr int TITLE_FONT = NOTOSERIF_18_FONT_ID;
-constexpr int BODY_FONT = NOTOSERIF_16_FONT_ID;
-constexpr int MENU_FONT = NOTOSANS_16_FONT_ID;
-constexpr int SMALL_FONT = NOTOSANS_14_FONT_ID;
-constexpr int BEAT_FONT = NOTOSERIF_18_FONT_ID;
+// Map a shared Gate font role to the device font id that reproduces it. The
+// sizes/weights are read from gate::layout::fontSpec -- the single source of truth
+// shared with the desktop preview -- so there is no second typography spec to
+// drift. This is the ONLY place CrossPoint font ids appear for Gate; the portable
+// engine stays free of them. Faces match the preview's families/weights
+// (candidate C). A role whose (serif,px,bold) has no device face resolves to 0
+// and trips the static_assert below.
+constexpr int gateDeviceFontId(gate::layout::Font role) {
+  const gate::layout::FontSpec s = gate::layout::fontSpec(role);
+  if (s.serif && s.bold && s.px == 22) return NOTOSERIF_22_BOLD_FONT_ID;  // Title
+  if (s.serif && s.bold && s.px == 24) return NOTOSERIF_24_BOLD_FONT_ID;  // Beat
+  if (s.serif && !s.bold && s.px == 19) return NOTOSERIF_19_FONT_ID;      // Body
+  if (!s.serif && !s.bold && s.px == 18) return NOTOSANS_18_FONT_ID;      // Menu (reused)
+  if (!s.serif && !s.bold && s.px == 15) return NOTOSANS_15_FONT_ID;      // Small
+  return 0;
+}
+
+constexpr int TITLE_FONT = gateDeviceFontId(gate::layout::Font::Title);
+constexpr int BODY_FONT = gateDeviceFontId(gate::layout::Font::Body);
+constexpr int MENU_FONT = gateDeviceFontId(gate::layout::Font::Menu);
+constexpr int SMALL_FONT = gateDeviceFontId(gate::layout::Font::Small);
+constexpr int BEAT_FONT = gateDeviceFontId(gate::layout::Font::Beat);
+static_assert(TITLE_FONT && BODY_FONT && MENU_FONT && SMALL_FONT && BEAT_FONT,
+              "A Gate typography role has no matching device font face. Add the face "
+              "(lib/EpdFont) or extend gateDeviceFontId() to keep preview/device in sync.");
 
 // Layout numbers are sourced from the shared gate::layout spec so the on-device
 // renderer and the desktop preview cannot drift.
