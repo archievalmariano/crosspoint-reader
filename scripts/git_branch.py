@@ -98,9 +98,12 @@ def _sanitize(value):
 
 
 def inject_version(env):
-    # Only applies to development environments; release envs set the
-    # version via build_flags in platformio.ini and are unaffected.
-    if env['PIOENV'] not in ('default', 'sticky'):
+    # Applies to the development environments and to the X4 Pro production env,
+    # which shows the deterministic `v{base} · {goto_label}` product identity
+    # (e.g. `v1.6.0 · GOTO v1.1.0`). Other release envs set CROSSPOINT_VERSION via
+    # build_flags in platformio.ini and are unaffected. The x4pro-gh_release env
+    # deliberately OMITS the ini CROSSPOINT_VERSION so this is the single source.
+    if env['PIOENV'] not in ('default', 'sticky', 'x4pro-gh_release'):
         return
 
     project_dir = env['PROJECT_DIR']

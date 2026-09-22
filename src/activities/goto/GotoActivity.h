@@ -28,6 +28,14 @@ class GotoActivity final : public Activity {
   // activity), so the edition/pageIndex/session are untouched while it shows.
   bool showingQr = false;
   bool cleanArticleRefresh = false;  // one HALF_REFRESH when returning from QR, to clear ghosting
+  // On-screen FULL STORY affordance hit-box, recomputed each story-page render.
+  // Touch boards (X4 Pro) open the QR by tapping it; button boards ignore it
+  // (their Confirm button opens the QR) — valid only while a story page is drawn.
+  bool fullStoryTapValid = false;
+  int fsTapX = 0;
+  int fsTapY = 0;
+  int fsTapW = 0;
+  int fsTapH = 0;
 
   int contentTopY() const;
   void drawMasthead();
