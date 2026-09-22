@@ -101,236 +101,366 @@ inline constexpr char kGateRelationshipsJson[] = R"GATEJSON([
 
 inline constexpr char kGateChachaStoryJson[] = R"GATEJSON({
   "id": "chacha-door-open-01",
-  "title": "The Door Is Open",
+  "title": "The Gate Is Open!",
   "character": "chacha",
-  "start": "start",
+  "start": "open_door",
   "actors_default": ["chacha"],
+  "_note": "Canonical V1 Chacha episode STRUCTURE. All text is structural placeholder in [brackets]; final prose is written later. Reconverging-diamond: Fork1(route) -> escalate -> Fork2(escalation) -> chaos beat -> winded -> Fork3(final act) -> 5 resolutions -> shared epilogue -> Shadow stinger.",
   "nodes": {
-    "start": {
-      "text": "The door is open.\n\nNobody has noticed yet.\n\nChacha has noticed.",
-      "art": "door_open",
+
+    "open_door": {
+      "text": "[The front door of Home is open.]\n[Nobody has noticed yet.]\n[Chacha has noticed.]",
+      "art": "scene:open_front_door",
       "actors": ["chacha"],
       "choices": [
         {
-          "text": "RUN.",
-          "next": "hallway",
+          "text": "Run to the Far End",
+          "next": "far_end",
           "effects": [
-            { "op": "inc", "key": "char.chacha.confidence", "by": 1 },
-            { "op": "dec", "key": "char.chacha.energy", "by": 1 },
-            { "op": "set", "key": "flags.chacha_ran", "value": true },
-            { "op": "push", "key": "world.recent_events", "value": "chacha_bolted" }
+            { "op": "set", "key": "flags.route", "value": "far_end" },
+            { "op": "inc", "key": "char.chacha.confidence", "by": 1 }
           ]
         },
         {
-          "text": "Wait and listen.",
-          "next": "listen",
+          "text": "Cut through the Covered Yard",
+          "next": "covered_yard",
           "effects": [
-            { "op": "set", "key": "flags.chacha_waited", "value": true }
+            { "op": "set", "key": "flags.route", "value": "covered_yard" },
+            { "op": "inc", "key": "flags.ruckus", "by": 1 }
           ]
         },
         {
-          "text": "Pretend not to notice.",
-          "next": "pretend",
+          "text": "Loop toward the Gate Side",
+          "next": "gate_side",
           "effects": [
-            { "op": "dec", "key": "char.chacha.mood", "by": 1 }
+            { "op": "set", "key": "flags.route", "value": "gate_side" }
           ]
         }
       ]
     },
 
-    "listen": {
-      "text": "Chacha freezes, one paw up. Ears swivel.\n\nSomewhere, a crate rattles.",
-      "art": "listening",
-      "actors": ["chacha"],
+    "far_end": {
+      "text": "[Chacha bolts for the weedy Far End, tail high. This is the frontier.]",
+      "art": "scene:far_end",
+      "actors": ["chacha", "nami"],
       "reactions": [
         {
-          "id": "shadow_bark_early",
-          "effects": [
-            { "op": "set", "key": "flags.shadow_barking", "value": true },
-            { "op": "push", "key": "world.recent_events", "value": "shadow_barked" }
-          ],
-          "text": "SHADOW starts up from his crate. BORK. BORK. BORK."
+          "id": "nami_notices",
+          "effects": [ { "op": "set", "key": "flags.nami_noticed", "value": true } ],
+          "text": "[Nami lifts her head. Her puppies stir.]"
+        },
+        {
+          "id": "puppies_stir",
+          "chance": 60,
+          "effects": [ { "op": "set", "key": "flags.puppies_up", "value": true } ]
         }
       ],
-      "choices": [
-        {
-          "text": "Okay. NOW run.",
-          "next": "hallway",
-          "effects": [
-            { "op": "set", "key": "flags.chacha_ran", "value": true },
-            { "op": "push", "key": "world.recent_events", "value": "chacha_bolted" }
-          ]
-        },
-        {
-          "text": "Stay put. This is clearly a trap.",
-          "next": "end_cautious"
-        }
-      ]
+      "auto": "escalate"
     },
 
-    "pretend": {
-      "text": "Chacha studies the ceiling with great interest.\n\nThe door is still open. It is RIGHT THERE.",
-      "art": "pretending",
-      "actors": ["chacha"],
-      "choices": [
-        {
-          "text": "...fine. RUN.",
-          "next": "hallway",
-          "effects": [
-            { "op": "set", "key": "flags.chacha_ran", "value": true },
-            { "op": "push", "key": "world.recent_events", "value": "chacha_bolted" }
-          ]
-        },
-        {
-          "text": "Commit to the nap.",
-          "next": "end_nap"
-        }
-      ]
-    },
-
-    "hallway": {
-      "text": "Chacha is a brown streak down the hallway.\n\nTiles, then grass, then open air.",
-      "art": "hallway_blur",
-      "actors": ["chacha"],
+    "covered_yard": {
+      "text": "[Chacha barrels through the Covered Yard, scattering what dignity the household had left.]",
+      "art": "scene:covered_yard",
+      "actors": ["chacha", "puppy", "itim", "leeg"],
       "reactions": [
-        {
-          "id": "kali_follows",
-          "effects": [
-            { "op": "set", "key": "flags.kali_joined", "value": true }
-          ],
-          "text": "Kali sees the blur and gallops after her, delighted."
-        },
-        {
-          "id": "shadow_barks",
-          "when": [ { "key": "flags.shadow_barking", "op": "unset" } ],
-          "effects": [
-            { "op": "set", "key": "flags.shadow_barking", "value": true }
-          ],
-          "text": "Shadow barks at everyone about everything. BORK."
-        }
-      ],
-      "choices": [
-        {
-          "text": "Straight for the gate.",
-          "next": "gate",
-          "effects": [ { "op": "set", "key": "flags.heading_gate", "value": true } ]
-        },
-        {
-          "text": "Cut through the plants.",
-          "next": "plants"
-        }
-      ]
-    },
-
-    "gate": {
-      "text": "The gate. The big one.\n\nChacha skids to a halt before it, heart pounding.",
-      "art": "the_gate",
-      "actors": ["chacha", "kali"],
-      "reactions": [
-        {
-          "id": "puppy_taunts_shadow",
-          "when": [
-            { "key": "flags.shadow_barking", "op": "set" },
-            { "key": "rel.shadow.puppy", "op": "eq", "value": "hostile" }
-          ],
-          "effects": [ { "op": "set", "key": "flags.puppy_taunting", "value": true } ],
-          "text": "Puppy trots to Shadow's crate just to gloat. Shadow loses it."
-        },
-        {
-          "id": "nami_eyes_food",
-          "effects": [ { "op": "set", "key": "flags.nami_near_food", "value": true } ],
-          "text": "Nami drifts toward Chico's bowl. Chico's eyes narrow."
-        },
         {
           "id": "leeg_retreats",
           "effects": [ { "op": "set", "key": "flags.leeg_hiding", "value": true } ],
-          "text": "Leeg, long neck low, slinks behind the water drum."
+          "text": "[Leeg bolts behind the water drum.]"
+        },
+        {
+          "id": "puppy_notices",
+          "effects": [ { "op": "set", "key": "flags.puppy_alert", "value": true } ]
+        },
+        {
+          "id": "itim_watches",
+          "effects": [ { "op": "set", "key": "flags.itim_watching", "value": true } ]
+        }
+      ],
+      "auto": "escalate"
+    },
+
+    "gate_side": {
+      "text": "[Chacha loops toward the shed and the big closed main gate. No way out — just laps. The front door of Home stands wide behind her.]",
+      "actors": ["chacha"],
+      "reactions": [
+        {
+          "id": "chico_opportunity",
+          "effects": [ { "op": "set", "key": "flags.chico_inside", "value": true } ]
+        }
+      ],
+      "auto": "escalate"
+    },
+
+    "escalate": {
+      "text": "[The compound is noticing her now.]",
+      "actors": ["chacha"],
+      "reactions": [
+        {
+          "id": "human_calls_early",
+          "text": "[Human: “Chacha! Get back here!” She does not respond.]"
+        }
+      ],
+      "choices": [
+        {
+          "text": "Keep going",
+          "next": "keep_going",
+          "effects": [
+            { "op": "inc", "key": "char.chacha.confidence", "by": 1 },
+            { "op": "dec", "key": "char.chacha.energy", "by": 1 }
+          ]
+        },
+        {
+          "text": "Boomerang back toward Home",
+          "next": "boomerang",
+          "effects": [
+            { "op": "inc", "key": "flags.boomerang_count", "by": 1 },
+            { "op": "dec", "key": "char.chacha.energy", "by": 1 }
+          ]
+        },
+        {
+          "text": "Buzz the other dogs",
+          "next": "buzz_dogs",
+          "effects": [
+            { "op": "inc", "key": "flags.ruckus", "by": 2 },
+            { "op": "dec", "key": "char.chacha.energy", "by": 2 }
+          ]
+        }
+      ]
+    },
+
+    "keep_going": {
+      "text": "[Chacha commits, pushing deeper. This is HER adventure and she is enormous.]",
+      "art": "portrait:chacha:chaos",
+      "actors": ["chacha", "kali"],
+      "reactions": [
+        {
+          "id": "kali_interested",
+          "effects": [ { "op": "set", "key": "flags.kali_joined", "value": true } ],
+          "text": "[Kali strains at the door, desperate to join.]"
+        },
+        {
+          "id": "puppies_follow",
+          "when": [ { "key": "flags.route", "op": "eq", "value": "far_end" } ],
+          "effects": [ { "op": "set", "key": "flags.puppies_following", "value": true } ]
         }
       ],
       "auto": "chaos"
     },
 
-    "plants": {
-      "text": "Chacha vanishes into the potted plants.\n\nLeaves rustle in a deeply suspicious way.",
-      "art": "in_the_plants",
+    "boomerang": {
+      "text": "[Chacha wheels around and rockets back toward Home, ears flat, delighted with herself.]",
+      "art": "scene:chacha_boomerang",
       "actors": ["chacha"],
       "reactions": [
         {
-          "id": "chico_suspicious",
-          "effects": [ { "op": "set", "key": "flags.chico_suspicious", "value": true } ],
-          "text": "From the ledge, Chico watches the moving plants. He does not approve."
+          "id": "chico_slips",
+          "effects": [ { "op": "set", "key": "flags.chico_inside", "value": true } ]
+        }
+      ],
+      "auto": "chaos"
+    },
+
+    "buzz_dogs": {
+      "text": "[Chacha gets right up in the big dogs’ faces, absolutely certain she outweighs them.]",
+      "art": "portrait:chacha:chaos",
+      "actors": ["chacha", "puppy", "itim", "leeg"],
+      "reactions": [
+        {
+          "id": "puppy_squares_up",
+          "effects": [ { "op": "set", "key": "flags.puppy_alert", "value": true } ],
+          "text": "[Puppy squares up, entirely unimpressed.]"
+        },
+        {
+          "id": "itim_look",
+          "effects": [ { "op": "set", "key": "flags.itim_watching", "value": true } ]
         }
       ],
       "auto": "chaos"
     },
 
     "chaos": {
-      "text": "THE COMPOUND ERUPTS.",
-      "art": "compound_erupts",
+      "text": "[THE COMPOUND ERUPTS.]",
       "beat": true,
       "actors": ["chacha", "kali", "shadow", "puppy", "nami", "leeg"],
-      "choices": [
-        { "text": "Bolt through the gate!", "next": "outside" },
-        { "text": "Freeze in the middle of it all.", "next": "end_frozen" }
-      ]
+      "reactions": [
+        {
+          "id": "shadow_barks",
+          "effects": [ { "op": "set", "key": "flags.shadow_barking", "value": true } ],
+          "text": "[Shadow, from his crate: BORK BORK BORK.]"
+        },
+        {
+          "id": "chico_sneaks",
+          "when": [ { "key": "flags.chico_inside", "op": "set" } ],
+          "effects": [ { "op": "set", "key": "flags.chico_inside", "value": true } ]
+        }
+      ],
+      "auto": "winded"
     },
 
-    "outside": {
-      "text": "Chacha is OUTSIDE.\n\nThe street is enormous. A tricycle rumbles somewhere close.",
-      "art": "outside_gate",
+    "winded": {
+      "text": "[Chacha is panting now. Little sides going like bellows.]\n[The human has stopped chasing — just waiting for the battery to run flat.]",
+      "art": "portrait:chacha:wary",
       "actors": ["chacha"],
       "reactions": [
         {
-          "id": "regret_creeps_in",
-          "text": "The confidence wavers. Everything is very, very big out here."
+          "id": "human_waits",
+          "text": "[Human, arms crossed: “I can do this all day. You can’t.”]"
         }
       ],
+      "auto": "final_fork"
+    },
+
+    "final_fork": {
+      "text": "[The last of the battery. How does Chacha spend it?]",
+      "actors": ["chacha"],
       "choices": [
         {
-          "text": "Keep going. This is MY adventure.",
-          "next": "end_legend",
-          "when": [ { "key": "char.chacha.confidence", "op": "gte", "value": 4 } ]
+          "text": "One more lap",
+          "next": "res_velocity",
+          "when": [
+            { "key": "char.chacha.confidence", "op": "gte", "value": 5 },
+            { "key": "char.chacha.energy", "op": "gte", "value": 1 }
+          ]
         },
         {
-          "text": "...nope. Back inside. Immediately.",
-          "next": "end_regret"
+          "text": "Boomerang home one more time",
+          "next": "res_boomerang",
+          "when": [ { "key": "flags.boomerang_count", "op": "gte", "value": 1 } ]
+        },
+        {
+          "text": "One last act of tiny menace",
+          "next": "res_menace",
+          "when": [ { "key": "flags.ruckus", "op": "gte", "value": 2 } ]
+        },
+        {
+          "text": "Trot home like it was the plan",
+          "next": "res_dignity",
+          "when": [ { "key": "char.chacha.energy", "op": "gte", "value": 2 } ]
+        },
+        {
+          "text": "Flop down, out of juice",
+          "next": "res_battery"
         }
       ]
     },
 
-    "end_regret": {
-      "text": "Chacha wheels around and rockets back through the gate.\n\nInside is good. Inside was always good.",
-      "art": "home_safe",
-      "ending": true,
-      "ending_id": "regret"
+    "res_velocity": {
+      "text": "[Chacha executes one final, absurdly committed circuit of the whole compound. Glorious. Pointless. Then the tank hits empty.]",
+      "art": "portrait:chacha:chaos",
+      "actors": ["chacha"],
+      "reactions": [
+        { "id": "mark_velocity", "effects": [ { "op": "set", "key": "flags.ending", "value": "maximum_velocity" } ] }
+      ],
+      "auto": "epilogue_pickup"
     },
 
-    "end_legend": {
-      "text": "Chacha lifts her chin and struts down the street like she owns it.\n\nFor about nine glorious seconds, she does.",
-      "art": "street_legend",
-      "ending": true,
-      "ending_id": "legend"
+    "res_boomerang": {
+      "text": "[Out and back, out and back — the crazed boomerang runs its full course until Chacha wobbles to a halt near Home.]",
+      "actors": ["chacha"],
+      "reactions": [
+        {
+          "id": "mark_boomerang",
+          "effects": [
+            { "op": "set", "key": "flags.ending", "value": "crazed_boomerang" },
+            { "op": "inc", "key": "flags.boomerang_count", "by": 1 }
+          ]
+        }
+      ],
+      "auto": "epilogue_pickup"
     },
 
-    "end_cautious": {
-      "text": "Chacha sits. Watches. Waits.\n\nThe door closes on its own. She knew it was a trap.",
-      "art": "sitting_pretty",
-      "ending": true,
-      "ending_id": "cautious"
+    "res_menace": {
+      "text": "[Chacha starts a diplomatic incident wildly disproportionate to her size. Nobody is hurt. Everybody is offended.]",
+      "actors": ["chacha", "itim", "puppy"],
+      "reactions": [
+        { "id": "mark_menace", "effects": [ { "op": "set", "key": "flags.ending", "value": "tiny_menace" } ] },
+        {
+          "id": "itim_the_look",
+          "when": [ { "key": "flags.itim_watching", "op": "set" } ],
+          "text": "[Itim gives her The Look. Even Chacha briefly reconsiders her whole approach.]"
+        }
+      ],
+      "auto": "epilogue_pickup"
     },
 
-    "end_nap": {
-      "text": "Chacha curls up in a sunbeam.\n\nThe open door is a problem for a future, more energetic Chacha.",
-      "art": "sunbeam_nap",
-      "ending": true,
-      "ending_id": "napped"
+    "res_dignity": {
+      "text": "[Chacha trots home with her chin up, as if this had all, obviously, been the plan from the start.]",
+      "actors": ["chacha"],
+      "reactions": [
+        { "id": "mark_dignity", "effects": [ { "op": "set", "key": "flags.ending", "value": "i_meant_to" } ] }
+      ],
+      "auto": "epilogue_pickup"
     },
 
-    "end_frozen": {
-      "text": "Chacha freezes at the center of the chaos.\n\nDogs orbit her. She has become the eye of the storm, and she is fine with this.",
-      "art": "eye_of_storm",
+    "res_battery": {
+      "text": "[Chacha simply runs out of juice. She stops in the middle of the compound, panting, blinking, thoroughly done.]",
+      "art": "portrait:chacha:wary",
+      "actors": ["chacha"],
+      "reactions": [
+        { "id": "mark_battery", "effects": [ { "op": "set", "key": "flags.ending", "value": "battery_low" } ] }
+      ],
+      "auto": "epilogue_pickup"
+    },
+
+    "epilogue_pickup": {
+      "text": "[The human walks over, still scolding, and scoops up the exhausted little terror. She is far too tired to resist.]",
+      "art": "portrait:chacha:wary",
+      "actors": ["chacha"],
+      "reactions": [
+        {
+          "id": "chico_surfaces",
+          "when": [ { "key": "flags.chico_inside", "op": "set" } ],
+          "text": "[Somehow, Chico is already inside, pretending he has always lived here.]"
+        }
+      ],
+      "auto": "epilogue_crate"
+    },
+
+    "epilogue_crate": {
+      "text": "[Near the crate the human looks at the panting menace, laughs, and kisses her on the forehead.]\n[In she goes. The latch clicks shut.]",
+      "actors": ["chacha"],
+      "auto": "epilogue_sleep"
+    },
+
+    "epilogue_sleep": {
+      "text": "[Chacha is asleep before the human even straightens up.]",
+      "actors": ["chacha"],
+      "auto": "stinger_wake"
+    },
+
+    "stinger_wake": {
+      "text": "[A crash. Somewhere. Chacha’s eyes snap open — spent, and instantly, completely ready for the next emergency.]",
+      "actors": ["chacha"],
+      "auto": "stinger_beat"
+    },
+
+    "stinger_beat": {
+      "text": "[SHADOW IS OUT.]",
+      "beat": true,
+      "actors": ["shadow"],
+      "auto": "prompt_shadow"
+    },
+
+    "prompt_shadow": {
+      "text": "[PLAY AS SHADOW?]",
+      "actors": ["shadow"],
+      "choices": [
+        { "text": "Play as Shadow", "next": "end_shadow_next" },
+        { "text": "Not now", "next": "end_home" }
+      ]
+    },
+
+    "end_shadow_next": {
+      "text": "[Shadow’s episode isn’t built yet — for now, back to Home.]\n[V1 loop: Chacha → Shadow → Chico.]",
       "ending": true,
-      "ending_id": "frozen"
+      "ending_id": "shadow_next"
+    },
+
+    "end_home": {
+      "text": "[Home. The compound settles. For now.]",
+      "ending": true,
+      "ending_id": "home"
     }
   }
 }
