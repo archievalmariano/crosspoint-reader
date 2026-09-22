@@ -577,6 +577,22 @@ void setup() {
   allowSleepAt = millis() + 2000;
 }
 
+// Development aid: when built with STAY_AWAKE_WHILE_USB_POWERED and running on
+// external USB/VBUS power, the idle-timeout deep sleep is suppressed so the USB
+// CDC port stays enumerated for flashing and serial. Only the automatic idle
+// timeout is affected -- manual power-button sleep still works, and on battery
+// the normal idle-sleep behavior is unchanged. Opt-in per build env (x4pro dev),
+// never in release builds. On the X4 Pro "USB powered" is the charger STAT line
+// (isUsbConnected -> BatteryMonitor::isCharging), which reads false once charging
+// terminates at a full battery -- acceptable for a plugged-in dev session.
+static bool stayAwakeOnUsbPower() {
+#ifdef STAY_AWAKE_WHILE_USB_POWERED
+  return gpio.isUsbConnected();
+#else
+  return false;
+#endif
+}
+
 void loop() {
   static unsigned long maxLoopDuration = 0;
   const unsigned long loopStartTime = millis();
@@ -692,7 +708,7 @@ void loop() {
 #endif
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
-  if (sleepTimeoutMs > 0 && millis() - lastActivityTime >= sleepTimeoutMs) {
+  if (sleepTimeoutMs > 0 && millis() - lastActivityTime >= sleepTimeoutMs && !stayAwakeOnUsbPower()) {
     LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
     enterDeepSleep(true);
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
