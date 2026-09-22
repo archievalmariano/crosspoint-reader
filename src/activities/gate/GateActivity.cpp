@@ -14,6 +14,7 @@
 #include "fontIds.h"
 #include "gate/GateLayout.h"  // shared layout constants (also used by the desktop preview)
 #include "gate/Loader.h"
+#include "gate/TextWrap.h"  // shared word-wrap policy (same as the desktop preview)
 
 namespace {
 
@@ -26,11 +27,14 @@ namespace {
 // and trips the static_assert below.
 constexpr int gateDeviceFontId(gate::layout::Font role) {
   const gate::layout::FontSpec s = gate::layout::fontSpec(role);
-  if (s.serif && s.bold && s.px == 22) return NOTOSERIF_22_BOLD_FONT_ID;  // Title
-  if (s.serif && s.bold && s.px == 24) return NOTOSERIF_24_BOLD_FONT_ID;  // Beat
-  if (s.serif && !s.bold && s.px == 19) return NOTOSERIF_19_FONT_ID;      // Body
-  if (!s.serif && !s.bold && s.px == 18) return NOTOSANS_18_FONT_ID;      // Menu (reused)
-  if (!s.serif && !s.bold && s.px == 15) return NOTOSANS_15_FONT_ID;      // Small
+  if (s.serif && s.bold && s.px == 22) return NOTOSERIF_22_BOLD_FONT_ID;  // Title (C & E1)
+  if (s.serif && s.bold && s.px == 24) return NOTOSERIF_24_BOLD_FONT_ID;  // Beat (C & E1)
+  if (s.serif && !s.bold && s.px == 19) return NOTOSERIF_19_FONT_ID;      // Body (C)
+  if (s.serif && !s.bold && s.px == 18) return NOTOSERIF_18_FONT_ID;      // Body (E1)
+  if (!s.serif && !s.bold && s.px == 18) return NOTOSANS_18_FONT_ID;      // Menu (C)
+  if (!s.serif && !s.bold && s.px == 16) return NOTOSANS_16_FONT_ID;      // Menu (E1)
+  if (!s.serif && !s.bold && s.px == 15) return NOTOSANS_15_FONT_ID;      // Small (C)
+  if (!s.serif && !s.bold && s.px == 14) return NOTOSANS_14_FONT_ID;      // Small (E1)
   return 0;
 }
 
@@ -160,30 +164,65 @@ void GateActivity::loop() {
   if (acted) requestUpdate();
 }
 
-// Draw the menu starting at `top`; returns the y just below the last row.
+// Lay out one menu row's wrapped label + description lines (shared wrap policy).
+static void layoutGateRow(GfxRenderer& renderer, const gate::MenuItem& item, int innerW,
+                          std::vector<std::string>& labelLines, std::vector<std::string>& subLines) {
+  std::string label = item.label;
+  if (!item.enabled) label += "  (n/a)";
+  labelLines = gate::text::wrap(label, innerW, gate::layout::kMenuLabelMaxLines,
+                                [&](const std::string& str) { return renderer.getTextWidth(MENU_FONT, str.c_str()); });
+  if (labelLines.empty()) labelLines.push_back("");
+  subLines.clear();
+  if (!item.sublabel.empty())
+    subLines = gate::text::wrap(item.sublabel, innerW, gate::layout::kCharDescMaxLines,
+                                [&](const std::string& str) { return renderer.getTextWidth(SMALL_FONT, str.c_str()); });
+}
+
+// Total wrapped height of the whole menu block (for centering / bottom-anchoring).
+int GateActivity::menuBlockHeight(const gate::Screen& s) {
+  const int W = renderer.getScreenWidth();
+  const int innerW = W - 2 * MARGIN - 2 * gate::layout::kMenuTextInset;
+  const int labelH = renderer.getLineHeight(MENU_FONT);
+  const int subH = renderer.getLineHeight(SMALL_FONT);
+  int h = 0;
+  std::vector<std::string> labelLines, subLines;
+  for (const auto& item : s.menu) {
+    layoutGateRow(renderer, item, innerW, labelLines, subLines);
+    h += static_cast<int>(labelLines.size()) * labelH + static_cast<int>(subLines.size()) * subH +
+         gate::layout::kMenuRowPad + gate::layout::kMenuRowGap;
+  }
+  return h;
+}
+
+// Draw wrapped, variable-height rows. The selection fill covers the FULL wrapped
+// row height, so a 2-line choice is one selectable item. Buttons navigate by item
+// (cursor index) and on-device tap confirms the highlighted item, so no per-line
+// hit geometry is needed here.
 int GateActivity::drawMenu(const gate::Screen& s, int top, int bottomLimit) {
   const int W = renderer.getScreenWidth();
+  const int barW = W - 2 * MARGIN;
+  const int innerW = barW - 2 * gate::layout::kMenuTextInset;
   const int labelH = renderer.getLineHeight(MENU_FONT);
   const int subH = renderer.getLineHeight(SMALL_FONT);
   int y = top;
+  std::vector<std::string> labelLines, subLines;
   for (size_t i = 0; i < s.menu.size(); ++i) {
-    const auto& item = s.menu[i];
-    const bool hasSub = !item.sublabel.empty();
-    const int rowH = labelH + (hasSub ? subH : 0) + gate::layout::kMenuRowPad;
+    layoutGateRow(renderer, s.menu[i], innerW, labelLines, subLines);
+    const int rowH = static_cast<int>(labelLines.size()) * labelH + static_cast<int>(subLines.size()) * subH +
+                     gate::layout::kMenuRowPad;
     if (y + rowH > bottomLimit) break;  // never overflow into the footer
     const bool selected = static_cast<int>(i) == s.cursor;
-    if (selected) renderer.fillRect(MARGIN, y, W - 2 * MARGIN, rowH, true);
+    if (selected) renderer.fillRect(MARGIN, y, barW, rowH, true);
     const bool black = !selected;  // white text on the black selection bar
 
-    std::string label = item.label;
-    if (!item.enabled) label += "  (n/a)";
-    label = renderer.truncatedText(MENU_FONT, label.c_str(), W - 2 * MARGIN - 2 * gate::layout::kMenuTextInset);
-    renderer.drawText(MENU_FONT, MARGIN + gate::layout::kMenuTextInset, y + 6, label.c_str(), black);
-    if (hasSub) {
-      auto subLines = renderer.wrappedText(SMALL_FONT, item.sublabel.c_str(), W - 2 * MARGIN - 20, 1);
-      if (!subLines.empty())
-        renderer.drawText(SMALL_FONT, MARGIN + gate::layout::kMenuTextInset, y + 6 + labelH, subLines[0].c_str(),
-                          black);
+    int ty = y + gate::layout::kMenuRowPad / 2;
+    for (const auto& ln : labelLines) {
+      renderer.drawText(MENU_FONT, MARGIN + gate::layout::kMenuTextInset, ty, ln.c_str(), black);
+      ty += labelH;
+    }
+    for (const auto& ln : subLines) {
+      renderer.drawText(SMALL_FONT, MARGIN + gate::layout::kMenuTextInset, ty, ln.c_str(), black);
+      ty += subH;
     }
     y += rowH + gate::layout::kMenuRowGap;
   }
@@ -251,13 +290,29 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   // Reserve the theme's button-hint band at the bottom for drawHints().
   const int contentBottom = H - UITheme::getInstance().getMetrics().buttonHintsHeight;
 
-  // ---- Header --------------------------------------------------------------
+  // ---- Title screen: composed group (title + subtitle) high, menu centered in
+  // the lower region; controls stay tertiary in the button-hint bar. -----------
+  if (s.kind == gate::Screen::Kind::Title) {
+    int ty = MARGIN + gate::layout::kTitleGroupTopPad;
+    renderer.drawCenteredText(TITLE_FONT, ty, s.title.c_str(), true);
+    ty += renderer.getLineHeight(TITLE_FONT) + gate::layout::kTitleSubtitleGap;
+    if (!s.body.empty() && !s.body[0].empty()) {
+      renderer.drawCenteredText(SMALL_FONT, ty, renderer.truncatedText(SMALL_FONT, s.body[0].c_str(), contentW).c_str(),
+                                true);
+      ty += renderer.getLineHeight(SMALL_FONT);
+    }
+    const int groupBottom = ty;
+    const int blockH = menuBlockHeight(s);
+    int titleMenuTop = groupBottom + (contentBottom - groupBottom - blockH) / 2;
+    if (titleMenuTop < groupBottom + 24) titleMenuTop = groupBottom + 24;
+    drawMenu(s, titleMenuTop, contentBottom - 4);
+    drawHints(s);
+    return;
+  }
+
+  // ---- Header (game screens) -----------------------------------------------
   int y = MARGIN;
-  const bool bigTitle = (s.kind == gate::Screen::Kind::Title);
-  if (bigTitle) {
-    renderer.drawCenteredText(TITLE_FONT, y + 10, s.title.c_str(), true);
-    y += renderer.getLineHeight(TITLE_FONT) + 16;
-  } else if (!s.title.empty() && s.kind != gate::Screen::Kind::Beat) {
+  if (!s.title.empty() && s.kind != gate::Screen::Kind::Beat) {
     // Beats stay sparse (no header) for a full-screen moment.
     renderer.drawText(TITLE_FONT, MARGIN, y, renderer.truncatedText(TITLE_FONT, s.title.c_str(), contentW).c_str(),
                       true);
@@ -267,27 +322,28 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   }
   const int contentTop = y;
 
-  // ---- Character select: a simple list of tiles from the top ---------------
+  // ---- Character select: vertically centered cards -------------------------
   if (s.kind == gate::Screen::Kind::CharacterSelect) {
-    drawMenu(s, contentTop, contentBottom - 4);
+    const int blockH = menuBlockHeight(s);
+    int top = contentTop + (contentBottom - contentTop - blockH) / 2;
+    if (top < contentTop) top = contentTop;
+    drawMenu(s, top, contentBottom - 4);
     drawHints(s);
     return;
   }
 
   // ---- Bottom-anchored menu block (shared by remaining kinds) --------------
-  const int menuLabelH = renderer.getLineHeight(MENU_FONT);
   const int menuRows = static_cast<int>(s.menu.size());
-  int menuBlockH = 0;
-  for (const auto& m : s.menu)
-    menuBlockH += menuLabelH + (m.sublabel.empty() ? 0 : renderer.getLineHeight(SMALL_FONT)) +
-                  gate::layout::kMenuRowPad + gate::layout::kMenuRowGap;
+  const int menuBlockH = menuBlockHeight(s);
   const int menuTop = (menuRows > 0) ? (contentBottom - gate::layout::kMenuGapAboveBlock - menuBlockH) : contentBottom;
 
   // ---- World events (autonomous reactions), just above the menu ------------
   int weTop = menuTop;
   if (!s.worldEvents.empty()) {
     const std::string joined = std::string("\xC2\xBB ") + joinLines(s.worldEvents, "  \xC2\xBB ");
-    auto weLines = renderer.wrappedText(SMALL_FONT, joined.c_str(), contentW, gate::layout::kWorldEventsMaxLines);
+    auto weLines = gate::text::wrap(joined, contentW, gate::layout::kWorldEventsMaxLines, [&](const std::string& str) {
+      return renderer.getTextWidth(SMALL_FONT, str.c_str());
+    });
     const int lh = renderer.getLineHeight(SMALL_FONT);
     weTop = menuTop - gate::layout::kWorldEventsGapBelow - static_cast<int>(weLines.size()) * lh;
     int wy = weTop;
@@ -300,7 +356,8 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   // ---- Beat: large centered text in the space above the menu ---------------
   if (s.kind == gate::Screen::Kind::Beat) {
     const std::string text = joinLines(s.body, " ");
-    auto lines = renderer.wrappedText(BEAT_FONT, text.c_str(), contentW, 5);
+    auto lines = gate::text::wrap(
+        text, contentW, 5, [&](const std::string& str) { return renderer.getTextWidth(BEAT_FONT, str.c_str()); });
     const int lh = renderer.getLineHeight(BEAT_FONT);
     const int region = weTop - contentTop;
     int by = contentTop + (region - static_cast<int>(lines.size()) * lh) / 2;
@@ -329,14 +386,7 @@ void GateActivity::drawScreen(const gate::Screen& s) {
     }
   }
 
-  // ---- Title: show the device control hint under the intro text ------------
-  int bodyBottom = weTop;
-  if (bigTitle) {
-    const int hintLH = renderer.getLineHeight(SMALL_FONT);
-    const int hintY = menuTop - hintLH - 8;
-    renderer.drawCenteredText(SMALL_FONT, hintY, profile_.controlHint, true);
-    bodyBottom = hintY - 4;
-  }
+  const int bodyBottom = weTop;
 
   // ---- Body text (paragraph-aware, clamped so the menu stays visible) ------
   const int bodyLH = renderer.getLineHeight(BODY_FONT);
@@ -351,7 +401,9 @@ void GateActivity::drawScreen(const gate::Screen& s) {
         by += bodyLH / 2;
         continue;
       }
-      auto wrapped = renderer.wrappedText(BODY_FONT, para.c_str(), contentW, maxLines - used);
+      auto wrapped = gate::text::wrap(para, contentW, maxLines - used, [&](const std::string& str) {
+        return renderer.getTextWidth(BODY_FONT, str.c_str());
+      });
       for (const auto& l : wrapped) {
         renderer.drawText(BODY_FONT, MARGIN, by, l.c_str(), true);
         by += bodyLH;

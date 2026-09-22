@@ -45,6 +45,7 @@ class GateActivity : public Activity {
   void drawScreen(const gate::Screen& s);
   void drawError();
   int drawMenu(const gate::Screen& s, int top, int bottomLimit);  // returns y below last row
+  int menuBlockHeight(const gate::Screen& s);                     // wrapped total height of the menu
   void drawHints(const gate::Screen& s);                          // device-correct button-hint bar
 
   const gate_device::GateDeviceProfile profile_ = gate_device::activeProfile();
