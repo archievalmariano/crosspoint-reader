@@ -18,24 +18,30 @@
 
 namespace {
 
-// Map a shared Gate font role to the device font id that reproduces it. The
-// sizes/weights are read from gate::layout::fontSpec -- the single source of truth
-// shared with the desktop preview -- so there is no second typography spec to
-// drift. This is the ONLY place CrossPoint font ids appear for Gate; the portable
-// engine stays free of them. Faces match the preview's families/weights
-// (candidate C). A role whose (serif,px,bold) has no device face resolves to 0
-// and trips the static_assert below.
+// Map a shared Gate font role to a NATIVE CrossPoint font FAMILY id. Sizes come
+// from gate::layout::fontSpec (the single source of truth shared with the preview)
+// and are the point sizes CrossPoint itself ships (12/14/16/18); weight is applied
+// as a render-time STYLE (gateDeviceStyle) rather than a custom bold-baked face,
+// so Gate uses only native device fonts. This is the ONLY place CrossPoint font
+// ids appear for Gate; the portable engine stays free of them. A role whose
+// (serif,px) has no native family resolves to 0 and trips the static_assert below.
 constexpr int gateDeviceFontId(gate::layout::Font role) {
   const gate::layout::FontSpec s = gate::layout::fontSpec(role);
-  if (s.serif && s.bold && s.px == 22) return NOTOSERIF_22_BOLD_FONT_ID;  // Title (C & E1)
-  if (s.serif && s.bold && s.px == 24) return NOTOSERIF_24_BOLD_FONT_ID;  // Beat (C & E1)
-  if (s.serif && !s.bold && s.px == 19) return NOTOSERIF_19_FONT_ID;      // Body (C)
-  if (s.serif && !s.bold && s.px == 18) return NOTOSERIF_18_FONT_ID;      // Body (E1)
-  if (!s.serif && !s.bold && s.px == 18) return NOTOSANS_18_FONT_ID;      // Menu (C)
-  if (!s.serif && !s.bold && s.px == 16) return NOTOSANS_16_FONT_ID;      // Menu (E1)
-  if (!s.serif && !s.bold && s.px == 15) return NOTOSANS_15_FONT_ID;      // Small (C)
-  if (!s.serif && !s.bold && s.px == 14) return NOTOSANS_14_FONT_ID;      // Small (E1)
+  if (s.serif && s.px == 18) return NOTOSERIF_18_FONT_ID;  // Title / Beat (bold via style)
+  if (s.serif && s.px == 16) return NOTOSERIF_16_FONT_ID;  // (headroom)
+  if (s.serif && s.px == 14) return NOTOSERIF_14_FONT_ID;  // Body
+  if (s.serif && s.px == 12) return NOTOSERIF_12_FONT_ID;  // (headroom)
+  if (!s.serif && s.px == 18) return NOTOSANS_18_FONT_ID;  // (headroom)
+  if (!s.serif && s.px == 16) return NOTOSANS_16_FONT_ID;  // Menu
+  if (!s.serif && s.px == 14) return NOTOSANS_14_FONT_ID;  // (headroom)
+  if (!s.serif && s.px == 12) return NOTOSANS_12_FONT_ID;  // Small
   return 0;
+}
+
+// Bold roles render with the family's BOLD face (native), keeping Gate's header
+// personality without a custom bold-baked font.
+constexpr EpdFontFamily::Style gateDeviceStyle(gate::layout::Font role) {
+  return gate::layout::fontSpec(role).bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
 }
 
 constexpr int TITLE_FONT = gateDeviceFontId(gate::layout::Font::Title);
@@ -43,9 +49,11 @@ constexpr int BODY_FONT = gateDeviceFontId(gate::layout::Font::Body);
 constexpr int MENU_FONT = gateDeviceFontId(gate::layout::Font::Menu);
 constexpr int SMALL_FONT = gateDeviceFontId(gate::layout::Font::Small);
 constexpr int BEAT_FONT = gateDeviceFontId(gate::layout::Font::Beat);
+constexpr EpdFontFamily::Style TITLE_STYLE = gateDeviceStyle(gate::layout::Font::Title);
+constexpr EpdFontFamily::Style BEAT_STYLE = gateDeviceStyle(gate::layout::Font::Beat);
 static_assert(TITLE_FONT && BODY_FONT && MENU_FONT && SMALL_FONT && BEAT_FONT,
-              "A Gate typography role has no matching device font face. Add the face "
-              "(lib/EpdFont) or extend gateDeviceFontId() to keep preview/device in sync.");
+              "A Gate typography role has no matching native device family. Extend "
+              "gateDeviceFontId() to keep preview/device in sync.");
 
 // Layout numbers are sourced from the shared gate::layout spec so the on-device
 // renderer and the desktop preview cannot drift.
@@ -232,7 +240,7 @@ int GateActivity::drawMenu(const gate::Screen& s, int top, int bottomLimit) {
 void GateActivity::drawError() {
   renderer.clearScreen();
   const int W = renderer.getScreenWidth();
-  renderer.drawText(TITLE_FONT, MARGIN, MARGIN, "The Gate Is Open!", true);
+  renderer.drawText(TITLE_FONT, MARGIN, MARGIN, "The Gate Is Open!", true, TITLE_STYLE);
   renderer.drawText(BODY_FONT, MARGIN, MARGIN + 40, "Content failed to load:", true);
   auto lines = renderer.wrappedText(SMALL_FONT, loadError_.c_str(), W - 2 * MARGIN, 8);
   int y = MARGIN + 70;
@@ -294,12 +302,20 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   // the lower region; controls stay tertiary in the button-hint bar. -----------
   if (s.kind == gate::Screen::Kind::Title) {
     int ty = MARGIN + gate::layout::kTitleGroupTopPad;
-    renderer.drawCenteredText(TITLE_FONT, ty, s.title.c_str(), true);
-    ty += renderer.getLineHeight(TITLE_FONT) + gate::layout::kTitleSubtitleGap;
+    for (const auto& ln : gate::text::wrap(
+             s.title, contentW, gate::layout::kHeaderMaxLines,
+             [&](const std::string& str) { return renderer.getTextWidth(TITLE_FONT, str.c_str(), TITLE_STYLE); })) {
+      renderer.drawCenteredText(TITLE_FONT, ty, ln.c_str(), true, TITLE_STYLE);
+      ty += renderer.getLineHeight(TITLE_FONT);
+    }
+    ty += gate::layout::kTitleSubtitleGap;
     if (!s.body.empty() && !s.body[0].empty()) {
-      renderer.drawCenteredText(SMALL_FONT, ty, renderer.truncatedText(SMALL_FONT, s.body[0].c_str(), contentW).c_str(),
-                                true);
-      ty += renderer.getLineHeight(SMALL_FONT);
+      for (const auto& ln : gate::text::wrap(s.body[0], contentW, 2, [&](const std::string& str) {
+             return renderer.getTextWidth(SMALL_FONT, str.c_str());
+           })) {
+        renderer.drawCenteredText(SMALL_FONT, ty, ln.c_str(), true);
+        ty += renderer.getLineHeight(SMALL_FONT);
+      }
     }
     const int groupBottom = ty;
     const int blockH = menuBlockHeight(s);
@@ -310,15 +326,19 @@ void GateActivity::drawScreen(const gate::Screen& s) {
     return;
   }
 
-  // ---- Header (game screens) -----------------------------------------------
+  // ---- Header (game screens): authored heading WRAPS (never ellipsizes) -----
   int y = MARGIN;
   if (!s.title.empty() && s.kind != gate::Screen::Kind::Beat) {
     // Beats stay sparse (no header) for a full-screen moment.
-    renderer.drawText(TITLE_FONT, MARGIN, y, renderer.truncatedText(TITLE_FONT, s.title.c_str(), contentW).c_str(),
-                      true);
-    y += renderer.getLineHeight(TITLE_FONT) + 4;
+    for (const auto& ln : gate::text::wrap(
+             s.title, contentW, gate::layout::kHeaderMaxLines,
+             [&](const std::string& str) { return renderer.getTextWidth(TITLE_FONT, str.c_str(), TITLE_STYLE); })) {
+      renderer.drawText(TITLE_FONT, MARGIN, y, ln.c_str(), true, TITLE_STYLE);
+      y += renderer.getLineHeight(TITLE_FONT);
+    }
+    y += gate::layout::kHeaderGapBelowTitle;
     renderer.drawLine(MARGIN, y, W - MARGIN, y, true);
-    y += 10;
+    y += gate::layout::kHeaderGapBelowRule;
   }
   const int contentTop = y;
 
@@ -356,14 +376,15 @@ void GateActivity::drawScreen(const gate::Screen& s) {
   // ---- Beat: large centered text in the space above the menu ---------------
   if (s.kind == gate::Screen::Kind::Beat) {
     const std::string text = joinLines(s.body, " ");
-    auto lines = gate::text::wrap(
-        text, contentW, 5, [&](const std::string& str) { return renderer.getTextWidth(BEAT_FONT, str.c_str()); });
+    auto lines = gate::text::wrap(text, contentW, 5, [&](const std::string& str) {
+      return renderer.getTextWidth(BEAT_FONT, str.c_str(), BEAT_STYLE);
+    });
     const int lh = renderer.getLineHeight(BEAT_FONT);
     const int region = weTop - contentTop;
     int by = contentTop + (region - static_cast<int>(lines.size()) * lh) / 2;
     if (by < contentTop) by = contentTop;
     for (const auto& l : lines) {
-      renderer.drawCenteredText(BEAT_FONT, by, l.c_str(), true);
+      renderer.drawCenteredText(BEAT_FONT, by, l.c_str(), true, BEAT_STYLE);
       by += lh;
     }
     if (menuRows > 0) drawMenu(s, menuTop, contentBottom - 4);

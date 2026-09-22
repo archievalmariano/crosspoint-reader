@@ -16,10 +16,6 @@
 #include <builtinFonts/notoserif_18_bolditalic.h>
 #include <builtinFonts/notoserif_18_italic.h>
 #include <builtinFonts/notoserif_18_regular.h>
-// Gate typography (candidate C) device faces: specific sizes/weights only.
-#include <builtinFonts/notoserif_19_regular.h>
-#include <builtinFonts/notoserif_22_bold.h>
-#include <builtinFonts/notoserif_24_bold.h>
 #include <builtinFonts/notosans_8_regular.h>
 #include <builtinFonts/notosans_12_bold.h>
 #include <builtinFonts/notosans_12_bolditalic.h>
@@ -36,7 +32,6 @@
 #include <builtinFonts/notosans_18_bold.h>
 #include <builtinFonts/notosans_18_bolditalic.h>
 #include <builtinFonts/notosans_18_italic.h>
-#include <builtinFonts/notosans_15_regular.h>
 #include <builtinFonts/notosans_18_regular.h>
 #include <builtinFonts/ubuntu_10_bold.h>
 #include <builtinFonts/ubuntu_10_regular.h>
