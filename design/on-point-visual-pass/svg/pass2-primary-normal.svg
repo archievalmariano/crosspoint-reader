@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" data-output-width="480" data-output-height="800">
+<style>
+@font-face {
+  font-family: 'Preview Noto Sans';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Preview Noto Sans';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Bold.ttf');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'Preview Ubuntu';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/Ubuntu/Ubuntu-Regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Preview Ubuntu';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/Ubuntu/Ubuntu-Bold.ttf');
+  font-weight: 700;
+}
+text { font-family: 'Preview Noto Sans', sans-serif; }
+.utility { font-family: 'Preview Ubuntu', sans-serif; }
+</style>
+<rect width="800" height="800" fill="#fff"/>
+<g transform="translate(160 0)">
+<text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
+<text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">TRINOMA</text>
+<line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>
+<polygon points="438,121 460,130 438,139" fill="#000"/>
+<text x="456" y="178" font-size="31" font-weight="700" fill="#000" text-anchor="end" letter-spacing="0.3">BALAGTAS</text>
+<text class="utility" x="24" y="218" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.4">UNTIL NEXT SCHEDULED DEPARTURE</text>
+<rect x="78" y="252" width="51" height="51" fill="#000"/>
+<rect x="24" y="306" width="51" height="51" fill="#000"/>
+<rect x="78" y="306" width="51" height="51" fill="#000"/>
+<rect x="78" y="360" width="51" height="51" fill="#000"/>
+<rect x="78" y="414" width="51" height="51" fill="#000"/>
+<rect x="24" y="468" width="51" height="51" fill="#000"/>
+<rect x="78" y="468" width="51" height="51" fill="#000"/>
+<rect x="132" y="468" width="51" height="51" fill="#000"/>
+<rect x="208" y="252" width="51" height="51" fill="#000"/>
+<rect x="262" y="252" width="51" height="51" fill="#000"/>
+<rect x="316" y="252" width="51" height="51" fill="#000"/>
+<rect x="208" y="306" width="51" height="51" fill="#000"/>
+<rect x="316" y="306" width="51" height="51" fill="#000"/>
+<rect x="208" y="360" width="51" height="51" fill="#000"/>
+<rect x="262" y="360" width="51" height="51" fill="#000"/>
+<rect x="316" y="360" width="51" height="51" fill="#000"/>
+<rect x="208" y="414" width="51" height="51" fill="#000"/>
+<rect x="316" y="414" width="51" height="51" fill="#000"/>
+<rect x="208" y="468" width="51" height="51" fill="#000"/>
+<rect x="262" y="468" width="51" height="51" fill="#000"/>
+<rect x="316" y="468" width="51" height="51" fill="#000"/>
+<text class="utility" x="442" y="500" font-size="15" font-weight="700" fill="#000" text-anchor="middle" letter-spacing="2.0" transform="rotate(-90 442 500)">MIN</text>
+<line x1="24" y1="536" x2="456" y2="536" stroke="#000" stroke-width="5"/>
+<text class="utility" x="24" y="570" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.4">SCHEDULED</text>
+<text x="24" y="622" font-size="43" font-weight="700" fill="#000" text-anchor="start" letter-spacing="-1.0">21:30</text>
+<text class="utility" x="236" y="570" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.4">NEXT</text>
+<text x="236" y="613" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0">22:00</text>
+<text x="456" y="613" font-size="18" font-weight="700" fill="#000" text-anchor="end" letter-spacing="0">22:30 LAST</text>
+<text class="utility" x="24" y="684" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.2">WEEKDAY / EVERY 30 MIN</text>
+<line x1="24" y1="726" x2="456" y2="726" stroke="#000" stroke-width="3"/>
+<text class="utility" x="24" y="758" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">WED 16 SEP</text>
+<text class="utility" x="456" y="758" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.4">PROVISIONAL</text>
+</g>
+</svg>

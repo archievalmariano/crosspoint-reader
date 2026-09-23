@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" data-output-width="480" data-output-height="800">
+<style>
+@font-face {
+  font-family: 'Preview Noto Sans';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Preview Noto Sans';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Bold.ttf');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'Preview Ubuntu';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/Ubuntu/Ubuntu-Regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Preview Ubuntu';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/Ubuntu/Ubuntu-Bold.ttf');
+  font-weight: 700;
+}
+text { font-family: 'Preview Noto Sans', sans-serif; }
+.utility { font-family: 'Preview Ubuntu', sans-serif; }
+</style>
+<rect width="800" height="800" fill="#fff"/>
+<g transform="translate(160 0)">
+<text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="end" letter-spacing="0.8">21:12</text>
+<rect x="0" y="54" width="480" height="136" fill="#000"/>
+<text x="24" y="92" font-size="29" font-weight="700" fill="#fff" text-anchor="start" letter-spacing="0.5">TRINOMA</text>
+<line x1="35" y1="105" x2="35" y2="132" stroke="#fff" stroke-width="4"/>
+<polygon points="28,126 42,126 35,136" fill="#fff"/>
+<text x="58" y="156" font-size="29" font-weight="700" fill="#fff" text-anchor="start" letter-spacing="0.5">BALAGTAS</text>
+<text class="utility" x="456" y="171" font-size="10" font-weight="700" fill="#fff" text-anchor="end" letter-spacing="1.6">PROVISIONAL</text>
+<text class="utility" x="24" y="232" font-size="12" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.4">UNTIL SCHEDULED DEPARTURE</text>
+<rect x="68" y="264" width="41" height="41" fill="#000"/>
+<rect x="24" y="308" width="41" height="41" fill="#000"/>
+<rect x="68" y="308" width="41" height="41" fill="#000"/>
+<rect x="68" y="352" width="41" height="41" fill="#000"/>
+<rect x="68" y="396" width="41" height="41" fill="#000"/>
+<rect x="24" y="440" width="41" height="41" fill="#000"/>
+<rect x="68" y="440" width="41" height="41" fill="#000"/>
+<rect x="112" y="440" width="41" height="41" fill="#000"/>
+<rect x="178" y="264" width="41" height="41" fill="#000"/>
+<rect x="222" y="264" width="41" height="41" fill="#000"/>
+<rect x="266" y="264" width="41" height="41" fill="#000"/>
+<rect x="178" y="308" width="41" height="41" fill="#000"/>
+<rect x="266" y="308" width="41" height="41" fill="#000"/>
+<rect x="178" y="352" width="41" height="41" fill="#000"/>
+<rect x="222" y="352" width="41" height="41" fill="#000"/>
+<rect x="266" y="352" width="41" height="41" fill="#000"/>
+<rect x="178" y="396" width="41" height="41" fill="#000"/>
+<rect x="266" y="396" width="41" height="41" fill="#000"/>
+<rect x="178" y="440" width="41" height="41" fill="#000"/>
+<rect x="222" y="440" width="41" height="41" fill="#000"/>
+<rect x="266" y="440" width="41" height="41" fill="#000"/>
+<text class="utility" x="436" y="459" font-size="15" font-weight="700" fill="#000" text-anchor="middle" letter-spacing="2.0" transform="rotate(-90 436 459)">MIN</text>
+<line x1="376" y1="282" x2="440" y2="282" stroke="#000" stroke-width="4"/>
+<line x1="376" y1="398" x2="440" y2="398" stroke="#000" stroke-width="4"/>
+<line x1="376" y1="282" x2="408" y2="340" stroke="#000" stroke-width="4"/>
+<line x1="440" y1="282" x2="408" y2="340" stroke="#000" stroke-width="4"/>
+<line x1="408" y1="340" x2="376" y2="398" stroke="#000" stroke-width="4"/>
+<line x1="408" y1="340" x2="440" y2="398" stroke="#000" stroke-width="4"/>
+<polygon points="408,335 392,308 424,308" fill="#000"/>
+<polygon points="408,375 398,393 418,393" fill="#000"/>
+<line x1="24" y1="510" x2="456" y2="510" stroke="#000" stroke-width="5"/>
+<text class="utility" x="24" y="542" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.3">SCHEDULED DEPARTURE</text>
+<text x="24" y="590" font-size="42" font-weight="700" fill="#000" text-anchor="start" letter-spacing="-1">21:30</text>
+<text class="utility" x="236" y="542" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.3">FOLLOWING</text>
+<text x="236" y="576" font-size="21" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0">22:00</text>
+<text x="236" y="611" font-size="18" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0">22:30 LAST</text>
+<text class="utility" x="24" y="666" font-size="12" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.2">30 MIN INTERVAL</text>
+<line x1="24" y1="718" x2="456" y2="718" stroke="#000" stroke-width="3"/>
+<text class="utility" x="24" y="746" font-size="12" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.1">WED 16 SEP</text>
+<text class="utility" x="456" y="746" font-size="11" font-weight="700" fill="#000" text-anchor="end" letter-spacing="0.8">LEFT / RIGHT  SWITCH</text>
+<text class="utility" x="24" y="778" font-size="10" font-weight="400" fill="#000" text-anchor="start" letter-spacing="1.0">SCHEDULED TIMETABLE • UTC+8</text>
+<text class="utility" x="456" y="778" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.2">HOME</text>
+</g>
+</svg>

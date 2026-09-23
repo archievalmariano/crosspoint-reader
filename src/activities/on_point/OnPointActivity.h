@@ -8,18 +8,35 @@
 #include "activities/Activity.h"
 
 class OnPointActivity final : public Activity {
+  enum class View : uint8_t { RouteList, Departure };
+
   on_point::HalClockSource clock;
   on_point::DepartureState state;
-  size_t scheduleIndex = 0;
+  View view = View::RouteList;
+  size_t routeIndex = 0;
   unsigned long nextRefreshAtMs = 0;
   uint8_t fastRefreshCount = 0;
+  bool reversed = false;
   bool clockReady = false;
   bool cleanRefresh = true;
 
+  const on_point::Schedule& selectedSchedule() const;
+  size_t routeListFirstIndex() const;
+  size_t routeListVisibleCount() const;
+  void openSelectedRoute();
+  void reverseDirection();
   void updateState();
   void scheduleNextRefresh();
-  void drawPrimaryScreen();
-  void drawEndedScreen();
+  void drawRouteList() const;
+  void drawRouteListRow(const on_point::Schedule& route, size_t index, int y) const;
+  void drawHeaderAndRoute(const on_point::Schedule& schedule) const;
+  void drawReverseAffordance() const;
+  void drawFooter(const on_point::Schedule& schedule, const char* leftLabel) const;
+  void drawBadge(const char* label) const;
+  void drawPrimaryScreen(const on_point::Schedule& schedule);
+  void drawEndedScreen(const on_point::Schedule& schedule);
+  void drawClockUnavailableScreen(const on_point::Schedule& schedule) const;
+  void drawTimetableUnavailableScreen(const on_point::Schedule& schedule) const;
   void drawHourglass(int x, int y, int width, int height) const;
   void drawLargeNumber(int value, int x, int y, int maxWidth, int height) const;
 

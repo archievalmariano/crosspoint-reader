@@ -247,10 +247,9 @@ void HomeActivity::loop() {
                                                metrics.homeTopPadding + metrics.homeCoverTileHeight, coverColumnWidth);
   if (coverTouch != MappedInputManager::RowTouch::None) {
     if (coverTouch == MappedInputManager::RowTouch::Down) {
-      if (selectorIndex != touchedBook) {
-        selectorIndex = touchedBook;
-        requestUpdate();
-      }
+      // Do not repaint while the finger is still down: an e-ink update can
+      // swallow the release and make direct activation require another tap.
+      selectorIndex = touchedBook;
     } else {
       selectorIndex = touchedBook;
       activateSelection();
@@ -271,10 +270,9 @@ void HomeActivity::loop() {
     const int touchedIndex =
         metrics.homeContinueReadingInMenu ? menuRow : menuRow + static_cast<int>(recentBooks.size());
     if (menuTouch == MappedInputManager::RowTouch::Down) {
-      if (selectorIndex != touchedIndex) {
-        selectorIndex = touchedIndex;
-        requestUpdate();
-      }
+      // Match UiListActivity: selection changes immediately, but repainting
+      // before release can consume the tap that should launch the row.
+      selectorIndex = touchedIndex;
     } else {
       selectorIndex = touchedIndex;
       activateSelection();

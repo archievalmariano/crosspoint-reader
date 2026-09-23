@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" data-output-width="480" data-output-height="800">
+<style>
+@font-face {
+  font-family: 'Preview Noto Sans';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Preview Noto Sans';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/NotoSans/NotoSans-Bold.ttf');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'Preview Ubuntu';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/Ubuntu/Ubuntu-Regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Preview Ubuntu';
+  src: url('file:///Users/almariano1/Downloads/project-on-point/lib/EpdFont/builtinFonts/source/Ubuntu/Ubuntu-Bold.ttf');
+  font-weight: 700;
+}
+text { font-family: 'Preview Noto Sans', sans-serif; }
+.utility { font-family: 'Preview Ubuntu', sans-serif; }
+</style>
+<rect width="800" height="800" fill="#fff"/>
+<g transform="translate(160 0)">
+<rect x="0" y="0" width="126" height="800" fill="#000"/>
+<text class="utility" x="28" y="45" font-size="14" font-weight="700" fill="#fff" text-anchor="start" letter-spacing="2">ON POINT</text>
+<line x1="42" y1="112" x2="42" y2="318" stroke="#fff" stroke-width="5"/>
+<circle cx="42" cy="118" r="9" fill="#fff"/>
+<circle cx="42" cy="312" r="9" fill="#fff"/>
+<text x="73" y="126" font-size="17" font-weight="700" fill="#fff" text-anchor="start" letter-spacing="0" transform="rotate(90 73 126)">TRINOMA</text>
+<text x="73" y="323" font-size="17" font-weight="700" fill="#fff" text-anchor="start" letter-spacing="0" transform="rotate(90 73 323)">BALAGTAS</text>
+<text class="utility" x="63" y="740" font-size="10" font-weight="700" fill="#fff" text-anchor="middle" letter-spacing="1.4" transform="rotate(-90 63 740)">PROVISIONAL</text>
+<text class="utility" x="456" y="35" font-size="14" font-weight="700" fill="#000" text-anchor="end" letter-spacing="0">21:12</text>
+<text class="utility" x="154" y="82" font-size="12" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.5">MINUTES TO GO</text>
+<rect x="196" y="126" width="39" height="39" fill="#000"/>
+<rect x="154" y="168" width="39" height="39" fill="#000"/>
+<rect x="196" y="168" width="39" height="39" fill="#000"/>
+<rect x="196" y="210" width="39" height="39" fill="#000"/>
+<rect x="196" y="252" width="39" height="39" fill="#000"/>
+<rect x="154" y="294" width="39" height="39" fill="#000"/>
+<rect x="196" y="294" width="39" height="39" fill="#000"/>
+<rect x="238" y="294" width="39" height="39" fill="#000"/>
+<rect x="301" y="126" width="39" height="39" fill="#000"/>
+<rect x="343" y="126" width="39" height="39" fill="#000"/>
+<rect x="385" y="126" width="39" height="39" fill="#000"/>
+<rect x="301" y="168" width="39" height="39" fill="#000"/>
+<rect x="385" y="168" width="39" height="39" fill="#000"/>
+<rect x="301" y="210" width="39" height="39" fill="#000"/>
+<rect x="343" y="210" width="39" height="39" fill="#000"/>
+<rect x="385" y="210" width="39" height="39" fill="#000"/>
+<rect x="301" y="252" width="39" height="39" fill="#000"/>
+<rect x="385" y="252" width="39" height="39" fill="#000"/>
+<rect x="301" y="294" width="39" height="39" fill="#000"/>
+<rect x="343" y="294" width="39" height="39" fill="#000"/>
+<rect x="385" y="294" width="39" height="39" fill="#000"/>
+<line x1="154" y1="375" x2="456" y2="375" stroke="#000" stroke-width="5"/>
+<text class="utility" x="154" y="414" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.4">SCHEDULED</text>
+<text x="154" y="468" font-size="44" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0">21:30</text>
+<text class="utility" x="154" y="530" font-size="11" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.4">FOLLOWING</text>
+<text x="154" y="572" font-size="22" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0">22:00</text>
+<text x="290" y="572" font-size="18" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0">22:30  LAST</text>
+<line x1="154" y1="684" x2="456" y2="684" stroke="#000" stroke-width="3"/>
+<text class="utility" x="154" y="720" font-size="12" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1">WED 16 SEP</text>
+<text class="utility" x="456" y="720" font-size="12" font-weight="700" fill="#000" text-anchor="end" letter-spacing="0">← / →</text>
+<text class="utility" x="154" y="760" font-size="10" font-weight="400" fill="#000" text-anchor="start" letter-spacing="1">SCHEDULED TIMETABLE</text>
+</g>
+</svg>

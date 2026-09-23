@@ -24,6 +24,76 @@ CivilDateTime manilaTime(const int year, const int month, const int day, const i
 const on_point::Schedule& balagtasSchedule() { return on_point::scheduleAt(0); }
 const on_point::Schedule& trinomaSchedule() { return on_point::scheduleAt(1); }
 
+TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
+  const on_point::RoutePair& route = on_point::routeAt(0);
+  const on_point::Schedule& outbound = on_point::scheduleForRoute(0, false);
+  const on_point::Schedule& returning = on_point::scheduleForRoute(0, true);
+
+  EXPECT_EQ(route.outboundScheduleIndex, 0u);
+  EXPECT_EQ(route.returnScheduleIndex, 1u);
+  EXPECT_STREQ(outbound.origin, "BALAGTAS");
+  EXPECT_STREQ(outbound.destination, "TRINOMA");
+  EXPECT_STREQ(returning.origin, outbound.destination);
+  EXPECT_STREQ(returning.destination, outbound.origin);
+  EXPECT_STREQ(route.originArea, "BULACAN");
+  EXPECT_STREQ(route.destinationArea, "QUEZON CITY");
+}
+
+TEST(OnPointScheduleData, AdditionalRoutePairsUseSpecificEndpointsAndAreas) {
+  ASSERT_EQ(on_point::ROUTE_COUNT, 4u);
+  ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
+
+  const on_point::RoutePair& caypombo = on_point::routeAt(1);
+  EXPECT_STREQ(on_point::scheduleForRoute(1, false).origin, "CAYPOMBO");
+  EXPECT_STREQ(on_point::scheduleForRoute(1, false).destination, "SM NORTH EDSA");
+  EXPECT_STREQ(on_point::scheduleForRoute(1, true).origin, "SM NORTH EDSA");
+  EXPECT_STREQ(caypombo.originArea, "SANTA MARIA, BULACAN");
+  EXPECT_STREQ(caypombo.destinationArea, "QUEZON CITY");
+
+  const on_point::RoutePair& calamba = on_point::routeAt(2);
+  EXPECT_STREQ(on_point::scheduleForRoute(2, false).origin, "CALAMBA");
+  EXPECT_STREQ(on_point::scheduleForRoute(2, false).destination, "BGC");
+  EXPECT_STREQ(calamba.originArea, "LAGUNA");
+  EXPECT_STREQ(calamba.destinationArea, "TAGUIG");
+
+  const on_point::RoutePair& upTownCenter = on_point::routeAt(3);
+  EXPECT_STREQ(on_point::scheduleForRoute(3, false).origin, "UP TOWN CENTER");
+  EXPECT_STREQ(on_point::scheduleForRoute(3, false).destination, "ONE AYALA");
+  EXPECT_STREQ(upTownCenter.originArea, "QUEZON CITY");
+  EXPECT_STREQ(upTownCenter.destinationArea, "MAKATI");
+}
+
+TEST(OnPointScheduleData, AdditionalPublishedTimetablesRemainIndependent) {
+  const DepartureState caypombo =
+      on_point::getDepartureState(on_point::scheduleForRoute(1, false), manilaTime(2026, 9, 23, 10, 15));
+  ASSERT_TRUE(caypombo.next.valid);
+  EXPECT_EQ(caypombo.next.local.hour, 11);
+  EXPECT_EQ(caypombo.next.local.minute, 0);
+  EXPECT_EQ(caypombo.minutesToNext, 45);
+  EXPECT_EQ(caypombo.last.local.hour, 19);
+  EXPECT_EQ(caypombo.last.local.minute, 45);
+
+  const DepartureState calamba =
+      on_point::getDepartureState(on_point::scheduleForRoute(2, false), manilaTime(2026, 9, 23, 12, 30));
+  ASSERT_TRUE(calamba.next.valid);
+  EXPECT_EQ(calamba.next.local.hour, 13);
+  EXPECT_EQ(calamba.minutesToNext, 30);
+  EXPECT_EQ(calamba.last.local.hour, 20);
+
+  const DepartureState upTownCenter =
+      on_point::getDepartureState(on_point::scheduleForRoute(3, false), manilaTime(2026, 9, 23, 6, 0));
+  ASSERT_TRUE(upTownCenter.next.valid);
+  EXPECT_EQ(upTownCenter.next.local.hour, 6);
+  EXPECT_EQ(upTownCenter.next.local.minute, 45);
+  EXPECT_EQ(upTownCenter.minutesToNext, 45);
+  EXPECT_EQ(upTownCenter.last.local.hour, 18);
+}
+
+TEST(OnPointScheduleData, InvalidRouteIndexFallsBackToFirstPair) {
+  EXPECT_EQ(&on_point::routeAt(on_point::ROUTE_COUNT), &on_point::routeAt(0));
+  EXPECT_EQ(&on_point::scheduleForRoute(on_point::ROUTE_COUNT, false), &balagtasSchedule());
+}
+
 TEST(OnPointSchedule, BeforeFirstDeparture) {
   const DepartureState state = on_point::getDepartureState(balagtasSchedule(), manilaTime(2026, 9, 16, 3, 50));
   EXPECT_EQ(state.serviceStatus, ServiceStatus::BeforeFirst);

@@ -80,36 +80,57 @@ void GotoActivity::onEnter() {
 void GotoActivity::loop() {
   using Button = MappedInputManager::Button;
 
-  // Left-rocker left = Back. Context-sensitive: in the QR detail state it
-  // returns to the SAME article page (no reload, no network, no page reset);
-  // otherwise it exits GOTO to Home. Handled first so Back stays responsive.
-  if (mappedInput.wasReleased(Button::Back)) {
-    if (showingQr) {
+  // Dedicated Home key (X4 Pro / any home-key board): exit GOTO to CrossPoint
+  // home from ANY screen. Board-agnostic — boards without a home key return
+  // false here, so this is inert on the X4 (which exits via Back below).
+  if (mappedInput.wasHomeGesture() || mappedInput.wasHomeKeyHold()) {
+    activityManager.goHome();
+    return;
+  }
+
+  // Full Story QR is a modal detail of the current article. Handle it FIRST,
+  // BEFORE the RenderLock gate, so backing out stays responsive even while the
+  // QR's slow full refresh is still painting — otherwise a press/tap that lands
+  // during that refresh is dropped and the exit feels laggy and inconsistent
+  // (the front Back button never had this because it, too, is handled pre-gate).
+  // Back out to the SAME article (no reload/network/page reset) via: the front
+  // Back button (X4) or left-edge back swipe / screen tap (touch), or a side key
+  // (touch boards only — they have no front Back button; matches the Left key's
+  // "go back" role on the terminal page). Nothing else acts while the QR shows.
+  if (showingQr) {
+    int tx = 0;
+    int ty = 0;
+    const bool backOut = mappedInput.wasReleased(Button::Back) || mappedInput.wasScreenTapped(tx, ty) ||
+                         (mappedInput.hasTouch() &&
+                          (mappedInput.wasPressed(Button::NavNext) || mappedInput.wasPressed(Button::NavPrevious)));
+    if (backOut) {
       showingQr = false;
-      cleanArticleRefresh = true;  // clear QR ghosting on the way back
+      cleanArticleRefresh = true;  // one HALF_REFRESH to scrub QR ghosting
       requestUpdate();
-    } else {
-      activityManager.goHome();
     }
+    return;
+  }
+
+  // Back on a story/terminal page = exit GOTO to Home (front Back button on X4,
+  // or a left-edge back swipe on touch boards). Pre-gate so it stays responsive.
+  if (mappedInput.wasReleased(Button::Back)) {
+    activityManager.goHome();
     return;
   }
 
   if (!loaded || edition.stories.empty()) return;
 
   // One gesture -> one transition. render() runs on a separate render task;
-  // while it holds the RenderLock (a refresh is in progress) ignore input, so
-  // presses during a slow refresh (a QR full-refresh included) cannot queue a
-  // burst. Back is handled above and stays responsive.
+  // while it holds the RenderLock (a refresh is in progress) ignore paging input
+  // so presses during a slow refresh cannot queue a burst. Back and the QR modal
+  // are handled above and stay responsive.
   if (RenderLock::peek()) return;
 
-  // QR detail state: only Back acts (handled above); ignore nav/Select so a
-  // second Select does not re-toggle and paging is inert while the QR shows.
-  if (showingQr) return;
-
-  // Left-rocker right = Select = FULL STORY: open the per-story QR handoff. Only
-  // on a story page; the terminal edition page is itself a QR, so Select is inert
-  // there (its per-story interaction is unchanged).
-  if (!onTerminalPage() && mappedInput.wasReleased(Button::Confirm)) {
+  // Open the per-story FULL STORY QR handoff: the front Confirm button (X4), or a
+  // tap on the on-screen FULL STORY affordance (touch boards / X4 Pro). Only on a
+  // story page; the terminal edition page is itself a QR, so this is inert there.
+  if (!onTerminalPage() && (mappedInput.wasReleased(Button::Confirm) ||
+                            (fullStoryTapValid && mappedInput.wasTapInRect(fsTapX, fsTapY, fsTapW, fsTapH)))) {
     showingQr = true;
     requestUpdate();
     return;
@@ -123,6 +144,22 @@ void GotoActivity::loop() {
   // terminal; terminal -> Previous -> last story; terminal -> Next -> story 1.
   const int storyCount = static_cast<int>(edition.stories.size());
   const bool leavingTerminal = onTerminalPage();
+
+  // Terminal edition-QR page: a screen tap (its BACK cue) returns to the last
+  // story — the same result as the Left key here and as tapping BACK on the
+  // Full Story QR. Inert on button boards (no touch), which back out via the
+  // side keys as before.
+  if (leavingTerminal) {
+    int tx = 0;
+    int ty = 0;
+    if (mappedInput.wasScreenTapped(tx, ty)) {
+      pageIndex = goto_nav::prevIndex(pageIndex, storyCount);
+      cleanArticleRefresh = true;  // scrub QR ghosting on the story we land on
+      requestUpdate();
+      return;
+    }
+  }
+
   if (mappedInput.wasPressed(Button::NavNext)) {
     pageIndex = goto_nav::nextIndex(pageIndex, storyCount);
     if (leavingTerminal) cleanArticleRefresh = true;  // scrub QR ghosting on the story we land on
@@ -326,6 +363,15 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   // No persistent PREV/NEXT hints: navigation uses the X4's native front rocker
   // and side buttons (see loop()), which CrossPoint does not label on-screen.
 
+  // Record the FULL STORY tap target for touch boards (X4 Pro): a generous
+  // bottom-right band from the footer rule down, covering the label + chevron.
+  // Button boards never read it (they open the QR with Confirm).
+  fsTapX = fsLabelX - kChevronTextGap;
+  fsTapY = footerRuleY;
+  fsTapW = renderer.getScreenWidth() - fsTapX;
+  fsTapH = screenHeight - footerRuleY;
+  fullStoryTapValid = true;
+
   // --- Subtle liveness marker (centered between pager and FULL STORY). Live
   // states show nothing: a fresh network fetch (Network) OR a cached edition the
   // server manifest confirmed current this session (CacheCurrent). CACHED is
@@ -417,6 +463,9 @@ void GotoActivity::drawEditionQrScreen() {
 }
 
 void GotoActivity::render(RenderLock&&) {
+  // The FULL STORY tap target is only valid while a story page is on screen;
+  // drawStoryPage re-arms it below. QR / terminal pages leave it disarmed.
+  fullStoryTapValid = false;
   renderer.clearScreen();
   drawMasthead();
 
