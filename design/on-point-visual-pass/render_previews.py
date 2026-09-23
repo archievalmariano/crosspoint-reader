@@ -388,7 +388,7 @@ def open_poster(state: State) -> str:
 def pass2_header() -> str:
     return "\n".join(
         [
-            text("ON POINT", 24, 35, 20, weight=700, spacing=1.0),
+            text("ON POINT", 24, 31, 20, weight=700, spacing=1.0),
             text("P2P SCHEDULE", 456, 31, 10, weight=700, anchor="end", spacing=1.0, utility=True),
             rule(24, 52, 456, 52, 5),
         ]
@@ -429,7 +429,7 @@ def refined_open_poster(state: State, *, with_hourglass: bool = False) -> str:
                 text(state.departure or "", 24, 520, 78, weight=700, spacing=-2.0),
                 text(state.next_date or "", 456, 487, 18, weight=700, anchor="end", spacing=0.8),
                 text("FIRST TRIP", 456, 520, 11, weight=700, anchor="end", spacing=1.2, utility=True),
-                text("No scheduled departure before this time.", 24, 626, 15, utility=True),
+                text("NO MORE TRIPS TODAY", 24, 620, 11, weight=700, spacing=1.0, utility=True),
             ]
         )
         pieces.append(pass2_footer(state.date))
@@ -568,7 +568,7 @@ def final_open_poster(state: State) -> str:
                 text(state.departure or "", 24, 520, 78, weight=700, spacing=-2.0),
                 text("2026-09-17", 456, 487, 18, weight=700, anchor="end", spacing=0.8),
                 text("FIRST TRIP", 456, 520, 11, weight=700, anchor="end", spacing=1.2, utility=True),
-                text("No scheduled departure before this time.", 24, 626, 15, utility=True),
+                text("NO MORE TRIPS TODAY", 24, 620, 11, weight=700, spacing=1.0, utility=True),
             ]
         )
         pieces.append(pass2_footer("2026-09-16"))

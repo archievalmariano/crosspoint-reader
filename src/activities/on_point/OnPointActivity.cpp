@@ -16,7 +16,8 @@
 namespace {
 
 constexpr int MARGIN = 24;
-constexpr int TOP = 18;
+constexpr int HEADER_TITLE_Y = 8;
+constexpr int HEADER_META_Y = 20;
 constexpr int HEADER_FONT = NOTOSANS_16_FONT_ID;
 constexpr int ROUTE_FONT = NOTOSANS_16_FONT_ID;
 constexpr int TIME_FONT = NOTOSANS_18_FONT_ID;
@@ -374,8 +375,8 @@ void OnPointActivity::drawHourglass(const int x, const int y, const int width, c
 void OnPointActivity::drawHeaderAndRoute(const on_point::Schedule& schedule) const {
   const int width = renderer.getScreenWidth();
   const char* timetableLabel = tr(STR_ON_POINT_P2P_TIMETABLE);
-  renderer.drawText(HEADER_FONT, MARGIN, TOP, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), TOP + 2,
+  renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), HEADER_META_Y,
                     timetableLabel, true, EpdFontFamily::BOLD);
   renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
 
@@ -417,8 +418,8 @@ void OnPointActivity::drawRouteList() const {
   const char* timetableLabel = tr(STR_ON_POINT_P2P_TIMETABLE);
   const size_t mainIndex = mainRouteIndex();
 
-  renderer.drawText(HEADER_FONT, MARGIN, TOP, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
-  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), TOP + 2,
+  renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), HEADER_META_Y,
                     timetableLabel, true, EpdFontFamily::BOLD);
   renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
   renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, tr(STR_ON_POINT_MAIN_ROUTE), true,
@@ -584,7 +585,8 @@ void OnPointActivity::drawEndedScreen(const on_point::Schedule& schedule) {
         LABEL_FONT,
         width - MARGIN - renderer.getTextWidth(LABEL_FONT, tr(STR_ON_POINT_FIRST_TRIP), EpdFontFamily::BOLD), 511,
         tr(STR_ON_POINT_FIRST_TRIP), true, EpdFontFamily::BOLD);
-    renderer.drawText(NOTOSANS_12_FONT_ID, MARGIN, 610, tr(STR_ON_POINT_NO_DEPARTURE_BEFORE));
+    renderer.drawText(LABEL_FONT, MARGIN, 610, tr(STR_ON_POINT_NO_MORE_TRIPS_TODAY), true,
+                      EpdFontFamily::BOLD);
   } else {
     renderer.drawText(FOLLOWING_FONT, MARGIN, 464, tr(STR_ON_POINT_NO_FUTURE_SERVICE), true, EpdFontFamily::BOLD);
   }
