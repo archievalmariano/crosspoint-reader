@@ -7,6 +7,7 @@ namespace on_point {
 namespace {
 
 constexpr uint8_t WEEKDAYS = 0b0111110;  // Monday through Friday.
+constexpr uint8_t DAILY = 0b1111111;
 
 // Provisional timetable data. Replace only these arrays and schedule metadata
 // after checking the operators' current published timetables.
@@ -46,6 +47,34 @@ constexpr uint16_t ONE_AYALA_TO_UP_TOWN_CENTER[] = {
     390, 450, 510, 570, 660, 780, 900, 975, 1050, 1125, 1170,
 };
 
+constexpr uint16_t BAGUIO_TO_PITX[] = {
+    60,  120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 690,
+    750, 840, 900, 960, 1020, 1080, 1140, 1200, 1260, 1320, 1380, 1440,
+};
+
+constexpr uint16_t PITX_TO_BAGUIO[] = {
+    60,  120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 690,
+    750, 840, 900, 960, 1020, 1080, 1140, 1200, 1260, 1320, 1380, 1440,
+};
+
+constexpr uint16_t ARANETA_CITY_TO_NAIA[] = {
+    360, 420, 540, 660, 750, 900, 990, 1110, 1260,
+};
+
+constexpr uint16_t NAIA_TO_ARANETA_CITY[] = {
+    330, 450, 540, 660, 810, 870, 990, 1110, 1230,
+};
+
+constexpr uint16_t CLARK_AIRPORT_TO_NAIA_T3[] = {
+    120, 180, 240, 300, 360, 420, 480, 540, 600, 660,
+    720, 780, 840, 900, 960, 1020, 1080, 1140, 1230,
+};
+
+constexpr uint16_t NAIA_T3_TO_CLARK_AIRPORT[] = {
+    0,   120, 240, 330, 420, 480, 540, 600, 660, 720,
+    780, 840, 900, 960, 1020, 1080, 1170, 1230, 1290, 1350,
+};
+
 constexpr ServiceRule BALAGTAS_RULES[] = {
     {WEEKDAYS, {BALAGTAS_TO_TRINOMA, std::size(BALAGTAS_TO_TRINOMA)}},
 };
@@ -76,6 +105,30 @@ constexpr ServiceRule UP_TOWN_CENTER_RULES[] = {
 
 constexpr ServiceRule ONE_AYALA_RULES[] = {
     {WEEKDAYS, {ONE_AYALA_TO_UP_TOWN_CENTER, std::size(ONE_AYALA_TO_UP_TOWN_CENTER)}},
+};
+
+constexpr ServiceRule BAGUIO_RULES[] = {
+    {DAILY, {BAGUIO_TO_PITX, std::size(BAGUIO_TO_PITX)}},
+};
+
+constexpr ServiceRule PITX_RULES[] = {
+    {DAILY, {PITX_TO_BAGUIO, std::size(PITX_TO_BAGUIO)}},
+};
+
+constexpr ServiceRule ARANETA_CITY_RULES[] = {
+    {DAILY, {ARANETA_CITY_TO_NAIA, std::size(ARANETA_CITY_TO_NAIA)}},
+};
+
+constexpr ServiceRule NAIA_RULES[] = {
+    {DAILY, {NAIA_TO_ARANETA_CITY, std::size(NAIA_TO_ARANETA_CITY)}},
+};
+
+constexpr ServiceRule CLARK_AIRPORT_RULES[] = {
+    {DAILY, {CLARK_AIRPORT_TO_NAIA_T3, std::size(CLARK_AIRPORT_TO_NAIA_T3)}},
+};
+
+constexpr ServiceRule NAIA_T3_RULES[] = {
+    {DAILY, {NAIA_T3_TO_CLARK_AIRPORT, std::size(NAIA_T3_TO_CLARK_AIRPORT)}},
 };
 
 constexpr Schedule SCHEDULES[] = {
@@ -183,6 +236,84 @@ constexpr Schedule SCHEDULES[] = {
      0,
      "P2PBus.ph rider directory; verify with DNS before release.",
      SourceStatus::Provisional},
+    {"p2p-baguio-pitx",
+     "Solid North",
+     "BAGUIO",
+     "PITX",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     BAGUIO_RULES,
+     std::size(BAGUIO_RULES),
+     nullptr,
+     0,
+     "P2PBus.ph rider directory; verify with Solid North before release.",
+     SourceStatus::Provisional},
+    {"p2p-pitx-baguio",
+     "Solid North",
+     "PITX",
+     "BAGUIO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     PITX_RULES,
+     std::size(PITX_RULES),
+     nullptr,
+     0,
+     "P2PBus.ph rider directory; verify with Solid North before release.",
+     SourceStatus::Provisional},
+    {"p2p-araneta-city-naia",
+     "UBE Express",
+     "ARANETA CITY",
+     "NAIA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     ARANETA_CITY_RULES,
+     std::size(ARANETA_CITY_RULES),
+     nullptr,
+     0,
+     "P2PBus.ph rider directory; verify with UBE Express before release.",
+     SourceStatus::Provisional},
+    {"p2p-naia-araneta-city",
+     "UBE Express",
+     "NAIA",
+     "ARANETA CITY",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     NAIA_RULES,
+     std::size(NAIA_RULES),
+     nullptr,
+     0,
+     "P2PBus.ph rider directory; verify with UBE Express before release.",
+     SourceStatus::Provisional},
+    {"p2p-clark-airport-naia-t3",
+     "Genesis",
+     "CLARK AIRPORT",
+     "NAIA T3",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     CLARK_AIRPORT_RULES,
+     std::size(CLARK_AIRPORT_RULES),
+     nullptr,
+     0,
+     "P2PBus.ph rider directory; verify with Genesis before release.",
+     SourceStatus::Provisional},
+    {"p2p-naia-t3-clark-airport",
+     "Genesis",
+     "NAIA T3",
+     "CLARK AIRPORT",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     NAIA_T3_RULES,
+     std::size(NAIA_T3_RULES),
+     nullptr,
+     0,
+     "P2PBus.ph rider directory; verify with Genesis before release.",
+     SourceStatus::Provisional},
 };
 
 constexpr RoutePair ROUTES[] = {
@@ -190,6 +321,9 @@ constexpr RoutePair ROUTES[] = {
     {"p2p-caypombo-sm-north-edsa", 2, 3, "SANTA MARIA, BULACAN", "QUEZON CITY"},
     {"p2p-calamba-bgc", 4, 5, "LAGUNA", "TAGUIG"},
     {"p2p-up-town-center-one-ayala", 6, 7, "QUEZON CITY", "MAKATI"},
+    {"p2p-baguio-pitx", 8, 9, "BAGUIO", "PARAÑAQUE"},
+    {"p2p-araneta-city-naia", 10, 11, "QUEZON CITY", "PASAY / PARAÑAQUE"},
+    {"p2p-clark-airport-naia-t3", 12, 13, "PAMPANGA", "PASAY"},
 };
 
 static_assert(std::size(SCHEDULES) == SCHEDULE_COUNT);

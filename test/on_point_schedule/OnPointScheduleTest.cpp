@@ -40,7 +40,7 @@ TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
 }
 
 TEST(OnPointScheduleData, AdditionalRoutePairsUseSpecificEndpointsAndAreas) {
-  ASSERT_EQ(on_point::ROUTE_COUNT, 4u);
+  ASSERT_EQ(on_point::ROUTE_COUNT, 7u);
   ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
 
   const on_point::RoutePair& caypombo = on_point::routeAt(1);
@@ -61,6 +61,27 @@ TEST(OnPointScheduleData, AdditionalRoutePairsUseSpecificEndpointsAndAreas) {
   EXPECT_STREQ(on_point::scheduleForRoute(3, false).destination, "ONE AYALA");
   EXPECT_STREQ(upTownCenter.originArea, "QUEZON CITY");
   EXPECT_STREQ(upTownCenter.destinationArea, "MAKATI");
+
+  const on_point::RoutePair& baguio = on_point::routeAt(4);
+  EXPECT_STREQ(on_point::scheduleForRoute(4, false).origin, "BAGUIO");
+  EXPECT_STREQ(on_point::scheduleForRoute(4, false).destination, "PITX");
+  EXPECT_STREQ(on_point::scheduleForRoute(4, true).origin, "PITX");
+  EXPECT_STREQ(baguio.originArea, "BAGUIO");
+  EXPECT_STREQ(baguio.destinationArea, "PARAÑAQUE");
+
+  const on_point::RoutePair& aranetaCity = on_point::routeAt(5);
+  EXPECT_STREQ(on_point::scheduleForRoute(5, false).origin, "ARANETA CITY");
+  EXPECT_STREQ(on_point::scheduleForRoute(5, false).destination, "NAIA");
+  EXPECT_STREQ(on_point::scheduleForRoute(5, true).origin, "NAIA");
+  EXPECT_STREQ(aranetaCity.originArea, "QUEZON CITY");
+  EXPECT_STREQ(aranetaCity.destinationArea, "PASAY / PARAÑAQUE");
+
+  const on_point::RoutePair& clarkAirport = on_point::routeAt(6);
+  EXPECT_STREQ(on_point::scheduleForRoute(6, false).origin, "CLARK AIRPORT");
+  EXPECT_STREQ(on_point::scheduleForRoute(6, false).destination, "NAIA T3");
+  EXPECT_STREQ(on_point::scheduleForRoute(6, true).origin, "NAIA T3");
+  EXPECT_STREQ(clarkAirport.originArea, "PAMPANGA");
+  EXPECT_STREQ(clarkAirport.destinationArea, "PASAY");
 }
 
 TEST(OnPointScheduleData, AdditionalPublishedTimetablesRemainIndependent) {
@@ -89,12 +110,53 @@ TEST(OnPointScheduleData, AdditionalPublishedTimetablesRemainIndependent) {
   EXPECT_EQ(upTownCenter.last.local.hour, 18);
 }
 
+TEST(OnPointScheduleData, NewDailyRoutesUseTheirIndependentPublishedTimetables) {
+  const DepartureState baguio =
+      on_point::getDepartureState(on_point::scheduleForRoute(4, false), manilaTime(2026, 9, 26, 23, 30));
+  ASSERT_TRUE(baguio.next.valid);
+  EXPECT_EQ(baguio.next.local.day, 27);
+  EXPECT_EQ(baguio.next.local.hour, 0);
+  EXPECT_EQ(baguio.next.local.minute, 0);
+  EXPECT_EQ(baguio.next.serviceMinute, 1440);
+  EXPECT_EQ(baguio.minutesToNext, 30);
+  EXPECT_TRUE(baguio.isLastDeparture);
+
+  const DepartureState aranetaCity =
+      on_point::getDepartureState(on_point::scheduleForRoute(5, false), manilaTime(2026, 9, 26, 12, 0));
+  ASSERT_TRUE(aranetaCity.next.valid);
+  EXPECT_EQ(aranetaCity.next.local.hour, 12);
+  EXPECT_EQ(aranetaCity.next.local.minute, 30);
+  EXPECT_EQ(aranetaCity.minutesToNext, 30);
+  EXPECT_EQ(aranetaCity.last.local.hour, 21);
+
+  const DepartureState clarkAirport =
+      on_point::getDepartureState(on_point::scheduleForRoute(6, false), manilaTime(2026, 9, 27, 19, 15));
+  ASSERT_TRUE(clarkAirport.next.valid);
+  EXPECT_EQ(clarkAirport.next.local.hour, 20);
+  EXPECT_EQ(clarkAirport.next.local.minute, 30);
+  EXPECT_EQ(clarkAirport.minutesToNext, 75);
+  EXPECT_TRUE(clarkAirport.isLastDeparture);
+
+  const DepartureState naiaT3 =
+      on_point::getDepartureState(on_point::scheduleForRoute(6, true), manilaTime(2026, 9, 27, 0, 0));
+  ASSERT_TRUE(naiaT3.next.valid);
+  EXPECT_EQ(naiaT3.next.local.hour, 0);
+  EXPECT_EQ(naiaT3.next.local.minute, 0);
+  EXPECT_EQ(naiaT3.minutesToNext, 0);
+  EXPECT_FALSE(naiaT3.isLastDeparture);
+}
+
 TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrder) {
   EXPECT_EQ(on_point::routeIndexForId("p2p-balagtas-trinoma"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-caypombo-sm-north-edsa"), 1u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-baguio-pitx"), 4u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 5u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-clark-airport-naia-t3"), 6u);
   EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
 
-  const char* expectedOrigins[] = {"BALAGTAS", "CALAMBA", "CAYPOMBO", "UP TOWN CENTER"};
+  const char* expectedOrigins[] = {
+      "ARANETA CITY", "BAGUIO", "BALAGTAS", "CALAMBA", "CAYPOMBO", "CLARK AIRPORT", "UP TOWN CENTER",
+  };
   for (size_t position = 0; position < on_point::ROUTE_COUNT; ++position) {
     const size_t routeIndex = on_point::routeIndexInAlphabeticalOrder(position);
     EXPECT_STREQ(on_point::scheduleForRoute(routeIndex, false).origin, expectedOrigins[position]);

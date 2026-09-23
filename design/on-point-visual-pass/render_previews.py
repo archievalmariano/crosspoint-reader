@@ -641,13 +641,19 @@ def final_open_poster(state: State) -> str:
     return "\n".join(pieces)
 
 
-def route_list_preview(selected_route: str = "BALAGTAS") -> str:
+def route_list_preview(selected_route: str = "BALAGTAS", page: int = 1) -> str:
     """Render the production main-route hierarchy and evenly spaced route list."""
-    routes = [
+    all_routes = [
+        ("ARANETA CITY", "NAIA"),
+        ("BAGUIO", "PITX"),
         ("CALAMBA", "BGC"),
         ("CAYPOMBO", "SM NORTH EDSA"),
+        ("CLARK AIRPORT", "NAIA T3"),
         ("UP TOWN CENTER", "ONE AYALA"),
     ]
+    page_count = (len(all_routes) + 2) // 3
+    page = max(1, min(page, page_count))
+    routes = all_routes[(page - 1) * 3 : page * 3]
     pieces = [pass2_header(), text("MAIN ROUTE", 24, 90, 11, weight=700, spacing=1.4, utility=True)]
 
     main_selected = selected_route == "BALAGTAS"
@@ -659,6 +665,7 @@ def route_list_preview(selected_route: str = "BALAGTAS") -> str:
             '<polygon points="438,155 460,164 438,173" fill="#000"/>',
             text("TRINOMA", 456, 222, 27, weight=700, anchor="end"),
             text("ALL ROUTES / A-Z", 24, 298, 11, weight=700, spacing=1.4, utility=True),
+            text(f"{page} / {page_count}", 456, 298, 11, weight=700, anchor="end", spacing=1.4, utility=True),
         ]
     )
 
@@ -792,7 +799,9 @@ def main() -> None:
     )
     write_svg("final-contact-required-states", final_sheet, final_width, final_height)
     write_svg("route-list-main-selected", route_list_preview())
-    write_svg("route-list-secondary-selected", route_list_preview("CAYPOMBO"))
+    write_svg("route-list-secondary-selected", route_list_preview("ARANETA CITY"))
+    write_svg("route-list-page-1", route_list_preview("ARANETA CITY", page=1))
+    write_svg("route-list-page-2", route_list_preview("CAYPOMBO", page=2))
     print(f"Generated {len(list(SVG_DIR.glob('*.svg')))} SVG previews in {SVG_DIR}")
 
 

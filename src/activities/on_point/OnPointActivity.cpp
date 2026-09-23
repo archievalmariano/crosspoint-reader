@@ -229,13 +229,18 @@ void OnPointActivity::loop() {
       return;
     }
     if (mappedInput.wasPressed(Button::NavNext)) {
-      const size_t next = (selectedDisplayIndex() + 1) % on_point::routeCount();
+      const size_t routeCount = on_point::routeCount();
+      if (routeCount <= 1) return;
+      const size_t selected = selectedDisplayIndex();
+      const size_t next = selected == 0 || selected + 1 >= routeCount ? 1 : selected + 1;
       selectDisplayIndex(next);
       return;
     }
     if (mappedInput.wasPressed(Button::NavPrevious)) {
+      const size_t routeCount = on_point::routeCount();
+      if (routeCount <= 1) return;
       const size_t selected = selectedDisplayIndex();
-      selectDisplayIndex(selected == 0 ? on_point::routeCount() - 1 : selected - 1);
+      selectDisplayIndex(selected <= 1 ? routeCount - 1 : selected - 1);
       return;
     }
     if (mappedInput.wasReleased(Button::Confirm)) {
