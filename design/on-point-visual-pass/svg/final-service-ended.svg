@@ -25,8 +25,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 </style>
 <rect width="800" height="800" fill="#fff"/>
 <g transform="translate(160 0)">
-<text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">BALAGTAS</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>

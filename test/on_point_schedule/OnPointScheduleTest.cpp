@@ -89,6 +89,18 @@ TEST(OnPointScheduleData, AdditionalPublishedTimetablesRemainIndependent) {
   EXPECT_EQ(upTownCenter.last.local.hour, 18);
 }
 
+TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrder) {
+  EXPECT_EQ(on_point::routeIndexForId("p2p-balagtas-trinoma"), 0u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-caypombo-sm-north-edsa"), 1u);
+  EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
+
+  const char* expectedOrigins[] = {"BALAGTAS", "CALAMBA", "CAYPOMBO", "UP TOWN CENTER"};
+  for (size_t position = 0; position < on_point::ROUTE_COUNT; ++position) {
+    const size_t routeIndex = on_point::routeIndexInAlphabeticalOrder(position);
+    EXPECT_STREQ(on_point::scheduleForRoute(routeIndex, false).origin, expectedOrigins[position]);
+  }
+}
+
 TEST(OnPointScheduleData, InvalidRouteIndexFallsBackToFirstPair) {
   EXPECT_EQ(&on_point::routeAt(on_point::ROUTE_COUNT), &on_point::routeAt(0));
   EXPECT_EQ(&on_point::scheduleForRoute(on_point::ROUTE_COUNT, false), &balagtasSchedule());

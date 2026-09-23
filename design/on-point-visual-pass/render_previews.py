@@ -388,8 +388,8 @@ def open_poster(state: State) -> str:
 def pass2_header() -> str:
     return "\n".join(
         [
-            text("ON POINT", 24, 31, 15, weight=700, spacing=2.2, utility=True),
-            text("P2P / SCHEDULED TIMETABLE", 456, 31, 10, weight=700, anchor="end", spacing=1.0, utility=True),
+            text("ON POINT", 24, 35, 20, weight=700, spacing=1.0),
+            text("P2P SCHEDULE", 456, 31, 10, weight=700, anchor="end", spacing=1.0, utility=True),
             rule(24, 52, 456, 52, 5),
         ]
     )
@@ -641,6 +641,58 @@ def final_open_poster(state: State) -> str:
     return "\n".join(pieces)
 
 
+def route_list_preview(selected_route: str = "BALAGTAS") -> str:
+    """Render the production main-route hierarchy and evenly spaced route list."""
+    routes = [
+        ("CALAMBA", "BGC"),
+        ("CAYPOMBO", "SM NORTH EDSA"),
+        ("UP TOWN CENTER", "ONE AYALA"),
+    ]
+    pieces = [pass2_header(), text("MAIN ROUTE", 24, 90, 11, weight=700, spacing=1.4, utility=True)]
+
+    main_selected = selected_route == "BALAGTAS"
+    pieces.extend(
+        [
+            rect(24, 102, 10 if main_selected else 4, 150),
+            text("BALAGTAS", 52, 139, 27, weight=700),
+            rule(52, 164, 438, 164, 5),
+            '<polygon points="438,155 460,164 438,173" fill="#000"/>',
+            text("TRINOMA", 456, 222, 27, weight=700, anchor="end"),
+            text("ALL ROUTES / A-Z", 24, 298, 11, weight=700, spacing=1.4, utility=True),
+        ]
+    )
+
+    for row, (origin, destination) in enumerate(routes):
+        y = 316 + row * 126
+        selected = selected_route == origin
+        pieces.extend(
+            [
+                rect(24, y, 8 if selected else 3, 104),
+                text(origin, 48, y + 33, 19, weight=700),
+                rule(48, y + 48, 440, y + 48, 4),
+                f'<polygon points="440,{y+40} 460,{y+48} 440,{y+56}" fill="#000"/>',
+                text(destination, 456, y + 91, 19, weight=700, anchor="end"),
+            ]
+        )
+
+    pieces.extend(
+        [
+            rule(24, 726, 456, 726, 3),
+            text(
+                "MAIN ROUTE" if main_selected else "HOLD TO SET AS MAIN",
+                24,
+                758,
+                11,
+                weight=700,
+                spacing=1.0,
+                utility=True,
+            ),
+            text("PROVISIONAL", 456, 758, 10, weight=700, anchor="end", spacing=1.4, utility=True),
+        ]
+    )
+    return "\n".join(pieces)
+
+
 def write_svg(name: str, inner: str, width: int = WIDTH, height: int = HEIGHT) -> Path:
     path = SVG_DIR / f"{name}.svg"
     path.write_text(root(inner, width, height), encoding="utf-8")
@@ -739,6 +791,8 @@ def main() -> None:
         final_items, columns=3, scale=0.36, title="FINAL DIRECTION — PRODUCTION STATES"
     )
     write_svg("final-contact-required-states", final_sheet, final_width, final_height)
+    write_svg("route-list-main-selected", route_list_preview())
+    write_svg("route-list-secondary-selected", route_list_preview("CAYPOMBO"))
     print(f"Generated {len(list(SVG_DIR.glob('*.svg')))} SVG previews in {SVG_DIR}")
 
 

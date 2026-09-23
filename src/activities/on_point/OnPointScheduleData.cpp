@@ -1,5 +1,6 @@
 #include "OnPointScheduleData.h"
 
+#include <cstring>
 #include <iterator>
 
 namespace on_point {
@@ -205,6 +206,34 @@ const RoutePair& routeAt(const size_t index) { return ROUTES[index < ROUTE_COUNT
 const Schedule& scheduleForRoute(const size_t routeIndex, const bool reversed) {
   const RoutePair& route = routeAt(routeIndex);
   return scheduleAt(reversed ? route.returnScheduleIndex : route.outboundScheduleIndex);
+}
+
+size_t routeIndexInAlphabeticalOrder(const size_t position) {
+  if (position >= ROUTE_COUNT) return 0;
+
+  for (size_t candidate = 0; candidate < ROUTE_COUNT; ++candidate) {
+    const Schedule& candidateSchedule = scheduleAt(ROUTES[candidate].outboundScheduleIndex);
+    size_t earlierRoutes = 0;
+    for (size_t other = 0; other < ROUTE_COUNT; ++other) {
+      if (other == candidate) continue;
+      const Schedule& otherSchedule = scheduleAt(ROUTES[other].outboundScheduleIndex);
+      int comparison = strcmp(otherSchedule.origin, candidateSchedule.origin);
+      if (comparison == 0) comparison = strcmp(otherSchedule.destination, candidateSchedule.destination);
+      if (comparison == 0) comparison = strcmp(ROUTES[other].routeId, ROUTES[candidate].routeId);
+      if (comparison < 0) ++earlierRoutes;
+    }
+    if (earlierRoutes == position) return candidate;
+  }
+  return 0;
+}
+
+size_t routeIndexForId(const char* routeId) {
+  if (routeId) {
+    for (size_t index = 0; index < ROUTE_COUNT; ++index) {
+      if (strcmp(ROUTES[index].routeId, routeId) == 0) return index;
+    }
+  }
+  return 0;
 }
 
 }  // namespace on_point

@@ -28,8 +28,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 <text x="34" y="48" font-size="25" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">PASS 2 — REFINED OPEN POSTER STATES</text>
 <rect x="31" y="73" width="178" height="294" fill="#000"/>
 <rect x="34" y="76" width="172" height="288" fill="#fff"/>
-<g transform="translate(34 76) scale(0.36)"><text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<g transform="translate(34 76) scale(0.36)"><text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">TRINOMA</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>
@@ -71,8 +71,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 <text class="utility" x="34" y="392" font-size="14" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.6">NORMAL</text>
 <rect x="245" y="73" width="178" height="294" fill="#000"/>
 <rect x="248" y="76" width="172" height="288" fill="#fff"/>
-<g transform="translate(248 76) scale(0.36)"><text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<g transform="translate(248 76) scale(0.36)"><text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">TRINOMA</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>
@@ -114,8 +114,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 <text class="utility" x="248" y="392" font-size="14" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.6">NEAR</text>
 <rect x="459" y="73" width="178" height="294" fill="#000"/>
 <rect x="462" y="76" width="172" height="288" fill="#fff"/>
-<g transform="translate(462 76) scale(0.36)"><text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<g transform="translate(462 76) scale(0.36)"><text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">TRINOMA</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>
@@ -158,8 +158,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 <text class="utility" x="462" y="392" font-size="14" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.6">LAST</text>
 <rect x="31" y="427" width="178" height="294" fill="#000"/>
 <rect x="34" y="430" width="172" height="288" fill="#fff"/>
-<g transform="translate(34 430) scale(0.36)"><text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<g transform="translate(34 430) scale(0.36)"><text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">BALAGTAS</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>
@@ -203,8 +203,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 <text class="utility" x="34" y="746" font-size="14" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.6">BEFORE FIRST</text>
 <rect x="245" y="427" width="178" height="294" fill="#000"/>
 <rect x="248" y="430" width="172" height="288" fill="#fff"/>
-<g transform="translate(248 430) scale(0.36)"><text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<g transform="translate(248 430) scale(0.36)"><text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">BALAGTAS</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>
@@ -224,8 +224,8 @@ text { font-family: 'Preview Noto Sans', sans-serif; }
 <text class="utility" x="248" y="746" font-size="14" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.6">SERVICE ENDED</text>
 <rect x="459" y="427" width="178" height="294" fill="#000"/>
 <rect x="462" y="430" width="172" height="288" fill="#fff"/>
-<g transform="translate(462 430) scale(0.36)"><text class="utility" x="24" y="31" font-size="15" font-weight="700" fill="#000" text-anchor="start" letter-spacing="2.2">ON POINT</text>
-<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P / SCHEDULED TIMETABLE</text>
+<g transform="translate(462 430) scale(0.36)"><text x="24" y="35" font-size="20" font-weight="700" fill="#000" text-anchor="start" letter-spacing="1.0">ON POINT</text>
+<text class="utility" x="456" y="31" font-size="10" font-weight="700" fill="#000" text-anchor="end" letter-spacing="1.0">P2P SCHEDULE</text>
 <line x1="24" y1="52" x2="456" y2="52" stroke="#000" stroke-width="5"/>
 <text x="24" y="100" font-size="31" font-weight="700" fill="#000" text-anchor="start" letter-spacing="0.3">TRINOMA</text>
 <line x1="24" y1="130" x2="438" y2="130" stroke="#000" stroke-width="4"/>

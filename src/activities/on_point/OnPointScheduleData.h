@@ -21,5 +21,7 @@ const Schedule& scheduleAt(size_t index);
 size_t routeCount();
 const RoutePair& routeAt(size_t index);
 const Schedule& scheduleForRoute(size_t routeIndex, bool reversed);
+size_t routeIndexInAlphabeticalOrder(size_t position);
+size_t routeIndexForId(const char* routeId);
 
 }  // namespace on_point

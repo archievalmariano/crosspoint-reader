@@ -577,6 +577,30 @@ void setup() {
   allowSleepAt = millis() + 2000;
 }
 
+// Development aid: when built with STAY_AWAKE_WHILE_USB_POWERED and connected to
+// a USB host / external power, the idle-timeout deep sleep is suppressed so the
+// USB CDC port stays enumerated for flashing and serial. Only the automatic idle
+// timeout is affected -- manual power-button sleep still works, and on battery
+// the normal idle-sleep behavior is unchanged. Opt-in per build env (x4pro dev),
+// never in release builds.
+//
+// "USB powered" is a live USB host connection (usb_serial_jtag_is_connected --
+// SOF packets arriving on the built-in Serial/JTAG PHY, which is the port used
+// for flashing on the X4 Pro) OR the charger STAT line (isUsbConnected). The
+// host-connection signal is the reliable one: it stays true while a computer is
+// attached regardless of charge state, whereas the charger STAT line drops once
+// charging terminates at a full battery, letting a plugged-in device idle-sleep.
+#ifdef STAY_AWAKE_WHILE_USB_POWERED
+extern "C" bool usb_serial_jtag_is_connected(void);  // SOF seen from a USB host
+#endif
+static bool stayAwakeOnUsbPower() {
+#ifdef STAY_AWAKE_WHILE_USB_POWERED
+  return usb_serial_jtag_is_connected() || gpio.isUsbConnected();
+#else
+  return false;
+#endif
+}
+
 void loop() {
   static unsigned long maxLoopDuration = 0;
   const unsigned long loopStartTime = millis();
@@ -692,7 +716,7 @@ void loop() {
 #endif
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
-  if (sleepTimeoutMs > 0 && millis() - lastActivityTime >= sleepTimeoutMs) {
+  if (sleepTimeoutMs > 0 && millis() - lastActivityTime >= sleepTimeoutMs && !stayAwakeOnUsbPower()) {
     LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
     enterDeepSleep(true);
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start

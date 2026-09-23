@@ -351,6 +351,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         // is hidden from the on-device Settings screen (edited via OPDS UI).
         SettingInfo::String(StrId::STR_OPDS_DOWNLOAD_FOLDER, &SETTINGS.opdsDownloadFolder[0],
                             sizeof(SETTINGS.opdsDownloadFolder), "opdsDownloadFolder"),
+        // On Point main route: persisted + web-exposed, but category-less so
+        // long-pressing a route remains the single on-device editing path.
+        SettingInfo::String(StrId::STR_ON_POINT, &SETTINGS.onPointMainRouteId[0],
+                            sizeof(SETTINGS.onPointMainRouteId), "onPointMainRouteId"),
         // OPDS download filename format: persisted + web-exposed, category-less so it
         // is hidden from the on-device Settings screen (cycled from the OPDS UI).
         SettingInfo::Enum(StrId::STR_OPDS_FILENAME_FORMAT, &CrossPointSettings::opdsFilenameFormat,

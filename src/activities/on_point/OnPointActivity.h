@@ -21,14 +21,21 @@ class OnPointActivity final : public Activity {
   bool cleanRefresh = true;
 
   const on_point::Schedule& selectedSchedule() const;
-  size_t routeListFirstIndex() const;
+  size_t mainRouteIndex() const;
+  size_t displayRouteIndex(size_t displayIndex) const;
+  size_t selectedDisplayIndex() const;
+  size_t routeListFirstPosition() const;
   size_t routeListVisibleCount() const;
+  bool routeAtPoint(int x, int y, size_t& index) const;
+  void selectDisplayIndex(size_t displayIndex);
+  void setSelectedAsMainRoute();
   void openSelectedRoute();
   void reverseDirection();
   void updateState();
   void scheduleNextRefresh();
   void drawRouteList() const;
-  void drawRouteListRow(const on_point::Schedule& route, size_t index, int y) const;
+  void drawMainRoute(const on_point::Schedule& route, bool selected) const;
+  void drawRouteListRow(const on_point::Schedule& route, bool selected, int y) const;
   void drawHeaderAndRoute(const on_point::Schedule& schedule) const;
   void drawReverseAffordance() const;
   void drawFooter(const on_point::Schedule& schedule, const char* leftLabel) const;
