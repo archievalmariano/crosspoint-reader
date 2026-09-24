@@ -1,0 +1,70 @@
+# Reproducible production firmware builds for the canonical suite baseline.
+#
+# Builds the X4 (C3) and X4 Pro (S3) PRODUCTION profiles on a clean Ubuntu
+# runner, with no manual toolchain setup — the SCons restore hook
+# (scripts/patch_scons_tools.py) repairs pioarduino's trimmed tool-scons in-repo.
+# These production profiles compile Gate OUT (GATE_ENABLED unset), so they need
+# no external Gate sources; they are the "canonical baseline -> clean
+# reproducible firmware build" check.
+name: Suite production build
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: gh_release        # X4 / X3 (ESP32-C3) production
+          - env: x4pro-gh_release  # X4 Pro (ESP32-S3) production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: false
+
+      - name: Install PlatformIO Core
+        run: |
+          uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+          uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
+            "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
+            "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
+            "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Build ${{ matrix.env }} firmware
+        run: |
+          set -euo pipefail
+          pio run -e ${{ matrix.env }} | tee pio.log
+
+      - name: Firmware build stats
+        run: |
+          set -euo pipefail
+          {
+            echo "## ${{ matrix.env }} build stats"
+            grep -E "RAM:\\s" -m1 pio.log || echo "- RAM: not found"
+            grep -E "Flash:\\s" -m1 pio.log || echo "- Flash: not found"
+          } >> "$GITHUB_STEP_SUMMARY"
