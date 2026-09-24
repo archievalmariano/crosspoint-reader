@@ -71,8 +71,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## ${{ matrix.env }} (cold) reproducibility record"
-            echo '```'
+            echo "### ${{ matrix.env }} (cold) reproducibility record"
             echo "python: $(python3 --version 2>&1)"
             echo "uv: $(uv --version 2>&1)"
             echo "platformio: $(pio --version 2>&1)"
@@ -81,8 +80,7 @@ jobs:
                      .pio/build/${{ matrix.env }}/firmware.factory.bin; do
               [ -f "$f" ] && sha256sum "$f"
             done
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"   # also to stdout for log capture
 
   cached:
     name: Build ${{ matrix.env }} (cached)
