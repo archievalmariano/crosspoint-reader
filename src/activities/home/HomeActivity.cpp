@@ -28,7 +28,7 @@
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 5;  // File Browser, Recents, File transfer, Settings, GOTO
+  int count = 6;  // File Browser, Recents, File transfer, Settings, GOTO, On Point
 #ifdef GATE_ENABLED
   count += 1;  // + The Gate Is Open!
 #endif
@@ -212,6 +212,9 @@ void HomeActivity::loop() {
         onGateOpen();
         break;
 #endif
+      case HomeMenuItem::ON_POINT:
+        onPointOpen();
+        break;
       default:
         break;
     }
@@ -332,6 +335,8 @@ void HomeActivity::render(RenderLock&&) {
   menuItems.push_back("The Gate Is Open!");
   menuIcons.push_back(Book);
 #endif
+  menuItems.push_back(tr(STR_ON_POINT));
+  menuIcons.push_back(Recent);
 
   if (hasOpdsServers) {
     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
@@ -388,3 +393,5 @@ void HomeActivity::onGateOpen() {
   activityManager.pushActivity(std::make_unique<GateActivity>(renderer, mappedInput));
 }
 #endif
+
+void HomeActivity::onPointOpen() { activityManager.goToOnPoint(); }

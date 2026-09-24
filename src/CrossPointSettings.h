@@ -265,6 +265,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // OPDS server list. Persisted via a category-less SettingInfo::String in
   // SettingsList.h, so it stays out of the on-device Settings screen.
   char opdsDownloadFolder[64] = "";
+  // Stable route-pair ID pinned by On Point. Persisted through a category-less
+  // string setting so the route screen owns the interaction and presentation.
+  char onPointMainRouteId[48] = "p2p-balagtas-trinoma";
   // On-disk filename format for OPDS downloads (0=Author-Title default, 1=Title-Author,
   // 2=Title). See OpdsFilenameFormat. Persisted via a category-less SettingInfo::Enum,
   // edited from the OPDS server list; hidden from the on-device Settings screen.

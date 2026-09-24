@@ -50,6 +50,8 @@ class HomeActivity final : public Activity {
     ++i;
     if (item == HomeMenuItem::GATE) return i;
 #endif
+    ++i;
+    if (item == HomeMenuItem::ON_POINT) return i;
     return 0;
   }
 
@@ -63,8 +65,9 @@ class HomeActivity final : public Activity {
     if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
     if (idx == i++) return HomeMenuItem::GOTO;
 #ifdef GATE_ENABLED
-    if (idx == i) return HomeMenuItem::GATE;
+    if (idx == i++) return HomeMenuItem::GATE;
 #endif
+    if (idx == i) return HomeMenuItem::ON_POINT;
     return HomeMenuItem::NONE;
   }
   void onSelectBook(const std::string& path);
@@ -77,6 +80,7 @@ class HomeActivity final : public Activity {
 #ifdef GATE_ENABLED
   void onGateOpen();
 #endif
+  void onPointOpen();
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
