@@ -60,6 +60,7 @@ add_subdirectory(qr_version_select)
 add_subdirectory(goto_nav)
 add_subdirectory(goto_limits)
 add_subdirectory(on_point_schedule)
+add_subdirectory(usb_stayawake)
 
 add_subdirectory(inflate_stream)
 add_subdirectory(fs_helpers)

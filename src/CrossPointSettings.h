@@ -5,6 +5,8 @@
 
 #include <cstdint>
 
+#include "UsbStayAwake.h"
+
 class CrossPointSettings : public PersistableStore<CrossPointSettings> {
  private:
   // Private constructor for singleton
@@ -252,6 +254,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t paragraphAlignment = JUSTIFIED;
   // Auto-sleep timeout setting (default 10 minutes). Legacy sleepTimeout enum values are migration-only.
   uint8_t sleepTimeoutMinutes = 10;
+  // Opt-in: suppress the automatic idle-timeout sleep while USB power is detected
+  // (X4 Pro production feature only; default OFF preserves the normal sleep policy).
+  // Persisted as a keyed toggle via SettingsList; only exposed/consumed on X4 Pro
+  // builds compiled with FEATURE_USB_STAYAWAKE.
+  uint8_t stayAwakeWhileUsb = kUsbStayAwakeDefaultEnabled;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
   uint8_t hyphenationEnabled = 0;
