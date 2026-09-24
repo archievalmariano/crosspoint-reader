@@ -1,27 +1,38 @@
-"""Repo-controlled repair of pioarduino's incomplete tool-scons (no network).
+"""Repo-controlled repair/validation of pioarduino's tool-scons (no network).
 
 Problem: the C3 custom-core rebuild (firmware_tuned_c3, used by gh_release)
 reinstalls ``scons-local-4.11.1`` mid-build and relinks ``firmware.elf`` against a
-copy that is missing ``SCons.Tool.FortranCommon`` — imported by
+copy missing ``SCons.Tool.FortranCommon`` — imported by
 ``SCons.Tool.linkCommon.smart_link`` — so the link dies with
-``ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'``. (The X4 Pro
-production profile uses scons-local-4.8.1, which is complete, and is unaffected.)
+``ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'``. The X4 Pro
+production profile uses ``scons-local-4.8.1``, which pioarduino ships complete.
 
-Fix: a narrow, deterministic, offline repair. The exact modules that import chain
-needs are VENDORED under ``scripts/scons_repair/payload`` (copied verbatim from the
-pinned pioarduino bundle, see ``manifest.json``); this pre-build hook restores only
-those allowlisted files, and only when the ACTIVE scons engine is missing them.
+Fix: a narrow, deterministic, offline repair driven by ``scons_repair/manifest.json``.
+For the ACTIVE SCons version the manifest records the sha256 of exactly the two
+modules the link needs (``SCons/Tool/FortranCommon.py`` and
+``SCons/Scanner/Fortran.py``):
 
-Guarantees (see ``scons_repair/test_repair.py``):
-  * allowlist-based completeness (never "FortranCommon alone");
-  * repairs only a PlatformIO-managed tool-scons (never a system/venv SCons);
-  * SCons version must equal the payload's version, else HARD FAIL;
-  * every payload source file is hash-verified before use, and every restored
-    file is hash-verified after install;
-  * atomic per-file install (os.replace) under an exclusive lock, so an
-    interrupted or concurrent repair never leaves a state that looks complete;
+  * "completeness" means every allowlisted file EXISTS AND its sha256 MATCHES the
+    manifest — so corrupt, mixed-version, or arbitrary same-named files are never
+    accepted;
+  * an active SCons version absent from the manifest is a HARD FAILURE (existence
+    of the files never bypasses the version check);
+  * a ``repairable`` version (4.11.1) whose files are missing/mismatched is fixed
+    from the vendored, hash-pinned payload; a validate-only version (4.8.1) that
+    does not match its recorded hashes is a HARD FAILURE (we do not overwrite what
+    pioarduino ships complete);
+  * repair mutates only a PlatformIO-managed ``.../packages/tool-scons/
+    scons-local-<version>/SCons`` (exact adjacent components required; system,
+    venv and site-packages engines are refused);
+  * every payload source file is hash-verified before use, every staged file
+    before ``os.replace``, and the FINAL installed state is re-validated by hash;
+  * installs are atomic (same-dir stage + ``os.replace``) under an exclusive
+    ``fcntl`` lock; an interrupted or concurrent repair never leaves a state that
+    validates as complete;
   * any validation/lock/install failure is FATAL at the repair boundary (raises);
-  * a second run after a successful repair is a clean no-op.
+    a second run after a successful repair is a clean no-op.
+
+Tests: ``scripts/scons_repair/test_repair.py``.
 """
 
 import hashlib
@@ -31,12 +42,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-# PlatformIO execs this pre-script without a module __file__, so fall back to the
-# build CWD (always the project root under pio) — the scons entry point below
-# passes an explicit $PROJECT_DIR-derived path regardless.
 try:
     _SCRIPTS_DIR = Path(__file__).resolve().parent
-except NameError:
+except NameError:  # PlatformIO execs this without a module __file__
     _SCRIPTS_DIR = Path.cwd() / "scripts"
 REPAIR_DIR = _SCRIPTS_DIR / "scons_repair"
 MANIFEST_PATH = REPAIR_DIR / "manifest.json"
@@ -57,66 +65,92 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _check_files_list(files, where: str) -> None:
+    if not isinstance(files, list) or not files:
+        raise SconsRepairError("invalid manifest: no files for %s" % where)
+    for entry in files:
+        if not entry.get("path") or not entry.get("sha256"):
+            raise SconsRepairError("invalid manifest file entry in %s: %r" % (where, entry))
+        rel = Path(entry["path"])
+        if rel.is_absolute() or ".." in rel.parts or not entry["path"].startswith("SCons/"):
+            raise SconsRepairError("unsafe manifest path in %s: %s" % (where, entry["path"]))
+
+
 def load_manifest(path: Path = MANIFEST_PATH) -> dict:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not data.get("scons_version") or not isinstance(data.get("files"), list) or not data["files"]:
-        raise SconsRepairError("invalid repair manifest: %s" % path)
-    for entry in data["files"]:
-        if not entry.get("path") or not entry.get("sha256"):
-            raise SconsRepairError("invalid manifest file entry: %r" % entry)
-        # Guard against path escapes in the manifest itself.
-        rel = Path(entry["path"])
-        if rel.is_absolute() or ".." in rel.parts:
-            raise SconsRepairError("unsafe manifest path: %s" % entry["path"])
+    versions = data.get("supported_versions")
+    if not isinstance(versions, dict) or not versions:
+        raise SconsRepairError("invalid manifest: missing supported_versions in %s" % path)
+    for ver, entry in versions.items():
+        if not isinstance(entry, dict) or "repairable" not in entry:
+            raise SconsRepairError("invalid manifest entry for %s" % ver)
+        _check_files_list(entry.get("files"), ver)
     return data
 
 
-def verify_payload(manifest: dict, payload_root: Path = PAYLOAD_ROOT) -> None:
-    """Every allowlisted file must exist in the payload and match its sha256."""
-    for entry in manifest["files"]:
-        src = payload_root / entry["path"]
-        if not src.is_file():
-            raise SconsRepairError("repair payload missing file: %s" % src)
-        actual = sha256_file(src)
-        if actual != entry["sha256"]:
-            raise SconsRepairError(
-                "repair payload hash mismatch for %s: expected %s got %s"
-                % (entry["path"], entry["sha256"], actual)
-            )
-
-
-def is_pio_managed_tool_scons(scons_pkg: Path) -> bool:
-    """True only if scons_pkg is the SCons/ dir of a PlatformIO-managed tool-scons.
-
-    Refuses to touch a system, venv, or site-packages SCons: the path must run
-    through ``.platformio`` / ``packages`` / a ``tool-scons`` component and a
-    ``scons-local-*`` component, and must not be inside a site-packages tree.
-    """
-    parts = scons_pkg.resolve().parts
-    if "site-packages" in parts or "dist-packages" in parts:
-        return False
-    joined = "/".join(parts)
-    if "/packages/tool-scons" not in joined:
-        return False
-    if not any(p.startswith("scons-local-") for p in parts):
-        return False
-    return parts[-1] == "SCons"
+def resolve_version(version: str, manifest: dict) -> dict:
+    """Return the manifest entry for an active SCons version, or HARD FAIL."""
+    entry = manifest.get("supported_versions", {}).get(version)
+    if entry is None:
+        raise SconsRepairError(
+            "SCons version %r is not in scripts/scons_repair/manifest.json; refusing "
+            "to touch an unsupported toolchain — add its recorded module hashes there"
+            % version
+        )
+    return entry
 
 
 def _dest_for(scons_pkg: Path, rel_path: str) -> Path:
     """Resolve a manifest path ("SCons/<...>") to its file inside the engine.
 
-    ``scons_pkg`` is the ``SCons/`` directory itself, so a "SCons/Tool/x.py"
-    manifest entry lands at ``scons_pkg/Tool/x.py``.
+    ``scons_pkg`` is the ``SCons/`` directory, so "SCons/Tool/x.py" lands at
+    ``scons_pkg/Tool/x.py``.
     """
-    if rel_path.startswith("SCons/"):
-        return scons_pkg / rel_path[len("SCons/"):]
-    return scons_pkg.parent / rel_path
+    return scons_pkg / rel_path[len("SCons/"):]
 
 
-def allowlist_present(scons_pkg: Path, manifest: dict) -> bool:
-    """True only if EVERY allowlisted module is present (existence, full list)."""
-    return all(_dest_for(scons_pkg, entry["path"]).is_file() for entry in manifest["files"])
+def _file_valid(dest: Path, expected_sha: str) -> bool:
+    return dest.is_file() and sha256_file(dest) == expected_sha
+
+
+def allowlist_valid(scons_pkg: Path, entry: dict) -> bool:
+    """Complete iff EVERY allowlisted file exists AND its sha256 matches."""
+    return all(_file_valid(_dest_for(scons_pkg, f["path"]), f["sha256"])
+               for f in entry["files"])
+
+
+def verify_payload(entry: dict, payload_root: Path = PAYLOAD_ROOT) -> None:
+    """Each allowlisted file must exist in the vendored payload and match its hash."""
+    for f in entry["files"]:
+        src = payload_root / f["path"]
+        if not src.is_file():
+            raise SconsRepairError("repair payload missing file: %s" % src)
+        actual = sha256_file(src)
+        if actual != f["sha256"]:
+            raise SconsRepairError(
+                "repair payload hash mismatch for %s: expected %s got %s"
+                % (f["path"], f["sha256"], actual)
+            )
+
+
+def is_pio_managed_tool_scons(scons_pkg: Path, version: str) -> bool:
+    """True only for an EXACT PlatformIO-managed engine path:
+    ``.../packages/tool-scons/scons-local-<version>/SCons``.
+
+    Requires those four components adjacent and in order (rejecting lookalikes
+    such as ``packages/tool-scons-not-platformio/...``) and refuses site-packages
+    / dist-packages engines.
+    """
+    parts = scons_pkg.resolve().parts
+    if "site-packages" in parts or "dist-packages" in parts:
+        return False
+    if len(parts) < 4:
+        return False
+    tail = parts[-4:]
+    return (tail[0] == "packages"
+            and tail[1] == "tool-scons"
+            and tail[2] == "scons-local-%s" % version
+            and tail[3] == "SCons")
 
 
 class _FileLock:
@@ -173,39 +207,40 @@ def _atomic_install(src: Path, dest: Path, expected_sha: str) -> None:
 
 def repair(scons_pkg: Path, version: str, manifest: dict,
            payload_root: Path = PAYLOAD_ROOT, log=print) -> str:
-    """Ensure the allowlisted modules exist in the active SCons. Returns
-    "noop" or "repaired". Raises SconsRepairError on any failure (fatal)."""
-    if allowlist_present(scons_pkg, manifest):
-        return "noop"  # complete for whatever version is installed
-    # Repair is required from here on: everything must validate or we fail hard.
-    if not version or version != manifest["scons_version"]:
+    """Validate/repair the active SCons. Returns "noop" or "repaired".
+    Raises SconsRepairError on any failure (fatal)."""
+    entry = resolve_version(version, manifest)          # HARD FAIL: unknown version
+    if allowlist_valid(scons_pkg, entry):               # hash-based completeness
+        return "noop"
+    # A supported version whose files are missing or do not match their hashes.
+    if not entry.get("repairable"):
         raise SconsRepairError(
-            "SCons %r present but repair payload targets %r; refusing to repair a "
-            "mismatched version — update scripts/scons_repair to this SCons version"
-            % (version, manifest["scons_version"])
+            "SCons %s modules are missing or do not match the recorded hashes, and "
+            "this version is validate-only (no repair payload). Refusing to guess."
+            % version
         )
-    if not is_pio_managed_tool_scons(scons_pkg):
+    if not is_pio_managed_tool_scons(scons_pkg, version):
         raise SconsRepairError(
-            "refusing to modify SCons outside a PlatformIO-managed tool-scons: %s"
-            % scons_pkg
+            "refusing to modify SCons outside an exact PlatformIO-managed "
+            "packages/tool-scons/scons-local-%s/SCons path: %s" % (version, scons_pkg)
         )
-    verify_payload(manifest, payload_root)
-    lock_path = scons_pkg.parent.parent / LOCK_NAME  # in the tool-scons package dir
+    verify_payload(entry, payload_root)
+    lock_path = scons_pkg.parent.parent / LOCK_NAME     # the tool-scons package dir
     with _FileLock(lock_path):
-        if allowlist_present(scons_pkg, manifest):
-            return "noop"  # another process repaired while we waited
-        for entry in manifest["files"]:
-            _atomic_install(payload_root / entry["path"],
-                            _dest_for(scons_pkg, entry["path"]), entry["sha256"])
-    if not allowlist_present(scons_pkg, manifest):
-        raise SconsRepairError("repair incomplete after install into %s" % scons_pkg)
+        if allowlist_valid(scons_pkg, entry):           # another process repaired
+            return "noop"
+        for f in entry["files"]:
+            _atomic_install(payload_root / f["path"],
+                            _dest_for(scons_pkg, f["path"]), f["sha256"])
+    if not allowlist_valid(scons_pkg, entry):           # HASH-based post-install check
+        raise SconsRepairError("repair did not produce a valid engine at %s" % scons_pkg)
     log("[scons-repair] restored %d allowlisted SCons module(s) into %s"
-        % (len(manifest["files"]), scons_pkg))
+        % (len(entry["files"]), scons_pkg))
     return "repaired"
 
 
 def repair_active_scons(repair_dir=None, log=print) -> str:
-    """Repair the SCons engine currently executing this build."""
+    """Validate/repair the SCons engine currently executing this build."""
     import SCons  # noqa: PLC0415 -- available: this runs inside SCons
 
     rd = Path(repair_dir) if repair_dir else REPAIR_DIR
@@ -213,16 +248,20 @@ def repair_active_scons(repair_dir=None, log=print) -> str:
     version = getattr(SCons, "__version__", "") or scons_pkg.parent.name.replace(
         "scons-local-", "", 1
     )
-    manifest = load_manifest(rd / "manifest.json")
-    return repair(scons_pkg, version, manifest, rd / "payload", log=log)
+    return repair(scons_pkg, version, load_manifest(rd / "manifest.json"),
+                  rd / "payload", log=log)
 
 
-# --- self-test (payload/manifest integrity; full suite in scons_repair/) ------
+# --- self-test (manifest + vendored-payload integrity) ------------------------
 if __name__ == "__main__" and "--self-test" in sys.argv:
     m = load_manifest()
-    verify_payload(m)
-    print("patch_scons_tools self-test OK (manifest %s, %d payload file(s) verified)"
-          % (m["scons_version"], len(m["files"])))
+    n = 0
+    for ver, entry in m["supported_versions"].items():
+        if entry.get("repairable"):
+            verify_payload(entry)
+            n += len(entry["files"])
+    print("patch_scons_tools self-test OK (%d supported version(s), %d vendored "
+          "payload file(s) verified)" % (len(m["supported_versions"]), n))
     raise SystemExit(0)
 
 # --- PlatformIO pre-build entry point (runs only under SCons) ------------------
@@ -234,9 +273,7 @@ except NameError:
 
 if _UNDER_SCONS:
     Import("env")  # noqa: F821
-    # $PROJECT_DIR is the repo root; locate the repair payload explicitly rather
-    # than via __file__ (undefined in pio's exec context).
-    _proj = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
+    _proj = Path(env.subst("$PROJECT_DIR"))  # noqa: F821 -- repo root
     # Fatal on failure: a broken repair must stop the build at this boundary,
     # never print-and-continue into a mislinked firmware.
     repair_active_scons(repair_dir=_proj / "scripts" / "scons_repair")

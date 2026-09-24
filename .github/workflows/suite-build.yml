@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.13.15'
       - name: Repair payload/manifest integrity
         run: python3 scripts/patch_scons_tools.py --self-test
       - name: Repair unit tests
@@ -49,7 +49,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.13.15'
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -97,7 +97,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.13.15'
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -114,11 +114,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.platformio
-          # Include the repair script + payload + this workflow so a changed
-          # repair (or toolchain definition) invalidates a stale cache.
+          # Exact key only (no restore-keys prefix): a change to platformio.ini,
+          # the repair script/payload, or this workflow yields a new key and a
+          # cold miss, so a stale toolchain cache is never restored. (The cold
+          # jobs above are the authoritative proof regardless.)
           key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini', 'scripts/patch_scons_tools.py', 'scripts/scons_repair/**', '.github/workflows/suite-build.yml') }}
-          restore-keys: |
-            pio-${{ runner.os }}-
       - name: Build ${{ matrix.env }} firmware (cached)
         run: |
           set -euo pipefail
