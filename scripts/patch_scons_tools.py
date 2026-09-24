@@ -31,7 +31,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPAIR_DIR = Path(__file__).resolve().parent / "scons_repair"
+# PlatformIO execs this pre-script without a module __file__, so fall back to the
+# build CWD (always the project root under pio) — the scons entry point below
+# passes an explicit $PROJECT_DIR-derived path regardless.
+try:
+    _SCRIPTS_DIR = Path(__file__).resolve().parent
+except NameError:
+    _SCRIPTS_DIR = Path.cwd() / "scripts"
+REPAIR_DIR = _SCRIPTS_DIR / "scons_repair"
 MANIFEST_PATH = REPAIR_DIR / "manifest.json"
 PAYLOAD_ROOT = REPAIR_DIR / "payload"
 LOCK_NAME = ".crosspoint-scons-repair.lock"
@@ -197,15 +204,17 @@ def repair(scons_pkg: Path, version: str, manifest: dict,
     return "repaired"
 
 
-def repair_active_scons(log=print) -> str:
+def repair_active_scons(repair_dir=None, log=print) -> str:
     """Repair the SCons engine currently executing this build."""
     import SCons  # noqa: PLC0415 -- available: this runs inside SCons
 
+    rd = Path(repair_dir) if repair_dir else REPAIR_DIR
     scons_pkg = Path(SCons.__file__).resolve().parent
     version = getattr(SCons, "__version__", "") or scons_pkg.parent.name.replace(
         "scons-local-", "", 1
     )
-    return repair(scons_pkg, version, load_manifest(), log=log)
+    manifest = load_manifest(rd / "manifest.json")
+    return repair(scons_pkg, version, manifest, rd / "payload", log=log)
 
 
 # --- self-test (payload/manifest integrity; full suite in scons_repair/) ------
@@ -225,6 +234,9 @@ except NameError:
 
 if _UNDER_SCONS:
     Import("env")  # noqa: F821
+    # $PROJECT_DIR is the repo root; locate the repair payload explicitly rather
+    # than via __file__ (undefined in pio's exec context).
+    _proj = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
     # Fatal on failure: a broken repair must stop the build at this boundary,
     # never print-and-continue into a mislinked firmware.
-    repair_active_scons()
+    repair_active_scons(repair_dir=_proj / "scripts" / "scons_repair")
