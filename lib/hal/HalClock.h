@@ -7,10 +7,21 @@ class HalClock;
 extern HalClock halClock;  // Singleton
 
 class HalClock {
+ public:
+  struct DateTime {
+    uint16_t year = 2000;
+    uint8_t month = 1;
+    uint8_t day = 1;
+    uint8_t hour = 0;
+    uint8_t minute = 0;
+    uint8_t second = 0;
+    uint8_t weekday = 0;
+  };
+
+ private:
   bool _available = false;
   mutable Rtc _sdkRtc;
-  mutable uint8_t _cachedHour = 0;
-  mutable uint8_t _cachedMinute = 0;
+  mutable DateTime _cachedDateTime;
   mutable bool _hasCachedTime = false;
   mutable unsigned long _lastPollMs = 0;
 
@@ -26,6 +37,11 @@ class HalClock {
   // Get current hour (0-23) and minute (0-59).
   // Returns false if RTC is not available.
   bool getTime(uint8_t& hour, uint8_t& minute) const;
+
+  // Get the complete UTC wall-clock value stored by syncFromNTP(). The HAL type
+  // keeps callers independent from the RTC chip/SDK implementation. `forcePoll`
+  // bypasses the short display cache for exact schedule boundaries.
+  bool getDateTime(DateTime& dateTime, bool forcePoll = false) const;
 
   // Format time into a caller-provided buffer.
   // 24h mode produces "HH:MM" (needs >=6 bytes); 12h mode produces "H:MM AM"/"HH:MM PM" (needs >=9 bytes).
