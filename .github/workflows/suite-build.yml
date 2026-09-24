@@ -1,11 +1,16 @@
 # Reproducible production firmware builds for the canonical suite baseline.
 #
-# Builds the X4 (C3) and X4 Pro (S3) PRODUCTION profiles on a clean Ubuntu
-# runner, with no manual toolchain setup — the SCons restore hook
-# (scripts/patch_scons_tools.py) repairs pioarduino's trimmed tool-scons in-repo.
-# These production profiles compile Gate OUT (GATE_ENABLED unset), so they need
-# no external Gate sources; they are the "canonical baseline -> clean
-# reproducible firmware build" check.
+# Builds the X4 (C3) and X4 Pro (S3) PRODUCTION profiles on a clean Ubuntu runner
+# with no manual toolchain setup. The scons repair hook
+# (scripts/patch_scons_tools.py + scripts/scons_repair/) restores, from a
+# repo-vendored hash-pinned payload, the SCons Tool modules pioarduino's C3
+# custom-core rebuild leaves missing. These production profiles compile Gate out,
+# so they need no external Gate sources.
+#
+# The COLD job (no restored PlatformIO cache) is the authoritative reproducibility
+# proof. A CACHED job is kept for speed; its cache key includes platformio.ini,
+# the repair script + payload, and this workflow, so a changed repair invalidates
+# the cache. Host tooling versions are pinned (no "latest") and recorded per run.
 name: Suite production build
 
 on:
@@ -16,8 +21,21 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build ${{ matrix.env }}
+  repair-tests:
+    name: scons repair tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Repair payload/manifest integrity
+        run: python3 scripts/patch_scons_tools.py --self-test
+      - name: Repair unit tests
+        run: python3 scripts/scons_repair/test_repair.py
+
+  cold:
+    name: Build ${{ matrix.env }} (cold, authoritative)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,17 +47,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
-          version: "latest"
+          version: "0.12.18"   # pinned for reproducibility (no "latest")
           enable-cache: false
-
       - name: Install PlatformIO Core
         run: |
           uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
@@ -47,24 +62,73 @@ jobs:
             "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
             "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
             "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
+      # NO cache restore: authoritative cold reproducibility proof.
+      - name: Build ${{ matrix.env }} firmware (cold)
+        run: |
+          set -euo pipefail
+          pio run -e ${{ matrix.env }} | tee pio.log
+      - name: Record tool + artifact versions and hashes
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.env }} (cold) reproducibility record"
+            echo '```'
+            echo "python: $(python3 --version 2>&1)"
+            echo "uv: $(uv --version 2>&1)"
+            echo "platformio: $(pio --version 2>&1)"
+            grep -E "RAM:\\s|Flash:\\s" pio.log || true
+            for f in .pio/build/${{ matrix.env }}/firmware.bin \
+                     .pio/build/${{ matrix.env }}/firmware.factory.bin; do
+              [ -f "$f" ] && sha256sum "$f"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
+  cached:
+    name: Build ${{ matrix.env }} (cached)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: gh_release
+          - env: x4pro-gh_release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.18"
+          enable-cache: false
+      - name: Install PlatformIO Core
+        run: |
+          uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+          uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
+            "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
+            "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
+            "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
       - name: Cache PlatformIO packages
         uses: actions/cache@v4
         with:
           path: ~/.platformio
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-${{ runner.os }}-
-
-      - name: Build ${{ matrix.env }} firmware
+          # Include the repair script + payload + this workflow so a changed
+          # repair (or toolchain definition) invalidates a stale cache.
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini', 'scripts/patch_scons_tools.py', 'scripts/scons_repair/**', '.github/workflows/suite-build.yml') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+      - name: Build ${{ matrix.env }} firmware (cached)
         run: |
           set -euo pipefail
           pio run -e ${{ matrix.env }} | tee pio.log
-
       - name: Firmware build stats
+        if: always()
         run: |
-          set -euo pipefail
           {
-            echo "## ${{ matrix.env }} build stats"
-            grep -E "RAM:\\s" -m1 pio.log || echo "- RAM: not found"
-            grep -E "Flash:\\s" -m1 pio.log || echo "- Flash: not found"
+            echo "## ${{ matrix.env }} (cached) build stats"
+            grep -E "RAM:\\s|Flash:\\s" pio.log || true
           } >> "$GITHUB_STEP_SUMMARY"

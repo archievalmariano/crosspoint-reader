@@ -1,0 +1,19 @@
+{
+  "description": "Repo-controlled repair payload for pioarduino's tool-scons. The C3 custom-core rebuild reinstalls scons-local-4.11.1 mid-build and relinks firmware.elf against an incomplete copy that is missing SCons.Tool.FortranCommon (imported by SCons.Tool.linkCommon.smart_link). These are the exact modules that import chain needs, vendored from the pinned pioarduino bundle so no network fetch is required.",
+  "scons_version": "4.11.1",
+  "provenance": {
+    "source": "pioarduino tool-scons (scons-local-4.11.1), files copied verbatim (MIT, SCons Foundation)",
+    "archive_url": "https://github.com/pioarduino/scons/releases/download/4.11.1/scons-local-4.11.1.tar.gz",
+    "archive_sha256": "e405de1fcd3307fa80d624f0290c7cd30fbb47f67e135a9f56d7e46b6b895311"
+  },
+  "files": [
+    {
+      "path": "SCons/Tool/FortranCommon.py",
+      "sha256": "7132dcd4c805d575d16c4d7332ea533311477b7f949c9cf13b8c812b7ac686dd"
+    },
+    {
+      "path": "SCons/Scanner/Fortran.py",
+      "sha256": "68ac87ec71d55f3fb67be680a46148c330a62778e269ee6d85bb481eda2a45e3"
+    }
+  ]
+}
