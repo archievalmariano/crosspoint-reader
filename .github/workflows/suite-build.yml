@@ -81,6 +81,16 @@ jobs:
               [ -f "$f" ] && sha256sum "$f"
             done
           } | tee -a "$GITHUB_STEP_SUMMARY"   # also to stdout for log capture
+      - name: Upload firmware binaries (for physical-device testing)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.env }}-cold
+          path: |
+            .pio/build/${{ matrix.env }}/firmware.bin
+            .pio/build/${{ matrix.env }}/firmware.factory.bin
+          if-no-files-found: error
+          retention-days: 14
 
   cached:
     name: Build ${{ matrix.env }} (cached)
