@@ -1,9 +1,12 @@
 """
-PlatformIO pre-build script: inject git branch and short SHA into
-CROSSPOINT_VERSION for development environments.
+PlatformIO pre-build script: inject the firmware identity into CROSSPOINT_VERSION.
 
-Results in a version string like:  1.1.0-dev-feat-kosync-xpath-05c6cf8
-Release environments are unaffected; they set CROSSPOINT_VERSION in the ini.
+The suite builds show `{version}-A{apps_version}` (e.g. `1.6.0-A1.0.0`) from
+the [crosspoint] section of platformio.ini:
+`version` is the CrossPoint base, `apps_version` this firmware's own release
+number. Suite builds also get CROSSPOINT_OTA_VERSION (plain `apps_version`, for
+the update check) and CROSSPOINT_OTA_REPO (`ota_repo`, whose GitHub releases the
+update check reads). Other environments set CROSSPOINT_VERSION in the ini.
 """
 
 import configparser
@@ -63,33 +66,23 @@ def get_git_short_sha(project_dir):
     )
 
 
-def get_base_version(project_dir):
+# Environments whose version string comes from this script. The suite
+# environments also get the OTA version/repo defines.
+SUITE_ENVS = ('default', 'gh_release', 'x4pro', 'x4pro-gh_release')
+IDENTITY_ENVS = SUITE_ENVS + ('sticky',)
+
+
+def get_crosspoint_option(project_dir, key, default):
     ini_path = os.path.join(project_dir, 'platformio.ini')
     if not os.path.isfile(ini_path):
-        warn(f'platformio.ini not found at {ini_path}; base version will be "0.0.0"')
-        return '0.0.0'
+        warn(f'platformio.ini not found at {ini_path}; {key} will be "{default}"')
+        return default
     config = configparser.ConfigParser()
     config.read(ini_path, encoding='utf-8')
-    if not config.has_option('crosspoint', 'version'):
-        warn('No [crosspoint] version in platformio.ini; base version will be "0.0.0"')
-        return '0.0.0'
-    return config.get('crosspoint', 'version')
-
-
-def get_goto_label(project_dir):
-    """Committed public Goto label ([crosspoint] goto_label), or '' if absent.
-
-    This makes the dev build's user-facing identity deterministic without an env
-    var, so Settings never falls back to a git branch/hash string.
-    """
-    ini_path = os.path.join(project_dir, 'platformio.ini')
-    if not os.path.isfile(ini_path):
-        return ''
-    config = configparser.ConfigParser()
-    config.read(ini_path, encoding='utf-8')
-    if not config.has_option('crosspoint', 'goto_label'):
-        return ''
-    return _sanitize(config.get('crosspoint', 'goto_label').strip())
+    if not config.has_option('crosspoint', key):
+        warn(f'No [crosspoint] {key} in platformio.ini; it will be "{default}"')
+        return default
+    return _sanitize(config.get('crosspoint', key).strip())
 
 
 def _sanitize(value):
@@ -97,46 +90,31 @@ def _sanitize(value):
     return ''.join(c for c in value if c not in '"\\')
 
 
+def _define(env, name, value):
+    env.Append(CPPDEFINES=[(name, f'\\"{value}\\"')])
+
+
 def inject_version(env):
-    # Applies to the development environments and to the X4 Pro production env,
-    # which shows the deterministic `v{base} · {goto_label}` product identity
-    # (e.g. `v1.6.0 · GOTO v1.1.0`). Other release envs set CROSSPOINT_VERSION via
-    # build_flags in platformio.ini and are unaffected. The x4pro-gh_release env
-    # deliberately OMITS the ini CROSSPOINT_VERSION so this is the single source.
-    if env['PIOENV'] not in ('default', 'sticky', 'x4pro-gh_release'):
+    if env['PIOENV'] not in IDENTITY_ENVS:
         return
 
     project_dir = env['PROJECT_DIR']
-    base_version = get_base_version(project_dir)
+    base_version = get_crosspoint_option(project_dir, 'version', '0.0.0')
+    apps_version = get_crosspoint_option(project_dir, 'apps_version', '0.0.0')
 
-    # Always compute the git branch/sha for the build-log diagnostic below, so an
-    # outside developer can still tie a build to its source — it just never goes
-    # into the user-facing version string.
+    version_string = f'{base_version}-A{apps_version}'
+    _define(env, 'CROSSPOINT_VERSION', version_string)
+    print(f'CrossPoint build version: {version_string}')
+
+    if env['PIOENV'] in SUITE_ENVS:
+        _define(env, 'CROSSPOINT_OTA_VERSION', apps_version)
+        ota_repo = get_crosspoint_option(project_dir, 'ota_repo', '')
+        if ota_repo:  # otherwise OtaUpdater keeps its upstream default
+            _define(env, 'CROSSPOINT_OTA_REPO', ota_repo)
+
+    # Developer diagnostic (build log only, never on-device): source ref.
     branch = get_git_branch(project_dir)
     short_sha = get_git_short_sha(project_dir)
-
-    # The user-facing on-device identity. Priority:
-    #   1. GOTO_DEV_LABEL env override (other developers' short labels), then
-    #   2. the committed [crosspoint] goto_label (Project Goto's public identity,
-    #      deterministic with no env var — this is what a release build shows), then
-    #   3. only if neither exists, the git branch/sha dev fallback.
-    # (1) and (2) render as `v{base} · {label}` so both axes are visible, e.g.
-    # `v1.6.0 · GOTO v1.0.0`. The git fallback is never the release identity.
-    label = _sanitize(os.environ.get('GOTO_DEV_LABEL', '').strip()) or get_goto_label(project_dir)
-    if label:
-        version_string = f'v{base_version} · {label}'
-    else:
-        # Drop the branch-type prefix and cap the branch length so long dev branch
-        # names cannot overrun the header slot.
-        for prefix in ('feature/', 'fix/', 'refactor/', 'docs/', 'chore/'):
-            if branch.startswith(prefix):
-                branch = branch[len(prefix):]
-                break
-        version_string = f'{base_version}-dev-{branch[:16]}-{short_sha}'
-
-    env.Append(CPPDEFINES=[('CROSSPOINT_VERSION', f'\\"{version_string}\\"')])
-    print(f'CrossPoint build version: {version_string}')
-    # Developer diagnostic (build log only, NOT on-device Settings): source ref.
     print(f'CrossPoint build source ref: {branch}@{short_sha}')
 
 
