@@ -61,6 +61,7 @@ add_subdirectory(goto_nav)
 add_subdirectory(goto_limits)
 add_subdirectory(on_point_schedule)
 add_subdirectory(usb_stayawake)
+add_subdirectory(ota_version)
 add_subdirectory(app_registry)
 
 add_subdirectory(inflate_stream)
