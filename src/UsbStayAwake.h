@@ -29,3 +29,20 @@ inline bool usbStayAwakeSuppressIdleSleep(bool devOverride, bool productionFeatu
   if (productionFeature) return isX4Pro && settingEnabled && usbPresent;
   return false;
 }
+
+// Tracks when USB suppression ends (undock, or the setting turned off) so the
+// caller can restart the idle timer. Without this, idle time accrued while docked
+// counts against the timeout and the device sleeps the moment it is undocked.
+class UsbStayAwakeReleaseTracker {
+ public:
+  // Feed the current suppression state once per loop; returns true on the
+  // suppressing -> not-suppressing transition only.
+  bool released(bool suppressing) {
+    const bool wasSuppressing = suppressing_;
+    suppressing_ = suppressing;
+    return wasSuppressing && !suppressing;
+  }
+
+ private:
+  bool suppressing_ = false;
+};

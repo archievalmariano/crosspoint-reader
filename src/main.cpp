@@ -676,8 +676,12 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
+  // Leaving USB stay-awake (undocked) restarts the idle timer, so the full sleep
+  // timeout applies after undocking rather than the time already spent docked.
+  static UsbStayAwakeReleaseTracker usbStayAwakeRelease;
+  const bool usbStayAwakeReleased = usbStayAwakeRelease.released(stayAwakeOnUsbPower());
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || gpio.wasTouchActivity() || halTiltSensor.hadActivity() ||
-      activityManager.preventAutoSleep()) {
+      activityManager.preventAutoSleep() || usbStayAwakeReleased) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }

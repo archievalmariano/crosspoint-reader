@@ -19,6 +19,36 @@ bool disabledBuild(bool isX4Pro, bool settingEnabled, bool usbPresent) {
   return usbStayAwakeSuppressIdleSleep(false, false, isX4Pro, settingEnabled, usbPresent);
 }
 
+TEST(UsbStayAwakeRelease, FiresOnlyWhenSuppressionEnds) {
+  UsbStayAwakeReleaseTracker tracker;
+  EXPECT_FALSE(tracker.released(false));  // battery from boot: nothing to release
+  EXPECT_FALSE(tracker.released(true));   // docked
+  EXPECT_FALSE(tracker.released(true));   // still docked
+  EXPECT_TRUE(tracker.released(false));   // undocked: restart the idle timer once
+  EXPECT_FALSE(tracker.released(false));  // stays on battery: no repeat
+}
+
+TEST(UsbStayAwakeRelease, RedockAndUndockFiresAgain) {
+  UsbStayAwakeReleaseTracker tracker;
+  tracker.released(true);
+  EXPECT_TRUE(tracker.released(false));
+  EXPECT_FALSE(tracker.released(true));
+  EXPECT_TRUE(tracker.released(false));
+}
+
+TEST(UsbStayAwakeRelease, SettingOffWhileDockedNeverSuppressesSoNeverFires) {
+  UsbStayAwakeReleaseTracker tracker;
+  // Production build, setting OFF, USB present -> no suppression, no release.
+  EXPECT_FALSE(tracker.released(production(true, false, true)));
+  EXPECT_FALSE(tracker.released(production(true, false, false)));
+}
+
+TEST(UsbStayAwakeRelease, UndockWithSettingOnFires) {
+  UsbStayAwakeReleaseTracker tracker;
+  EXPECT_FALSE(tracker.released(production(true, true, true)));
+  EXPECT_TRUE(tracker.released(production(true, true, false)));
+}
+
 }  // namespace
 
 // --- Production X4 Pro path ---------------------------------------------------
