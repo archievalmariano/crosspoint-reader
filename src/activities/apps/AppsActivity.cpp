@@ -1,6 +1,7 @@
 #include "AppsActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalClock.h>
 #include <I18n.h>
 
 #include "MappedInputManager.h"
@@ -15,6 +16,7 @@ struct AppDescriptor {
   app_registry::AppKey key;
   const char* (*label)();
   void (*launch)();
+  bool (*available)();  // nullptr = always listed
 };
 
 // GOTO's label follows the cached current edition (no network). Its sort key
@@ -23,10 +25,17 @@ const char* gotoLabel() { return cachedCurrentIsTogo() ? tr(STR_TOGO) : tr(STR_G
 
 // Declaration order is irrelevant: rows are sorted by key in onEnter().
 constexpr AppDescriptor APP_TABLE[] = {
-    {{AppId::Goto, "GOTO"}, gotoLabel, [] { activityManager.goToGoto(); }},
-    {{AppId::OnPoint, "ON POINT"}, [] { return tr(STR_ON_POINT); }, [] { activityManager.goToOnPoint(); }},
+    {{AppId::Goto, "GOTO"}, gotoLabel, [] { activityManager.goToGoto(); }, nullptr},
+    // Departure times need wall-clock time, so ON POINT is listed only on boards with an RTC.
+    {{AppId::OnPoint, "ON POINT"},
+     [] { return tr(STR_ON_POINT); },
+     [] { activityManager.goToOnPoint(); },
+     [] { return halClock.isAvailable(); }},
 #ifdef GATE_ENABLED
-    {{AppId::Gate, "THE GATE IS OPEN!"}, [] { return tr(STR_GATE_IS_OPEN); }, [] { activityManager.goToGate(); }},
+    {{AppId::Gate, "THE GATE IS OPEN!"},
+     [] { return tr(STR_GATE_IS_OPEN); },
+     [] { activityManager.goToGate(); },
+     nullptr},
 #endif
 };
 constexpr int APP_COUNT = sizeof(APP_TABLE) / sizeof(APP_TABLE[0]);
@@ -40,12 +49,21 @@ AppsActivity::AppsActivity(GfxRenderer& renderer, MappedInputManager& mappedInpu
 void AppsActivity::onEnter() {
   UiListActivity::onEnter();
 
+  // Rows cover only the apps this board can run; `tableIndex` maps back to APP_TABLE.
   app_registry::AppKey keys[APP_COUNT];
-  for (int i = 0; i < APP_COUNT; ++i) keys[i] = APP_TABLE[i].key;
-  app_registry::sortedOrder(keys, APP_COUNT, order);
-  appCount = APP_COUNT;
+  uint8_t tableIndex[APP_COUNT];
+  appCount = 0;
+  for (int i = 0; i < APP_COUNT; ++i) {
+    if (APP_TABLE[i].available && !APP_TABLE[i].available()) continue;
+    keys[appCount] = APP_TABLE[i].key;
+    tableIndex[appCount] = static_cast<uint8_t>(i);
+    ++appCount;
+  }
+  uint8_t sorted[APP_COUNT];
+  app_registry::sortedOrder(keys, appCount, sorted);
 
   for (int row = 0; row < appCount; ++row) {
+    order[row] = tableIndex[sorted[row]];
     fui::ListItem item;
     item.label = APP_TABLE[order[row]].label();
     item.actionValue = static_cast<int16_t>(row);
@@ -53,7 +71,7 @@ void AppsActivity::onEnter() {
   }
 
   // The first screen build pulls the viewport to this row (ListNav follow-on-build).
-  nav.selected = app_registry::rowForApp(keys, order, APP_COUNT, focus);
+  nav.selected = app_registry::rowForApp(keys, sorted, appCount, focus);
 }
 
 const char* AppsActivity::headerTitle() const { return tr(STR_APPS); }
