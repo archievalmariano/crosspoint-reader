@@ -217,7 +217,7 @@ void OnPointActivity::loop() {
       requestUpdate();
       return;
     }
-    activityManager.goHome(HomeMenuItem::ON_POINT);
+    activityManager.goToApps(AppId::OnPoint);
     return;
   }
 

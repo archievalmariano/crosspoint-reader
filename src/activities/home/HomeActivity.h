@@ -16,11 +16,10 @@ class HomeActivity final : public Activity {
   bool recentsLoaded = false;
   bool firstRenderDone = false;
   bool hasOpdsServers = false;
-  bool currentEditionIsTogo = false;  // Home launcher label: TOGO vs GOTO (from cache manifest)
-  bool coverRendered = false;         // Track if cover has been rendered once
-  bool coverBufferStored = false;     // Track if cover buffer is stored
-  uint8_t* coverBuffer = nullptr;     // HomeActivity's own buffer for cover image
-  size_t coverBufferSize = 0;         // Bytes allocated to coverBuffer
+  bool coverRendered = false;      // Track if cover has been rendered once
+  bool coverBufferStored = false;  // Track if cover buffer is stored
+  uint8_t* coverBuffer = nullptr;  // HomeActivity's own buffer for cover image
+  size_t coverBufferSize = 0;      // Bytes allocated to coverBuffer
   // Logical rect last passed to drawRecentBookCover. The cover snapshot only
   // needs to cover this region, not the entire framebuffer, so we cache the
   // tile instead of all 48 KB. Set in render() before the call.
@@ -45,13 +44,7 @@ class HomeActivity final : public Activity {
     ++i;
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
     ++i;
-    if (item == HomeMenuItem::GOTO) return i;
-#ifdef GATE_ENABLED
-    ++i;
-    if (item == HomeMenuItem::GATE) return i;
-#endif
-    ++i;
-    if (item == HomeMenuItem::ON_POINT) return i;
+    if (item == HomeMenuItem::APPS) return i;
     return 0;
   }
 
@@ -63,11 +56,7 @@ class HomeActivity final : public Activity {
     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
-    if (idx == i++) return HomeMenuItem::GOTO;
-#ifdef GATE_ENABLED
-    if (idx == i++) return HomeMenuItem::GATE;
-#endif
-    if (idx == i) return HomeMenuItem::ON_POINT;
+    if (idx == i) return HomeMenuItem::APPS;
     return HomeMenuItem::NONE;
   }
   void onSelectBook(const std::string& path);
@@ -76,11 +65,7 @@ class HomeActivity final : public Activity {
   void onSettingsOpen();
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
-  void onGotoOpen();
-#ifdef GATE_ENABLED
-  void onGateOpen();
-#endif
-  void onPointOpen();
+  void onAppsOpen();
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image

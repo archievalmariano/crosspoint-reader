@@ -353,9 +353,8 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::FILE_TRANSFER;
     } else if (activityName == "Settings") {
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
-    } else if (activityName == "OnPoint") {
-      initialMenuItem = HomeMenuItem::ON_POINT;
-    } else if (activityName == "Apps") {
+    } else if (activityName == "Apps" || activityName == "Goto" || activityName == "OnPoint" ||
+               activityName == "Gate") {
       initialMenuItem = HomeMenuItem::APPS;
     }
   }

@@ -112,10 +112,11 @@ void GotoActivity::loop() {
     return;
   }
 
-  // Back on a story/terminal page = exit GOTO to Home (front Back button on X4,
-  // or a left-edge back swipe on touch boards). Pre-gate so it stays responsive.
+  // Back on a story/terminal page = exit GOTO to the Apps launcher (front Back
+  // button on X4, or a left-edge back swipe on touch boards). Pre-gate so it
+  // stays responsive.
   if (mappedInput.wasReleased(Button::Back)) {
-    activityManager.goHome();
+    activityManager.goToApps(AppId::Goto);
     return;
   }
 
