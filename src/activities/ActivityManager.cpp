@@ -11,9 +11,13 @@
 
 #include "CrossPointSettings.h"
 #include "OpdsServerStore.h"
+#include "apps/AppsActivity.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
+#ifdef GATE_ENABLED
+#include "gate/GateActivity.h"
+#endif
 #include "goto/GotoActivity.h"
 #include "home/CrashActivity.h"
 #include "home/FileBrowserActivity.h"
@@ -107,7 +111,8 @@ void ActivityManager::loop() {
     bool statusBarTap = false;
     if (mappedInput.hasTouch() &&
         (currentActivity->name == "Home" || currentActivity->name == "FileBrowser" ||
-         currentActivity->name == "Settings" || currentActivity->name == "NetworkModeSelection")) {
+         currentActivity->name == "Settings" || currentActivity->name == "NetworkModeSelection" ||
+         currentActivity->name == "Apps")) {
       int tx = 0;
       int ty = 0;
       statusBarTap = mappedInput.wasScreenTapped(tx, ty) && ty < 44;
@@ -265,6 +270,33 @@ void ActivityManager::goToOnPoint() {
   replaceActivity(std::move(activity));
 }
 
+#ifdef GATE_ENABLED
+void ActivityManager::goToGate() {
+  auto activity = makeUniqueNoThrow<GateActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Gate activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+#endif
+
+void ActivityManager::goToApps(const AppId focus) {
+  // The current activity is still alive while the next one is allocated (the
+  // replace is deferred), so both allocations are checked: fall back to Home,
+  // and if even that fails keep the current activity instead of aborting.
+  app_registry::LaunchOutcome outcome;
+  auto activity = app_registry::launchWithFallback<Activity>(
+      [&] { return makeUniqueNoThrow<AppsActivity>(renderer, mappedInput, focus); },
+      [&] { return makeUniqueNoThrow<HomeActivity>(renderer, mappedInput, HomeMenuItem::APPS); }, outcome);
+  if (outcome == app_registry::LaunchOutcome::None) {
+    LOG_ERR("ACT", "OOM: Apps and Home activities; staying on current activity");
+    return;
+  }
+  if (outcome == app_registry::LaunchOutcome::Fallback) LOG_ERR("ACT", "OOM: Apps activity; falling back to Home");
+  replaceActivity(std::move(activity));
+}
+
 void ActivityManager::goToBrowser() {
   const auto& servers = OPDS_STORE.getServers();
   // Skip the server picker when there's only one server configured
@@ -323,6 +355,8 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
     } else if (activityName == "OnPoint") {
       initialMenuItem = HomeMenuItem::ON_POINT;
+    } else if (activityName == "Apps") {
+      initialMenuItem = HomeMenuItem::APPS;
     }
   }
   replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput, initialMenuItem, cleanInitialRefresh));

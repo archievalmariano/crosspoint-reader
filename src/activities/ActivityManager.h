@@ -12,12 +12,24 @@
 
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
+#include "apps/AppRegistry.h"
 #include "util/ScreenshotInfo.h"
 
 class Activity;    // forward declaration
 class RenderLock;  // forward declaration
 
-enum class HomeMenuItem { NONE, FILE_BROWSER, RECENTS, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU, GOTO, GATE, ON_POINT };
+enum class HomeMenuItem {
+  NONE,
+  FILE_BROWSER,
+  RECENTS,
+  OPDS_BROWSER,
+  FILE_TRANSFER,
+  SETTINGS_MENU,
+  GOTO,
+  GATE,
+  ON_POINT,
+  APPS
+};
 
 /**
  * ActivityManager
@@ -89,6 +101,11 @@ class ActivityManager {
   void goToBrowser();
   void goToGoto();
   void goToOnPoint();
+#ifdef GATE_ENABLED
+  void goToGate();
+#endif
+  // Custom-app launcher; `focus` selects that app's row (first row when None or absent).
+  void goToApps(AppId focus = AppId::None);
   void goToReader(std::string path, bool allowFastInitialRefresh = false);
   void goToSleep(bool fromTimeout = false);
   void goToBoot();
