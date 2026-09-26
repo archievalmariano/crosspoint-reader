@@ -41,8 +41,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - env: gh_release        # X4 / X3 (ESP32-C3) production
-          - env: x4pro-gh_release  # X4 Pro (ESP32-S3) production
+          - env: gh_release                # X4 / X3 (ESP32-C3): GOTO
+          - env: x4pro-gh_release          # X4 Pro (ESP32-S3): GOTO + ON POINT
+          - env: x4pro-goto-gh_release     # X4 Pro: GOTO
+          - env: x4pro-onpoint-gh_release  # X4 Pro: ON POINT
     steps:
       - uses: actions/checkout@v6
         with:

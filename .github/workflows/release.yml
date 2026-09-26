@@ -4,10 +4,16 @@
 # platformio.ini. The tag must match apps_version exactly; the on-device update
 # check compares the latest release tag against the running apps_version.
 #
-# Assets the update check downloads (names are fixed by OtaUpdater):
-#   firmware.bin        X4 (ESP32-C3) app image, from gh_release
-#   firmware-x4pro.bin  X4 Pro (ESP32-S3) app image, from x4pro-gh_release
-# Also attached for USB installs: firmware-x4pro.factory.bin (flash at 0x0).
+# Each build is one app package (custom_package in platformio.ini; g = GOTO,
+# p = ON POINT). The update check downloads firmware-<board>-<package>.bin
+# (src/network/OtaAsset.h), so a device stays on the package it runs:
+#   firmware-x4-g.bin       X4: GOTO                (gh_release)
+#   firmware-x4pro-g.bin    X4 Pro: GOTO            (x4pro-goto-gh_release)
+#   firmware-x4pro-p.bin    X4 Pro: ON POINT        (x4pro-onpoint-gh_release)
+#   firmware-x4pro-gp.bin   X4 Pro: GOTO + ON POINT (x4pro-gh_release)
+# X4 Pro packages also get <asset>.factory.bin for USB installs (flash at 0x0).
+# Builds from before packages (1.0.1) look for firmware.bin (X4) and
+# firmware-x4pro.bin (X4 Pro); those copies carry them to x4-g and x4pro-gp.
 #
 # Builds are cold (no PlatformIO cache) with the same pinned tooling as the
 # Suite production build workflow.
@@ -48,11 +54,23 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - env: gh_release        # X4 / X3 (ESP32-C3)
-            asset: firmware.bin
-          - env: x4pro-gh_release  # X4 Pro (ESP32-S3)
-            asset: firmware-x4pro.bin
-            factory: firmware-x4pro.factory.bin
+          - env: gh_release
+            package: G
+            asset: firmware-x4-g
+            legacy: firmware.bin
+          - env: x4pro-goto-gh_release
+            package: G
+            asset: firmware-x4pro-g
+            factory: true
+          - env: x4pro-onpoint-gh_release
+            package: P
+            asset: firmware-x4pro-p
+            factory: true
+          - env: x4pro-gh_release
+            package: GP
+            asset: firmware-x4pro-gp
+            factory: true
+            legacy: firmware-x4pro.bin
     steps:
       - uses: actions/checkout@v6
         with:
@@ -76,14 +94,17 @@ jobs:
         run: |
           set -euo pipefail
           pio run -e ${{ matrix.env }} | tee pio.log
-          grep -q "CrossPoint build version: ${{ needs.version.outputs.display }}" pio.log
+          grep -q "CrossPoint build version: ${{ needs.version.outputs.display }}-${{ matrix.package }}$" pio.log
       - name: Name release assets
         run: |
           set -euo pipefail
           mkdir -p out
-          cp .pio/build/${{ matrix.env }}/firmware.bin out/${{ matrix.asset }}
-          if [ -n "${{ matrix.factory }}" ]; then
-            cp .pio/build/${{ matrix.env }}/firmware.factory.bin out/${{ matrix.factory }}
+          cp .pio/build/${{ matrix.env }}/firmware.bin out/${{ matrix.asset }}.bin
+          if [ "${{ matrix.factory }}" = "true" ]; then
+            cp .pio/build/${{ matrix.env }}/firmware.factory.bin out/${{ matrix.asset }}.factory.bin
+          fi
+          if [ -n "${{ matrix.legacy }}" ]; then
+            cp .pio/build/${{ matrix.env }}/firmware.bin out/${{ matrix.legacy }}
           fi
       - uses: actions/upload-artifact@v4
         with:
@@ -113,11 +134,18 @@ jobs:
         run: |
           set -euo pipefail
           cat > notes.md <<EOF
-          Firmware ${DISPLAY_VERSION} (CrossPoint base + APPS ${GITHUB_REF_NAME#v}).
+          Firmware ${DISPLAY_VERSION} (CrossPoint base + APPS ${GITHUB_REF_NAME#v}), in app packages.
+          Every package opens its apps from Home > Apps.
 
-          - **Over Wi-Fi:** Settings > System > Check for updates on the device.
-          - **X4 (SD card):** copy \`firmware.bin\` to the card and use Settings > System > SD Card Firmware Update.
-          - **X4 Pro (USB):** flash \`firmware-x4pro.factory.bin\` at \`0x0\`.
+          | Package | XTEINK X4 (microSD) | XTEINK X4 Pro (USB, flash at \`0x0\`) |
+          |---|---|---|
+          | GOTO | \`firmware-x4-g.bin\` | \`firmware-x4pro-g.factory.bin\` |
+          | ON POINT | not available (needs a real-time clock) | \`firmware-x4pro-p.factory.bin\` |
+          | GOTO + ON POINT | not available | \`firmware-x4pro-gp.factory.bin\` |
+
+          - **Over Wi-Fi:** Settings > System > Check for updates keeps a device on its current package.
+          - **X4 (microSD):** copy the file to the card and use Settings > System > SD Card Firmware Update.
+          - \`firmware.bin\` and \`firmware-x4pro.bin\` are for devices updating from 1.0.1.
 
           Checksums are in \`SHA256SUMS.txt\`.
           EOF
