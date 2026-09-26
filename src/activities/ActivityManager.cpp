@@ -18,14 +18,18 @@
 #ifdef GATE_ENABLED
 #include "gate/GateActivity.h"
 #endif
+#ifdef GOTO_ENABLED
 #include "goto/GotoActivity.h"
+#endif
 #include "home/CrashActivity.h"
 #include "home/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
 #include "home/RecentBooksActivity.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "network/UsbDriveActivity.h"
+#ifdef ON_POINT_ENABLED
 #include "on_point/OnPointActivity.h"
+#endif
 #include "reader/ReaderActivity.h"
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
@@ -259,8 +263,11 @@ void ActivityManager::goToRecentBooks() {
   replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
 }
 
+#ifdef GOTO_ENABLED
 void ActivityManager::goToGoto() { replaceActivity(std::make_unique<GotoActivity>(renderer, mappedInput)); }
+#endif
 
+#ifdef ON_POINT_ENABLED
 void ActivityManager::goToOnPoint() {
   auto activity = makeUniqueNoThrow<OnPointActivity>(renderer, mappedInput);
   if (!activity) {
@@ -269,6 +276,7 @@ void ActivityManager::goToOnPoint() {
   }
   replaceActivity(std::move(activity));
 }
+#endif
 
 #ifdef GATE_ENABLED
 void ActivityManager::goToGate() {

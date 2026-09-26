@@ -1,12 +1,14 @@
 """
 PlatformIO pre-build script: inject the firmware identity into CROSSPOINT_VERSION.
 
-The suite builds show `{version}-A{apps_version}` (e.g. `1.6.0-A1.0.0`) from
-the [crosspoint] section of platformio.ini:
-`version` is the CrossPoint base, `apps_version` this firmware's own release
-number. Suite builds also get CROSSPOINT_OTA_VERSION (plain `apps_version`, for
-the update check) and CROSSPOINT_OTA_REPO (`ota_repo`, whose GitHub releases the
-update check reads). Other environments set CROSSPOINT_VERSION in the ini.
+Suite builds (those declaring `custom_package`) show
+`{version}-A{apps_version}-{PACKAGE}`, e.g. `1.6.0-A1.0.2-GP`: `version` is the
+CrossPoint base and `apps_version` this firmware's own release number, from the
+[crosspoint] section of platformio.ini. The package also selects which apps are
+built (see PACKAGE_APPS). Suite builds get CROSSPOINT_PACKAGE and
+CROSSPOINT_OTA_VERSION (plain `apps_version`) for the update check, and
+CROSSPOINT_OTA_REPO (`ota_repo`, whose GitHub releases it reads). Other
+environments set CROSSPOINT_VERSION in the ini.
 """
 
 import configparser
@@ -66,10 +68,45 @@ def get_git_short_sha(project_dir):
     )
 
 
-# Environments whose version string comes from this script. The suite
-# environments also get the OTA version/repo defines.
-SUITE_ENVS = ('default', 'gh_release', 'x4pro', 'x4pro-gh_release')
-IDENTITY_ENVS = SUITE_ENVS + ('sticky',)
+# Suite environments declare `custom_package` in platformio.ini: one letter per
+# app they include (g = GOTO, p = ON POINT). Each letter defines the app's build
+# flag; apps left out also have their sources excluded. Environments without a
+# package keep every app and get no suite identity, except these, which still
+# show the suite version string.
+PACKAGE_APPS = {
+    'g': ('GOTO_ENABLED', 'activities/goto'),
+    'p': ('ON_POINT_ENABLED', 'activities/on_point'),
+}
+IDENTITY_ONLY_ENVS = ('sticky',)
+
+
+def get_package(env):
+    try:
+        package = env.GetProjectOption('custom_package', '')
+    except Exception:  # direct run with the fake env below
+        package = env.get('custom_package', '')
+    package = (package or '').strip().lower()
+    unknown = set(package) - set(PACKAGE_APPS)
+    if unknown or len(set(package)) != len(package):
+        raise ValueError(f'invalid custom_package "{package}" (letters: {"".join(PACKAGE_APPS)})')
+    # Canonical letter order, so "pg" and "gp" name the same package.
+    return ''.join(letter for letter in PACKAGE_APPS if letter in package)
+
+
+def apply_package(env, package):
+    excluded = []
+    for letter, (flag, src_dir) in PACKAGE_APPS.items():
+        if not package or letter in package:
+            env.Append(CPPDEFINES=[(flag, 1)])
+        else:
+            excluded.append(f'-<{src_dir}/>')
+    if excluded:
+        # An empty SRC_FILTER means PlatformIO's default "+<*>"; keep it, or the
+        # exclusions alone would drop every source.
+        base = env.get('SRC_FILTER') or ['+<*>']
+        if isinstance(base, str):
+            base = [base]
+        env.Replace(SRC_FILTER=list(base) + excluded)
 
 
 def get_crosspoint_option(project_dir, key, default):
@@ -95,7 +132,9 @@ def _define(env, name, value):
 
 
 def inject_version(env):
-    if env['PIOENV'] not in IDENTITY_ENVS:
+    package = get_package(env)
+    apply_package(env, package)
+    if not package and env['PIOENV'] not in IDENTITY_ONLY_ENVS:
         return
 
     project_dir = env['PROJECT_DIR']
@@ -103,10 +142,13 @@ def inject_version(env):
     apps_version = get_crosspoint_option(project_dir, 'apps_version', '0.0.0')
 
     version_string = f'{base_version}-A{apps_version}'
+    if package:
+        version_string += f'-{package.upper()}'
     _define(env, 'CROSSPOINT_VERSION', version_string)
     print(f'CrossPoint build version: {version_string}')
 
-    if env['PIOENV'] in SUITE_ENVS:
+    if package:
+        _define(env, 'CROSSPOINT_PACKAGE', package)
         _define(env, 'CROSSPOINT_OTA_VERSION', apps_version)
         ota_repo = get_crosspoint_option(project_dir, 'ota_repo', '')
         if ota_repo:  # otherwise OtaUpdater keeps its upstream default
@@ -129,4 +171,5 @@ except NameError:
         def Append(self, **_): pass
 
     _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    inject_version(_Env({'PIOENV': 'default', 'PROJECT_DIR': _project_dir}))
+    inject_version(_Env({'PIOENV': 'default', 'PROJECT_DIR': _project_dir,
+                         'custom_package': os.environ.get('CUSTOM_PACKAGE', 'gp')}))

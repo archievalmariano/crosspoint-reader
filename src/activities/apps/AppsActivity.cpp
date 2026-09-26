@@ -5,7 +5,9 @@
 #include <I18n.h>
 
 #include "MappedInputManager.h"
+#ifdef GOTO_ENABLED
 #include "activities/goto/GotoEditionSource.h"
+#endif
 #include "components/UITheme.h"
 
 namespace fui = freeink::ui;
@@ -19,18 +21,25 @@ struct AppDescriptor {
   bool (*available)();  // nullptr = always listed
 };
 
+#ifdef GOTO_ENABLED
 // GOTO's label follows the cached current edition (no network). Its sort key
 // stays "GOTO" so the row never moves when the label reads TOGO.
 const char* gotoLabel() { return cachedCurrentIsTogo() ? tr(STR_TOGO) : tr(STR_GOTO); }
+#endif
 
-// Declaration order is irrelevant: rows are sorted by key in onEnter().
+// Declaration order is irrelevant: rows are sorted by key in onEnter(). Each
+// app is present only when its package flag is built in (scripts/git_branch.py).
 constexpr AppDescriptor APP_TABLE[] = {
+#ifdef GOTO_ENABLED
     {{AppId::Goto, "GOTO"}, gotoLabel, [] { activityManager.goToGoto(); }, nullptr},
+#endif
+#ifdef ON_POINT_ENABLED
     // Departure times need wall-clock time, so ON POINT is listed only on boards with an RTC.
     {{AppId::OnPoint, "ON POINT"},
      [] { return tr(STR_ON_POINT); },
      [] { activityManager.goToOnPoint(); },
      [] { return halClock.isAvailable(); }},
+#endif
 #ifdef GATE_ENABLED
     {{AppId::Gate, "THE GATE IS OPEN!"},
      [] { return tr(STR_GATE_IS_OPEN); },

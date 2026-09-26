@@ -88,8 +88,12 @@ class ActivityManager {
   void goToFileBrowser(std::string path = {});
   void goToRecentBooks();
   void goToBrowser();
+#ifdef GOTO_ENABLED
   void goToGoto();
+#endif
+#ifdef ON_POINT_ENABLED
   void goToOnPoint();
+#endif
 #ifdef GATE_ENABLED
   void goToGate();
 #endif
