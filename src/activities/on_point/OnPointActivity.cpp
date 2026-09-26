@@ -492,11 +492,12 @@ void OnPointActivity::drawFooter(const on_point::Schedule& schedule, const char*
   renderer.drawLine(MARGIN, FOOTER_RULE_Y, width - MARGIN, FOOTER_RULE_Y, 3, true);
   renderer.drawText(LABEL_FONT, MARGIN, 744, leftLabel, true, EpdFontFamily::BOLD);
 
-  if (schedule.sourceStatus == on_point::SourceStatus::Provisional) {
-    const char* provisional = tr(STR_ON_POINT_PROVISIONAL);
-    renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, provisional), 744, provisional,
-                      true, EpdFontFamily::BOLD);
-  }
+  // Source confidence: PUBLISHED = the operator's own published timetable
+  // (still subject to change); PROVISIONAL = secondary source, unconfirmed.
+  const char* source = schedule.sourceStatus == on_point::SourceStatus::Verified ? tr(STR_ON_POINT_PUBLISHED)
+                                                                                 : tr(STR_ON_POINT_PROVISIONAL);
+  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, source), 744, source, true,
+                    EpdFontFamily::BOLD);
 }
 
 void OnPointActivity::drawBadge(const char* label) const {

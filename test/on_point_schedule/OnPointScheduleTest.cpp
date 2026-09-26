@@ -21,8 +21,50 @@ CivilDateTime manilaTime(const int year, const int month, const int day, const i
           static_cast<uint8_t>(hour + 16), static_cast<uint8_t>(minute), static_cast<uint8_t>(second)};
 }
 
-const on_point::Schedule& balagtasSchedule() { return on_point::scheduleAt(0); }
-const on_point::Schedule& trinomaSchedule() { return on_point::scheduleAt(1); }
+// Engine tests run against this fixed weekday timetable (every 30 minutes,
+// 04:30-20:00 out, 06:00-22:30 back) so they never depend on catalog data.
+constexpr uint8_t FIXTURE_WEEKDAYS = 0b0111110;
+constexpr uint16_t FIXTURE_OUTBOUND[] = {270, 300, 330, 360,  390,  420,  450,  480,  510,  540, 570,
+                                         600, 630, 660, 690,  720,  750,  780,  810,  840,  870, 900,
+                                         930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200};
+constexpr uint16_t FIXTURE_RETURN[] = {360,  390,  420,  450,  480,  510,  540,  570,  600,  630, 660,  690,
+                                       720,  750,  780,  810,  840,  870,  900,  930,  960,  990, 1020, 1050,
+                                       1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290, 1320, 1350};
+constexpr on_point::ServiceRule FIXTURE_OUTBOUND_RULES[] = {{FIXTURE_WEEKDAYS, {FIXTURE_OUTBOUND, 32}}};
+constexpr on_point::ServiceRule FIXTURE_RETURN_RULES[] = {{FIXTURE_WEEKDAYS, {FIXTURE_RETURN, 34}}};
+
+const on_point::Schedule& balagtasSchedule() {
+  static const on_point::Schedule schedule = {"fixture-out",
+                                              "Fixture",
+                                              "A",
+                                              "B",
+                                              "Asia/Manila",
+                                              480,
+                                              {2026, 9, 1},
+                                              FIXTURE_OUTBOUND_RULES,
+                                              1,
+                                              nullptr,
+                                              0,
+                                              "Test",
+                                              on_point::SourceStatus::Provisional};
+  return schedule;
+}
+const on_point::Schedule& trinomaSchedule() {
+  static const on_point::Schedule schedule = {"fixture-back",
+                                              "Fixture",
+                                              "B",
+                                              "A",
+                                              "Asia/Manila",
+                                              480,
+                                              {2026, 9, 1},
+                                              FIXTURE_RETURN_RULES,
+                                              1,
+                                              nullptr,
+                                              0,
+                                              "Test",
+                                              on_point::SourceStatus::Provisional};
+  return schedule;
+}
 
 TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
   const on_point::RoutePair& route = on_point::routeAt(0);
@@ -39,133 +81,161 @@ TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
   EXPECT_STREQ(route.destinationArea, "QUEZON CITY");
 }
 
-TEST(OnPointScheduleData, AdditionalRoutePairsUseSpecificEndpointsAndAreas) {
+TEST(OnPointScheduleData, EveryRoutePairIsValidAndMirrored) {
   ASSERT_EQ(on_point::ROUTE_COUNT, 7u);
   ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
-
-  const on_point::RoutePair& caypombo = on_point::routeAt(1);
-  EXPECT_STREQ(on_point::scheduleForRoute(1, false).origin, "CAYPOMBO");
-  EXPECT_STREQ(on_point::scheduleForRoute(1, false).destination, "SM NORTH EDSA");
-  EXPECT_STREQ(on_point::scheduleForRoute(1, true).origin, "SM NORTH EDSA");
-  EXPECT_STREQ(caypombo.originArea, "SANTA MARIA, BULACAN");
-  EXPECT_STREQ(caypombo.destinationArea, "QUEZON CITY");
-
-  const on_point::RoutePair& calamba = on_point::routeAt(2);
-  EXPECT_STREQ(on_point::scheduleForRoute(2, false).origin, "CALAMBA");
-  EXPECT_STREQ(on_point::scheduleForRoute(2, false).destination, "BGC");
-  EXPECT_STREQ(calamba.originArea, "LAGUNA");
-  EXPECT_STREQ(calamba.destinationArea, "TAGUIG");
-
-  const on_point::RoutePair& upTownCenter = on_point::routeAt(3);
-  EXPECT_STREQ(on_point::scheduleForRoute(3, false).origin, "UP TOWN CENTER");
-  EXPECT_STREQ(on_point::scheduleForRoute(3, false).destination, "ONE AYALA");
-  EXPECT_STREQ(upTownCenter.originArea, "QUEZON CITY");
-  EXPECT_STREQ(upTownCenter.destinationArea, "MAKATI");
-
-  const on_point::RoutePair& baguio = on_point::routeAt(4);
-  EXPECT_STREQ(on_point::scheduleForRoute(4, false).origin, "BAGUIO");
-  EXPECT_STREQ(on_point::scheduleForRoute(4, false).destination, "PITX");
-  EXPECT_STREQ(on_point::scheduleForRoute(4, true).origin, "PITX");
-  EXPECT_STREQ(baguio.originArea, "BAGUIO");
-  EXPECT_STREQ(baguio.destinationArea, "PARAÑAQUE");
-
-  const on_point::RoutePair& aranetaCity = on_point::routeAt(5);
-  EXPECT_STREQ(on_point::scheduleForRoute(5, false).origin, "ARANETA CITY");
-  EXPECT_STREQ(on_point::scheduleForRoute(5, false).destination, "NAIA");
-  EXPECT_STREQ(on_point::scheduleForRoute(5, true).origin, "NAIA");
-  EXPECT_STREQ(aranetaCity.originArea, "QUEZON CITY");
-  EXPECT_STREQ(aranetaCity.destinationArea, "PASAY / PARAÑAQUE");
-
-  const on_point::RoutePair& clarkAirport = on_point::routeAt(6);
-  EXPECT_STREQ(on_point::scheduleForRoute(6, false).origin, "CLARK AIRPORT");
-  EXPECT_STREQ(on_point::scheduleForRoute(6, false).destination, "NAIA T3");
-  EXPECT_STREQ(on_point::scheduleForRoute(6, true).origin, "NAIA T3");
-  EXPECT_STREQ(clarkAirport.originArea, "PAMPANGA");
-  EXPECT_STREQ(clarkAirport.destinationArea, "PASAY");
+  for (size_t index = 0; index < on_point::ROUTE_COUNT; ++index) {
+    const on_point::Schedule& outbound = on_point::scheduleForRoute(index, false);
+    const on_point::Schedule& returning = on_point::scheduleForRoute(index, true);
+    EXPECT_TRUE(on_point::isValidSchedule(outbound)) << outbound.routeId;
+    EXPECT_TRUE(on_point::isValidSchedule(returning)) << returning.routeId;
+    EXPECT_STREQ(returning.origin, outbound.destination) << outbound.routeId;
+    EXPECT_STREQ(returning.destination, outbound.origin) << outbound.routeId;
+  }
 }
 
-TEST(OnPointScheduleData, AdditionalPublishedTimetablesRemainIndependent) {
-  const DepartureState caypombo =
-      on_point::getDepartureState(on_point::scheduleForRoute(1, false), manilaTime(2026, 9, 23, 10, 15));
-  ASSERT_TRUE(caypombo.next.valid);
-  EXPECT_EQ(caypombo.next.local.hour, 11);
-  EXPECT_EQ(caypombo.next.local.minute, 0);
-  EXPECT_EQ(caypombo.minutesToNext, 45);
-  EXPECT_EQ(caypombo.last.local.hour, 19);
-  EXPECT_EQ(caypombo.last.local.minute, 45);
+TEST(OnPointScheduleData, BalagtasTrinomaHasWeekdayAndWeekendTimetables) {
+  EXPECT_EQ(on_point::scheduleForRoute(0, false).sourceStatus, on_point::SourceStatus::Verified);
 
-  const DepartureState calamba =
-      on_point::getDepartureState(on_point::scheduleForRoute(2, false), manilaTime(2026, 9, 23, 12, 30));
-  ASSERT_TRUE(calamba.next.valid);
-  EXPECT_EQ(calamba.next.local.hour, 13);
-  EXPECT_EQ(calamba.minutesToNext, 30);
-  EXPECT_EQ(calamba.last.local.hour, 20);
+  const DepartureState friday =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 9, 25, 4, 0));
+  EXPECT_EQ(friday.next.local.hour, 4);
+  EXPECT_EQ(friday.next.local.minute, 30);
 
-  const DepartureState upTownCenter =
-      on_point::getDepartureState(on_point::scheduleForRoute(3, false), manilaTime(2026, 9, 23, 6, 0));
-  ASSERT_TRUE(upTownCenter.next.valid);
-  EXPECT_EQ(upTownCenter.next.local.hour, 6);
-  EXPECT_EQ(upTownCenter.next.local.minute, 45);
-  EXPECT_EQ(upTownCenter.minutesToNext, 45);
-  EXPECT_EQ(upTownCenter.last.local.hour, 18);
+  const DepartureState saturday =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 9, 26, 4, 0));
+  EXPECT_EQ(saturday.next.local.hour, 5);
+  EXPECT_EQ(saturday.next.local.minute, 0);
+  EXPECT_EQ(saturday.last.local.hour, 20);
+
+  const DepartureState sundayReturn =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, true), manilaTime(2026, 9, 27, 6, 0));
+  EXPECT_EQ(sundayReturn.next.local.hour, 6);
+  EXPECT_EQ(sundayReturn.next.local.minute, 30);
+  EXPECT_EQ(sundayReturn.last.local.hour, 22);
+  EXPECT_EQ(sundayReturn.last.local.minute, 30);
+
+  const DepartureState mondayReturn =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, true), manilaTime(2026, 9, 28, 5, 50));
+  EXPECT_EQ(mondayReturn.next.local.hour, 6);
+  EXPECT_EQ(mondayReturn.next.local.minute, 0);
 }
 
-TEST(OnPointScheduleData, NewDailyRoutesUseTheirIndependentPublishedTimetables) {
+TEST(OnPointScheduleData, CaypomboRunsDailyEveryThirtyMinutes) {
+  EXPECT_EQ(on_point::scheduleForRoute(1, false).sourceStatus, on_point::SourceStatus::Verified);
+  const DepartureState sunday =
+      on_point::getDepartureState(on_point::scheduleForRoute(1, false), manilaTime(2026, 9, 27, 4, 50));
+  EXPECT_EQ(sunday.next.local.hour, 5);
+  EXPECT_EQ(sunday.next.local.minute, 0);
+  EXPECT_EQ(sunday.last.local.hour, 20);
+  EXPECT_EQ(sunday.last.local.minute, 0);
+
+  const DepartureState weekdayReturn =
+      on_point::getDepartureState(on_point::scheduleForRoute(1, true), manilaTime(2026, 9, 28, 22, 10));
+  EXPECT_EQ(weekdayReturn.next.local.hour, 22);
+  EXPECT_EQ(weekdayReturn.next.local.minute, 30);
+  EXPECT_TRUE(weekdayReturn.isLastDeparture);
+}
+
+TEST(OnPointScheduleData, GenesisRoutesFollowTheOperatorSchedule) {
+  const on_point::Schedule& clarkToNaia = on_point::scheduleForRoute(3, false);
+  EXPECT_EQ(clarkToNaia.sourceStatus, on_point::SourceStatus::Verified);
+  const DepartureState clark = on_point::getDepartureState(clarkToNaia, manilaTime(2026, 9, 26, 18, 20));
+  EXPECT_EQ(clark.next.local.hour, 20);
+  EXPECT_EQ(clark.next.local.minute, 0);
+  EXPECT_EQ(clark.last.local.hour, 22);
+  EXPECT_EQ(clark.last.local.minute, 30);
+
+  const DepartureState naia =
+      on_point::getDepartureState(on_point::scheduleForRoute(3, true), manilaTime(2026, 9, 26, 0, 0));
+  EXPECT_EQ(naia.next.local.hour, 0);
+  EXPECT_EQ(naia.minutesToNext, 0);
+
+  const DepartureState trinoma =
+      on_point::getDepartureState(on_point::scheduleForRoute(4, false), manilaTime(2026, 9, 26, 21, 40));
+  EXPECT_EQ(trinoma.next.local.hour, 23);
+  EXPECT_EQ(trinoma.next.local.minute, 0);
+  EXPECT_TRUE(trinoma.isLastDeparture);
+
+  const DepartureState clarkToTrinoma =
+      on_point::getDepartureState(on_point::scheduleForRoute(4, true), manilaTime(2026, 9, 26, 5, 0));
+  EXPECT_EQ(clarkToTrinoma.next.local.hour, 5);
+  EXPECT_EQ(clarkToTrinoma.next.local.minute, 15);
+}
+
+TEST(OnPointScheduleData, EveryScheduleComesFromItsOperator) {
+  for (size_t index = 0; index < on_point::SCHEDULE_COUNT; ++index) {
+    EXPECT_EQ(on_point::scheduleAt(index).sourceStatus, on_point::SourceStatus::Verified)
+        << on_point::scheduleAt(index).routeId;
+  }
+}
+
+TEST(OnPointScheduleData, BalagtasHolidaysUseTheWeekendTimetable) {
+  // Bonifacio Day (Monday) and an NCR ASEAN Summit day (Tuesday) start at 5:00.
+  const DepartureState bonifacio =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 11, 30, 4, 0));
+  EXPECT_EQ(bonifacio.next.local.hour, 5);
+  EXPECT_EQ(bonifacio.next.local.minute, 0);
+  const DepartureState asean =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, true), manilaTime(2026, 11, 17, 6, 0));
+  EXPECT_EQ(asean.next.local.hour, 6);
+  EXPECT_EQ(asean.next.local.minute, 30);
+
+  // An ordinary Tuesday keeps the weekday timetable.
+  const DepartureState tuesday =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 11, 24, 4, 0));
+  EXPECT_EQ(tuesday.next.local.hour, 4);
+  EXPECT_EQ(tuesday.next.local.minute, 30);
+}
+
+TEST(OnPointScheduleData, NewOperatorTimetables) {
+  const DepartureState cubao =
+      on_point::getDepartureState(on_point::scheduleForRoute(2, false), manilaTime(2026, 9, 28, 12, 0));
+  EXPECT_EQ(cubao.next.local.hour, 13);
+  EXPECT_EQ(cubao.next.local.minute, 10);
+
   const DepartureState baguio =
-      on_point::getDepartureState(on_point::scheduleForRoute(4, false), manilaTime(2026, 9, 26, 23, 30));
-  ASSERT_TRUE(baguio.next.valid);
-  EXPECT_EQ(baguio.next.local.day, 27);
-  EXPECT_EQ(baguio.next.local.hour, 0);
-  EXPECT_EQ(baguio.next.local.minute, 0);
-  EXPECT_EQ(baguio.next.serviceMinute, 1440);
-  EXPECT_EQ(baguio.minutesToNext, 30);
-  EXPECT_TRUE(baguio.isLastDeparture);
+      on_point::getDepartureState(on_point::scheduleForRoute(5, true), manilaTime(2026, 9, 28, 10, 0));
+  EXPECT_EQ(baguio.next.local.hour, 10);
+  EXPECT_EQ(baguio.next.local.minute, 15);
 
-  const DepartureState aranetaCity =
-      on_point::getDepartureState(on_point::scheduleForRoute(5, false), manilaTime(2026, 9, 26, 12, 0));
-  ASSERT_TRUE(aranetaCity.next.valid);
-  EXPECT_EQ(aranetaCity.next.local.hour, 12);
-  EXPECT_EQ(aranetaCity.next.local.minute, 30);
-  EXPECT_EQ(aranetaCity.minutesToNext, 30);
-  EXPECT_EQ(aranetaCity.last.local.hour, 21);
+  const DepartureState naia =
+      on_point::getDepartureState(on_point::scheduleForRoute(6, false), manilaTime(2026, 9, 28, 19, 0));
+  EXPECT_EQ(naia.serviceStatus, ServiceStatus::ServiceEnded);
 
-  const DepartureState clarkAirport =
-      on_point::getDepartureState(on_point::scheduleForRoute(6, false), manilaTime(2026, 9, 27, 19, 15));
-  ASSERT_TRUE(clarkAirport.next.valid);
-  EXPECT_EQ(clarkAirport.next.local.hour, 20);
-  EXPECT_EQ(clarkAirport.next.local.minute, 30);
-  EXPECT_EQ(clarkAirport.minutesToNext, 75);
-  EXPECT_TRUE(clarkAirport.isLastDeparture);
-
-  const DepartureState naiaT3 =
-      on_point::getDepartureState(on_point::scheduleForRoute(6, true), manilaTime(2026, 9, 27, 0, 0));
-  ASSERT_TRUE(naiaT3.next.valid);
-  EXPECT_EQ(naiaT3.next.local.hour, 0);
-  EXPECT_EQ(naiaT3.next.local.minute, 0);
-  EXPECT_EQ(naiaT3.minutesToNext, 0);
-  EXPECT_FALSE(naiaT3.isLastDeparture);
+  const DepartureState pitx =
+      on_point::getDepartureState(on_point::scheduleForRoute(6, true), manilaTime(2026, 9, 28, 12, 0));
+  EXPECT_EQ(pitx.next.local.hour, 14);
+  EXPECT_EQ(pitx.next.local.minute, 15);
 }
 
 TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrder) {
   EXPECT_EQ(on_point::routeIndexForId("p2p-balagtas-trinoma"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-caypombo-sm-north-edsa"), 1u);
-  EXPECT_EQ(on_point::routeIndexForId("p2p-baguio-pitx"), 4u);
-  EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 5u);
-  EXPECT_EQ(on_point::routeIndexForId("p2p-clark-airport-naia-t3"), 6u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-cubao-clark-airport"), 2u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-clark-airport-naia-t3"), 3u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-trinoma-clark-airport"), 4u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-clark-airport-baguio"), 5u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-naia-pitx"), 6u);
+  // Removed routes (and unknown ids) fall back to the first pair.
+  EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
 
-  const char* expectedOrigins[] = {
-      "ARANETA CITY", "BAGUIO", "BALAGTAS", "CALAMBA", "CAYPOMBO", "CLARK AIRPORT", "UP TOWN CENTER",
+  const char* expected[][2] = {
+      {"BALAGTAS", "TRINOMA"},      {"CAYPOMBO", "SM NORTH EDSA"}, {"CLARK AIRPORT", "BAGUIO"},
+      {"CLARK AIRPORT", "NAIA T3"}, {"CUBAO", "CLARK AIRPORT"},    {"NAIA T3", "PITX"},
+      {"TRINOMA", "CLARK AIRPORT"},
   };
   for (size_t position = 0; position < on_point::ROUTE_COUNT; ++position) {
     const size_t routeIndex = on_point::routeIndexInAlphabeticalOrder(position);
-    EXPECT_STREQ(on_point::scheduleForRoute(routeIndex, false).origin, expectedOrigins[position]);
+    EXPECT_STREQ(on_point::scheduleForRoute(routeIndex, false).origin, expected[position][0]);
+    EXPECT_STREQ(on_point::scheduleForRoute(routeIndex, false).destination, expected[position][1]);
   }
 }
 
 TEST(OnPointScheduleData, InvalidRouteIndexFallsBackToFirstPair) {
   EXPECT_EQ(&on_point::routeAt(on_point::ROUTE_COUNT), &on_point::routeAt(0));
-  EXPECT_EQ(&on_point::scheduleForRoute(on_point::ROUTE_COUNT, false), &balagtasSchedule());
+  EXPECT_EQ(&on_point::scheduleForRoute(on_point::ROUTE_COUNT, false), &on_point::scheduleAt(0));
 }
 
 TEST(OnPointSchedule, BeforeFirstDeparture) {
