@@ -17,6 +17,7 @@
 
 #include "FirmwareBoardTag.h"
 #include "FirmwareFlasher.h"
+#include "OtaAsset.h"
 #include "OtaVersion.h"
 
 // Builds may point the update check at their own GitHub releases and compare
@@ -26,6 +27,10 @@
 #endif
 #ifndef CROSSPOINT_OTA_VERSION
 #define CROSSPOINT_OTA_VERSION CROSSPOINT_VERSION
+#endif
+// Suite package letters (e.g. "gp"); empty for builds without a package.
+#ifndef CROSSPOINT_PACKAGE
+#define CROSSPOINT_PACKAGE ""
 #endif
 
 namespace {
@@ -41,13 +46,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   // OOM there aborts. fetchUrl handles the verified-https GET, redirects, and
   // User-Agent (see HttpDownloader).
   ReleaseJsonParser releaseParser;
-  // Each board updates from its own release asset: plain firmware.bin for the
-  // C3 X4/X3 binary (pre-existing releases), firmware-<board>.bin otherwise.
-  const bool isX4 = board_tag::boardNameLen() == 2 && memcmp(board_tag::boardName(), "x4", 2) == 0;
-  char assetName[48] = "firmware.bin";
-  if (!isX4) {
-    snprintf(assetName, sizeof(assetName), "firmware-%.*s.bin", static_cast<int>(board_tag::boardNameLen()),
-             board_tag::boardName());
+  // Each board (and suite package) updates from its own release asset.
+  char assetName[48];
+  if (!ota_asset::name(assetName, sizeof(assetName), board_tag::boardName(), board_tag::boardNameLen(),
+                       CROSSPOINT_PACKAGE)) {
+    LOG_ERR("OTA", "Release asset name too long");
+    return INTERNAL_UPDATE_ERROR;
   }
   releaseParser.setFirmwareAssetName(assetName);
   const bool ok = HttpDownloader::fetchUrl(latestReleaseUrl, [&releaseParser](const uint8_t* data, size_t len) {
