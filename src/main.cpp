@@ -32,6 +32,7 @@
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
+#include "UsbStayAwake.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
@@ -577,25 +578,40 @@ void setup() {
   allowSleepAt = millis() + 2000;
 }
 
-// Development aid: when built with STAY_AWAKE_WHILE_USB_POWERED and connected to
-// a USB host / external power, the idle-timeout deep sleep is suppressed so the
-// USB CDC port stays enumerated for flashing and serial. Only the automatic idle
-// timeout is affected -- manual power-button sleep still works, and on battery
-// the normal idle-sleep behavior is unchanged. Opt-in per build env (x4pro dev),
-// never in release builds.
+// Idle-sleep suppression while USB is detected. Two independent modes; in both,
+// ONLY the automatic idle timeout is affected -- manual power-button sleep always
+// works and on battery the normal idle-sleep behavior is unchanged:
+//   * STAY_AWAKE_WHILE_USB_POWERED (dev x4pro only): unconditionally suppresses the
+//     idle-timeout sleep while USB is detected, so the CDC port stays enumerated for
+//     flashing/serial.
+//   * FEATURE_USB_STAYAWAKE (X4 Pro release profiles): opt-in via the "Keep awake
+//     when USB is detected" Setting (default OFF), additionally gated on the X4 Pro
+//     board at runtime.
+// Every other build never suppresses.
 //
-// "USB powered" is a live USB host connection (usb_serial_jtag_is_connected --
+// "USB detected" is a live USB host connection (usb_serial_jtag_is_connected --
 // SOF packets arriving on the built-in Serial/JTAG PHY, which is the port used
 // for flashing on the X4 Pro) OR the charger STAT line (isUsbConnected). The
 // host-connection signal is the reliable one: it stays true while a computer is
 // attached regardless of charge state, whereas the charger STAT line drops once
 // charging terminates at a full battery, letting a plugged-in device idle-sleep.
-#ifdef STAY_AWAKE_WHILE_USB_POWERED
+#if defined(STAY_AWAKE_WHILE_USB_POWERED) || (defined(FEATURE_USB_STAYAWAKE) && FEATURE_USB_STAYAWAKE)
 extern "C" bool usb_serial_jtag_is_connected(void);  // SOF seen from a USB host
+// External power present: a live USB host connection (reliable; stays true while a
+// computer is attached regardless of charge state) OR the charger STAT/usbDetect
+// line (which can read disconnected once charging terminates at a full battery).
+static bool usbPowerPresent() { return usb_serial_jtag_is_connected() || gpio.isUsbConnected(); }
 #endif
 static bool stayAwakeOnUsbPower() {
-#ifdef STAY_AWAKE_WHILE_USB_POWERED
-  return usb_serial_jtag_is_connected() || gpio.isUsbConnected();
+#if defined(STAY_AWAKE_WHILE_USB_POWERED)
+  // Dev: unconditionally suppress idle sleep while USB-powered (keeps the CDC port
+  // enumerated for flashing). Ignores the production setting.
+  return usbStayAwakeSuppressIdleSleep(/*devOverride=*/true, /*productionFeature=*/false, BoardConfig::isX4Pro(),
+                                       /*settingEnabled=*/false, usbPowerPresent());
+#elif defined(FEATURE_USB_STAYAWAKE) && FEATURE_USB_STAYAWAKE
+  // Production X4 Pro: opt-in via Settings; battery behavior unchanged.
+  return usbStayAwakeSuppressIdleSleep(/*devOverride=*/false, /*productionFeature=*/true, BoardConfig::isX4Pro(),
+                                       SETTINGS.stayAwakeWhileUsb, usbPowerPresent());
 #else
   return false;
 #endif
@@ -660,8 +676,12 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
+  // Leaving USB stay-awake (undocked) restarts the idle timer, so the full sleep
+  // timeout applies after undocking rather than the time already spent docked.
+  static UsbStayAwakeReleaseTracker usbStayAwakeRelease;
+  const bool usbStayAwakeReleased = usbStayAwakeRelease.released(stayAwakeOnUsbPower());
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || gpio.wasTouchActivity() || halTiltSensor.hadActivity() ||
-      activityManager.preventAutoSleep()) {
+      activityManager.preventAutoSleep() || usbStayAwakeReleased) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }

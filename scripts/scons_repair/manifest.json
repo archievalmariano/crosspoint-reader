@@ -1,0 +1,33 @@
+{
+  "description": "Repo-controlled repair/validation data for pioarduino's tool-scons (no network). Each supported SCons version records the sha256 of the two modules the firmware link needs (SCons.Tool.FortranCommon <- SCons.Tool.linkCommon.smart_link, which imports SCons.Scanner.Fortran). 4.11.1 is 'repairable': the vendored payload under payload/ is installed when the active engine is missing/corrupt (pioarduino's C3 custom-core rebuild leaves it incomplete). 4.8.1 is validate-only: pioarduino ships it complete, so a mismatch is a hard failure, not something we overwrite. An active SCons version absent from this map is a hard failure.",
+  "supported_versions": {
+    "4.11.1": {
+      "repairable": true,
+      "payload_archive_sha256": "e405de1fcd3307fa80d624f0290c7cd30fbb47f67e135a9f56d7e46b6b895311",
+      "files": [
+        {
+          "path": "SCons/Tool/FortranCommon.py",
+          "sha256": "7132dcd4c805d575d16c4d7332ea533311477b7f949c9cf13b8c812b7ac686dd"
+        },
+        {
+          "path": "SCons/Scanner/Fortran.py",
+          "sha256": "68ac87ec71d55f3fb67be680a46148c330a62778e269ee6d85bb481eda2a45e3"
+        }
+      ]
+    },
+    "4.8.1": {
+      "repairable": false,
+      "reference_archive_sha256": "289b1abf389b730ab5a1018ed9fc84e22d301e0d16c64548eb9db5bf8ba59d06",
+      "files": [
+        {
+          "path": "SCons/Tool/FortranCommon.py",
+          "sha256": "12444fdd4b1a0680934abb03733e57edf5a19ac9d96b4f580f64c0e04733bc78"
+        },
+        {
+          "path": "SCons/Scanner/Fortran.py",
+          "sha256": "902b6b28eee59fe9db7a2e8cf3d51b8696e9c047ecef3d9f860e9d79095b5859"
+        }
+      ]
+    }
+  }
+}

@@ -127,7 +127,9 @@ void GateActivity::loop() {
   using B = MappedInputManager::Button;
 
   if (!loadedOk_) {
-    if (mappedInput.wasReleased(B::Back) || mappedInput.wasReleased(B::Confirm)) finish();
+    if (mappedInput.wasReleased(B::Back) || mappedInput.wasReleased(B::Confirm)) {
+      activityManager.goToApps(AppId::Gate);
+    }
     return;
   }
 
@@ -146,9 +148,9 @@ void GateActivity::loop() {
     game_->handle(gate::InputEvent::Select);
     acted = true;
   } else if (mappedInput.wasReleased(B::Back)) {
-    // At the Gate title, Back leaves the game and returns to CrossPoint home.
+    // At the Gate title, Back leaves the game and returns to the Apps launcher.
     if (game_->phase() == gate::Game::Phase::Title) {
-      finish();
+      activityManager.goToApps(AppId::Gate);
       return;
     }
     game_->handle(gate::InputEvent::Back);

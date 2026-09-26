@@ -340,6 +340,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
             StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
             {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
             "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM),
+#if defined(FEATURE_USB_STAYAWAKE) && FEATURE_USB_STAYAWAKE
+        // X4 Pro production opt-in: suppress idle-timeout sleep while USB is detected.
+        SettingInfo::Toggle(StrId::STR_KEEP_AWAKE_USB, &CrossPointSettings::stayAwakeWhileUsb, "stayAwakeWhileUsb",
+                            StrId::STR_CAT_SYSTEM),
+#endif
         SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
                             StrId::STR_CAT_SYSTEM),
         SettingInfo::Toggle(StrId::STR_REMOVE_READ_FROM_RECENTS, &CrossPointSettings::removeReadBooksFromRecents,
@@ -351,6 +356,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         // is hidden from the on-device Settings screen (edited via OPDS UI).
         SettingInfo::String(StrId::STR_OPDS_DOWNLOAD_FOLDER, &SETTINGS.opdsDownloadFolder[0],
                             sizeof(SETTINGS.opdsDownloadFolder), "opdsDownloadFolder"),
+#ifdef ON_POINT_ENABLED
+        // On Point main route: persisted + web-exposed, but category-less so
+        // long-pressing a route remains the single on-device editing path.
+        SettingInfo::String(StrId::STR_ON_POINT, &SETTINGS.onPointMainRouteId[0], sizeof(SETTINGS.onPointMainRouteId),
+                            "onPointMainRouteId"),
+#endif
         // OPDS download filename format: persisted + web-exposed, category-less so it
         // is hidden from the on-device Settings screen (cycled from the OPDS UI).
         SettingInfo::Enum(StrId::STR_OPDS_FILENAME_FORMAT, &CrossPointSettings::opdsFilenameFormat,

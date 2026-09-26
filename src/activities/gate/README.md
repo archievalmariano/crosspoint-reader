@@ -41,9 +41,10 @@ Default `GATE_REPO_DIR` is `~/Downloads/the-gate-is-open`.
 
 ## Launch
 
-Home menu → **"The Gate Is Open!"** (added as a `HomeMenuItem::GATE` entry in
-`ActivityManager.h` + `HomeActivity`). Back at the Gate title screen returns to
-CrossPoint home.
+Home menu → **Apps** → **"The Gate Is Open!"** (an `AppId::Gate` row in the app
+table in `src/activities/apps/AppsActivity.cpp`, launched via
+`ActivityManager::goToGate()`). Back at the Gate title screen, or on the
+load-error screen, returns to the Apps launcher with Gate selected.
 
 ## Device profile
 
