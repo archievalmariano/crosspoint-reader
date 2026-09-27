@@ -12,8 +12,8 @@ namespace {
 // for anything up to 114 bytes, but v4 holds only 78 — routing 79..114 B
 // payloads into a version too small to hold them.
 TEST(QrVersionSelect, V4BoundaryAt78) {
-  EXPECT_EQ(selectQrVersionEccLow(78), 4);   // exactly fills v4
-  EXPECT_EQ(selectQrVersionEccLow(79), 5);   // one over v4 -> must step up, not corrupt
+  EXPECT_EQ(selectQrVersionEccLow(78), 4);  // exactly fills v4
+  EXPECT_EQ(selectQrVersionEccLow(79), 5);  // one over v4 -> must step up, not corrupt
 }
 
 TEST(QrVersionSelect, V5BoundaryAt106) {
@@ -34,7 +34,7 @@ TEST(QrVersionSelect, ObservedFailingPayloadLengthsPickFittingVersions) {
 
 TEST(QrVersionSelect, SmallAndEmptyPayloadsPickLowestVersions) {
   EXPECT_EQ(selectQrVersionEccLow(0), 1);
-  EXPECT_EQ(selectQrVersionEccLow(17), 1);   // exactly fills v1
+  EXPECT_EQ(selectQrVersionEccLow(17), 1);  // exactly fills v1
   EXPECT_EQ(selectQrVersionEccLow(18), 2);
 }
 
@@ -45,8 +45,8 @@ TEST(QrVersionSelect, MaximumSupportedPayloadPicksV40) {
 }
 
 TEST(QrVersionSelect, OverCapacityPayloadReturnsZero) {
-  EXPECT_EQ(selectQrVersionEccLow(2954), 0);        // one past v40 -> refuse
-  EXPECT_EQ(selectQrVersionEccLow(100000), 0);      // far past -> refuse, do not encode
+  EXPECT_EQ(selectQrVersionEccLow(2954), 0);    // one past v40 -> refuse
+  EXPECT_EQ(selectQrVersionEccLow(100000), 0);  // far past -> refuse, do not encode
 }
 
 // The selected version's capacity must always be >= the payload, and the

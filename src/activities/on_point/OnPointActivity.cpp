@@ -5,8 +5,8 @@
 #include <I18n.h>
 
 #include <algorithm>
-#include <cstring>
 #include <cstdio>
+#include <cstring>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -95,9 +95,7 @@ const on_point::Schedule& OnPointActivity::selectedSchedule() const {
   return on_point::scheduleForRoute(routeIndex, reversed);
 }
 
-size_t OnPointActivity::mainRouteIndex() const {
-  return on_point::routeIndexForId(SETTINGS.onPointMainRouteId);
-}
+size_t OnPointActivity::mainRouteIndex() const { return on_point::routeIndexForId(SETTINGS.onPointMainRouteId); }
 
 size_t OnPointActivity::displayRouteIndex(const size_t displayIndex) const {
   const size_t mainIndex = mainRouteIndex();
@@ -427,12 +425,10 @@ void OnPointActivity::drawRouteList() const {
   renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), HEADER_META_Y,
                     timetableLabel, true, EpdFontFamily::BOLD);
   renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
-  renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, tr(STR_ON_POINT_MAIN_ROUTE), true,
-                    EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, tr(STR_ON_POINT_MAIN_ROUTE), true, EpdFontFamily::BOLD);
   drawMainRoute(on_point::scheduleForRoute(mainIndex, false), routeIndex == mainIndex);
 
-  renderer.drawText(LABEL_FONT, MARGIN, ALL_ROUTES_LABEL_Y, tr(STR_ON_POINT_ALL_ROUTES), true,
-                    EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, MARGIN, ALL_ROUTES_LABEL_Y, tr(STR_ON_POINT_ALL_ROUTES), true, EpdFontFamily::BOLD);
   const size_t otherRouteCount = on_point::routeCount() - 1;
   const size_t pageCount = (otherRouteCount + ROUTE_LIST_VISIBLE_ROWS - 1) / ROUTE_LIST_VISIBLE_ROWS;
   if (pageCount > 1) {
@@ -529,8 +525,8 @@ void OnPointActivity::drawPrimaryScreen(const on_point::Schedule& schedule) {
   renderer.drawText(LABEL_FONT, MARGIN, 562, tr(STR_ON_POINT_SCHEDULED), true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, 236, 562, tr(STR_ON_POINT_NEXT), true, EpdFontFamily::BOLD);
   const char* lastLabel = tr(STR_ON_POINT_LAST);
-  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, lastLabel, EpdFontFamily::BOLD),
-                    562, lastLabel, true, EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, lastLabel, EpdFontFamily::BOLD), 562,
+                    lastLabel, true, EpdFontFamily::BOLD);
 
   char departureTime[8];
   formatTime(state.next, departureTime, sizeof(departureTime));
@@ -591,8 +587,7 @@ void OnPointActivity::drawEndedScreen(const on_point::Schedule& schedule) {
         LABEL_FONT,
         width - MARGIN - renderer.getTextWidth(LABEL_FONT, tr(STR_ON_POINT_FIRST_TRIP), EpdFontFamily::BOLD), 511,
         tr(STR_ON_POINT_FIRST_TRIP), true, EpdFontFamily::BOLD);
-    renderer.drawText(LABEL_FONT, MARGIN, 610, tr(STR_ON_POINT_NO_MORE_TRIPS_TODAY), true,
-                      EpdFontFamily::BOLD);
+    renderer.drawText(LABEL_FONT, MARGIN, 610, tr(STR_ON_POINT_NO_MORE_TRIPS_TODAY), true, EpdFontFamily::BOLD);
   } else {
     renderer.drawText(FOLLOWING_FONT, MARGIN, 464, tr(STR_ON_POINT_NO_FUTURE_SERVICE), true, EpdFontFamily::BOLD);
   }

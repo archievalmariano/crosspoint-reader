@@ -24,21 +24,19 @@ enum class GateInputMode {
 
 struct GateDeviceProfile {
   GateInputMode inputMode;
-  bool hasTouch;        // raw capability (drives whether taps are routed)
-  const char* name;     // short label for logs / docs, not a product name
+  bool hasTouch;            // raw capability (drives whether taps are routed)
+  const char* name;         // short label for logs / docs, not a product name
   const char* controlHint;  // one-line plain-text summary of controls
 };
 
 // The active profile for THIS firmware build, chosen by capability.
 inline GateDeviceProfile activeProfile() {
 #if FREEINK_CAP_TOUCH
-  return GateDeviceProfile{
-      GateInputMode::TouchAndButtons, /*hasTouch=*/true, "touch+buttons",
-      "Tap a choice, or Up/Down then OK. Back leaves."};
+  return GateDeviceProfile{GateInputMode::TouchAndButtons, /*hasTouch=*/true, "touch+buttons",
+                           "Tap a choice, or Up/Down then OK. Back leaves."};
 #else
-  return GateDeviceProfile{
-      GateInputMode::NavButtons, /*hasTouch=*/false, "buttons",
-      "Up/Down to move, OK to select, Back to leave."};
+  return GateDeviceProfile{GateInputMode::NavButtons, /*hasTouch=*/false, "buttons",
+                           "Up/Down to move, OK to select, Back to leave."};
 #endif
 }
 

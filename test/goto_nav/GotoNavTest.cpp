@@ -38,9 +38,9 @@ TEST(GotoNav, FirstStoryPreviousGoesToTerminal_CircularConsistency) {
 TEST(GotoNav, SixStoryTogoTransitions) {
   const int stories = 6;  // a 6-story TOGO edition
   EXPECT_EQ(goto_nav::terminalIndex(stories), 6);
-  EXPECT_EQ(goto_nav::nextIndex(5, stories), 6);   // final article 6/6 -> terminal
-  EXPECT_EQ(goto_nav::prevIndex(6, stories), 5);   // terminal -> article 6
-  EXPECT_EQ(goto_nav::nextIndex(6, stories), 0);   // terminal -> story 1
+  EXPECT_EQ(goto_nav::nextIndex(5, stories), 6);  // final article 6/6 -> terminal
+  EXPECT_EQ(goto_nav::prevIndex(6, stories), 5);  // terminal -> article 6
+  EXPECT_EQ(goto_nav::nextIndex(6, stories), 0);  // terminal -> story 1
 }
 
 TEST(GotoNav, FullForwardCycleReturnsToStart) {
