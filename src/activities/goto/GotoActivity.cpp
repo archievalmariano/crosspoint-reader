@@ -100,10 +100,9 @@ void GotoActivity::loop() {
   if (showingQr) {
     int tx = 0;
     int ty = 0;
-    const bool backOut =
-        mappedInput.wasReleased(Button::Back) || mappedInput.wasScreenTapped(tx, ty) ||
-        (mappedInput.hasTouch() &&
-         (mappedInput.wasPressed(Button::NavNext) || mappedInput.wasPressed(Button::NavPrevious)));
+    const bool backOut = mappedInput.wasReleased(Button::Back) || mappedInput.wasScreenTapped(tx, ty) ||
+                         (mappedInput.hasTouch() &&
+                          (mappedInput.wasPressed(Button::NavNext) || mappedInput.wasPressed(Button::NavPrevious)));
     if (backOut) {
       showingQr = false;
       cleanArticleRefresh = true;  // one HALF_REFRESH to scrub QR ghosting
@@ -131,9 +130,8 @@ void GotoActivity::loop() {
   // Open the per-story FULL STORY QR handoff: the front Confirm button (X4), or a
   // tap on the on-screen FULL STORY affordance (touch boards / X4 Pro). Only on a
   // story page; the terminal edition page is itself a QR, so this is inert there.
-  if (!onTerminalPage() &&
-      (mappedInput.wasReleased(Button::Confirm) ||
-       (fullStoryTapValid && mappedInput.wasTapInRect(fsTapX, fsTapY, fsTapW, fsTapH)))) {
+  if (!onTerminalPage() && (mappedInput.wasReleased(Button::Confirm) ||
+                            (fullStoryTapValid && mappedInput.wasTapInRect(fsTapX, fsTapY, fsTapW, fsTapH)))) {
     showingQr = true;
     requestUpdate();
     return;
@@ -282,7 +280,6 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
   const int bodyTop = y;
   const int bodyAvail = bodyBottom - bodyTop;
   const int fallbackLH = renderer.getLineHeight(kBodyFallbackFont);
-  const char* bodyMode = "empty";  // instrumentation: which fit branch was taken
   if (bodyAvail >= fallbackLH && !story.excerptParagraphs.empty()) {
     // Defensive measure-bound: never lay out more than can possibly display.
     // wrappedText scans the whole input, so a pathological multi-hundred-word
@@ -306,6 +303,7 @@ void GotoActivity::drawStoryPage(const GotoStory& story) {
     int bodyFont = kBodyFont;
     int lineHeight = bodyLH;
     std::vector<std::string> lines;
+    const char* bodyMode;  // instrumentation: which fit branch was taken
     if (static_cast<int>(normalLines.size()) * bodyLH <= bodyAvail) {
       lines = normalLines;  // STEP A: full paragraph at the normal size
       bodyMode = "normal-14";
