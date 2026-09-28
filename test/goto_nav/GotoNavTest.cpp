@@ -50,4 +50,35 @@ TEST(GotoNav, FullForwardCycleReturnsToStart) {
   EXPECT_EQ(i, 0);  // one full lap around the ring returns to story 1
 }
 
+// The Wi-Fi picker closes on a press (Back to skip, Confirm on "Save password?")
+// and GOTO appears while the key is still held: that press's release must not
+// also exit GOTO or open Full Story.
+TEST(GotoPressGate, ReleaseOfPressSeenElsewhereIsIgnored) {
+  goto_nav::PressGate gate;
+  gate.reset();                             // GOTO entered; picker then consumed the press
+  EXPECT_FALSE(gate.update(false, false));  // key still held while the edition loads
+  EXPECT_FALSE(gate.update(false, true));   // its release: ignored
+}
+
+TEST(GotoPressGate, NextFullPressAfterPickerCounts) {
+  goto_nav::PressGate gate;
+  EXPECT_FALSE(gate.update(false, true));  // leftover release from the picker
+  EXPECT_FALSE(gate.update(true, false));  // a new press in GOTO
+  EXPECT_FALSE(gate.update(false, false));
+  EXPECT_TRUE(gate.update(false, true));   // its release acts
+  EXPECT_FALSE(gate.update(false, true));  // and only once
+}
+
+TEST(GotoPressGate, SameFramePressAndReleaseCounts) {
+  goto_nav::PressGate gate;
+  EXPECT_TRUE(gate.update(true, true));  // touch back gesture reports both in one frame
+}
+
+TEST(GotoPressGate, ResetDropsAPressSeenBeforeIt) {
+  goto_nav::PressGate gate;
+  EXPECT_FALSE(gate.update(true, false));  // pressed, then GOTO re-entered
+  gate.reset();
+  EXPECT_FALSE(gate.update(false, true));
+}
+
 }  // namespace

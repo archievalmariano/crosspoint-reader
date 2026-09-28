@@ -29,4 +29,24 @@ inline int prevIndex(int index, int storyCount) {
   return (index - 1 + r) % r;
 }
 
+// A button release that counts only if this screen also saw its press. Screens
+// GOTO opens over itself (the Wi-Fi picker) act on the press, so the release of
+// that same press must not also act in GOTO. A press and release reported in
+// one frame (the touch back gesture) counts.
+struct PressGate {
+  bool pressSeen = false;
+
+  void reset() { pressSeen = false; }
+
+  // Feed one frame's edges; true when this frame's release completes a press
+  // seen here.
+  bool update(bool pressed, bool released) {
+    if (pressed) pressSeen = true;
+    if (!released) return false;
+    const bool counts = pressSeen;
+    pressSeen = false;
+    return counts;
+  }
+};
+
 }  // namespace goto_nav

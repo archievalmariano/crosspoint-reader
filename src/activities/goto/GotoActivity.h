@@ -27,7 +27,9 @@ class GotoActivity final : public Activity {
   // FULL STORY QR is a detail state OF the current article (not a child
   // activity), so the edition/pageIndex/session are untouched while it shows.
   bool showingQr = false;
-  bool backPressSeen = false;        // a Back press began while GOTO was active
+  // Back / Confirm releases count only for presses GOTO saw (see PressGate).
+  goto_nav::PressGate backGate;
+  goto_nav::PressGate confirmGate;
   bool cleanArticleRefresh = false;  // one HALF_REFRESH when returning from QR, to clear ghosting
   // On-screen FULL STORY affordance hit-box, recomputed each story-page render.
   // Touch boards (X4 Pro) open the QR by tapping it; button boards ignore it

@@ -71,7 +71,8 @@ bool storyUrlIsValid(const std::string& url) {
 
 void GotoActivity::onEnter() {
   Activity::onEnter();
-  backPressSeen = false;
+  backGate.reset();
+  confirmGate.reset();
   if (gotoWifiConnected()) {
     loadEdition();
     return;
@@ -103,11 +104,12 @@ void GotoActivity::loadEdition() {
 void GotoActivity::loop() {
   using Button = MappedInputManager::Button;
 
-  // Act on a Back release only if GOTO also saw its press. The Wi-Fi picker
-  // closes on the press, so without this its release would exit GOTO too.
-  if (mappedInput.wasPressed(Button::Back)) backPressSeen = true;
-  const bool backReleased = backPressSeen && mappedInput.wasReleased(Button::Back);
-  if (backReleased) backPressSeen = false;
+  // Act on Back / Confirm releases only for presses GOTO saw. The Wi-Fi picker
+  // closes on a press, so that press's release must not also act here.
+  const bool backReleased =
+      backGate.update(mappedInput.wasPressed(Button::Back), mappedInput.wasReleased(Button::Back));
+  const bool confirmReleased =
+      confirmGate.update(mappedInput.wasPressed(Button::Confirm), mappedInput.wasReleased(Button::Confirm));
 
   // Dedicated Home key (X4 Pro / any home-key board): exit GOTO to CrossPoint
   // home from ANY screen. Board-agnostic — boards without a home key return
@@ -159,8 +161,8 @@ void GotoActivity::loop() {
   // Open the per-story FULL STORY QR handoff: the front Confirm button (X4), or a
   // tap on the on-screen FULL STORY affordance (touch boards / X4 Pro). Only on a
   // story page; the terminal edition page is itself a QR, so this is inert there.
-  if (!onTerminalPage() && (mappedInput.wasReleased(Button::Confirm) ||
-                            (fullStoryTapValid && mappedInput.wasTapInRect(fsTapX, fsTapY, fsTapW, fsTapH)))) {
+  if (!onTerminalPage() &&
+      (confirmReleased || (fullStoryTapValid && mappedInput.wasTapInRect(fsTapX, fsTapY, fsTapW, fsTapH)))) {
     showingQr = true;
     requestUpdate();
     return;
