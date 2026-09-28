@@ -14,6 +14,7 @@
 #include "GotoEditionSource.h"
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/reader/ReaderUtils.h"
 #include "fontIds.h"
 #include "util/QrUtils.h"
 
@@ -189,13 +190,16 @@ void GotoActivity::loop() {
     }
   }
 
-  if (mappedInput.wasPressed(Button::NavNext)) {
+  // Touch boards also turn pages the way the book reader does, per the Touch
+  // Reader Controls setting (swipe or side taps). Buttons work regardless.
+  const auto touch = ReaderUtils::detectTouchPageTurn(renderer, mappedInput);
+  if (mappedInput.wasPressed(Button::NavNext) || touch.next) {
     pageIndex = goto_nav::nextIndex(pageIndex, storyCount);
     if (leavingTerminal) cleanArticleRefresh = true;  // scrub QR ghosting on the story we land on
     requestUpdate();
     return;
   }
-  if (mappedInput.wasPressed(Button::NavPrevious)) {
+  if (mappedInput.wasPressed(Button::NavPrevious) || touch.prev) {
     pageIndex = goto_nav::prevIndex(pageIndex, storyCount);
     if (leavingTerminal) cleanArticleRefresh = true;
     requestUpdate();
