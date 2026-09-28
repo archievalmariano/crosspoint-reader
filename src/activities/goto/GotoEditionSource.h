@@ -31,6 +31,9 @@ struct GotoLoadResult {
 // reading does not swap underneath them — exit/reopen picks up the newer one.
 GotoLoadResult loadCurrentGotoEdition(GotoEdition& out);
 
+// True when Wi-Fi is connected with an IP address, so the network path can run.
+bool gotoWifiConnected();
+
 // Report whether the persisted cache manifest's current edition is TOGO (vs
 // GOTO), for the Home launcher label. Reads only the SD cache manifest — NO
 // network request — and falls back to false (GOTO) if no valid manifest exists.

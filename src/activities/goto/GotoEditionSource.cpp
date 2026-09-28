@@ -7,11 +7,9 @@
 #include <mbedtls/sha256.h>
 
 #include <cstdio>
-#include <optional>
 #include <string>
 
 #include "GotoLimits.h"
-#include "WifiCredentialStore.h"
 #include "network/HttpDownloader.h"
 
 // Base URL of the GOTO publication runtime. Production is the hosted Cloudflare
@@ -30,96 +28,7 @@ constexpr char kCacheDir[] = "/goto";
 constexpr char kCacheEditionsDir[] = "/goto/editions";
 constexpr char kCacheManifestPath[] = "/goto/current.json";
 
-// Bounded silent-reconnect budget. Matched to CrossPoint's own proven
-// auto-connect path (WifiSelectionActivity::AUTO_CONNECTION_TIMEOUT_MS = 7000),
-// not lengthened arbitrarily: after a cold boot/wake the all-channel scan +
-// associate can take slightly over the previous 6 s, which the Settings picker
-// tolerates and GOTO did not. One-time cost on GOTO entry, only when not already
-// connected and a saved network exists. delay() yields to the RTOS / feeds the
-// watchdog, matching the blocking network work onEnter already does.
-constexpr uint32_t kReconnectTimeoutMs = 7000;
-constexpr uint32_t kReconnectPollMs = 200;
-
 bool wifiUp() { return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0); }
-
-// If Wi-Fi is not connected but CrossPoint has a saved network, attempt a SILENT
-// reconnect (no picker, no prompt, no new credential storage) using the last-
-// connected saved credential. Returns true only once actually connected. Never
-// opens UI and never blocks longer than kReconnectTimeoutMs.
-bool ensureWifiConnected() {
-  if (wifiUp()) return true;
-  if (WIFI_STORE.getCredentialCount() == 0) {
-    LOG_DBG("GOTO", "no saved Wi-Fi network; staying offline");
-    return false;
-  }
-
-  std::optional<WifiCredential> cred;
-  const std::string last = WIFI_STORE.getLastConnectedSsid();
-  if (!last.empty()) cred = WIFI_STORE.findCredential(last);
-  if (!cred) cred = WIFI_STORE.getCredentialAt(0);
-  if (!cred) return false;
-
-  LOG_INF("GOTO", "Wi-Fi down (status=%d); silent reconnect to saved network %s", (int)WiFi.status(),
-          cred->ssid.c_str());
-
-  // Mirror the COMPLETE CrossPoint connection lifecycle, not just WiFi.begin().
-  // After a boot or deep-sleep wake the radio starts with modem power-save on
-  // and a stale/half-initialized SDK auto-connect state; begin() alone then does
-  // not reliably associate. CrossPoint's own reliable-STA paths (CrossPointWebServer,
-  // KOReaderAuth) disable modem sleep and enable driver auto-reconnect, and its
-  // Settings picker tears the stale state down before associating. Reproduce all
-  // of it: persistent(false) -> mode(STA) -> setSleep(false) [the missing state
-  // transition: modem power-save off, "critical for reliable operation" per the
-  // web server] -> setAutoReconnect(true) [driver retries transient disconnects]
-  // -> disconnect(true,true)+100ms [clear stale association + SDK NVS SSID] ->
-  // all-channel scan/sort -> begin(). Reuses WifiCredentialStore only.
-  WiFi.persistent(false);  // credentials owned by WifiCredentialStore, not SDK NVS
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);
-  WiFi.setAutoReconnect(true);
-  WiFi.disconnect(true, true);
-  delay(100);
-  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
-  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-
-  // Explicit scan before begin(). This is the one concrete step the working
-  // manual path performs that GOTO omitted: Settings->Wi-Fi opens the picker
-  // with auto-connect OFF, which runs WiFi.scanNetworks() to populate the list
-  // BEFORE the user's connect. After a cold boot/wake that scan appears to be
-  // what warms/initializes the radio for a reliable association; a bare begin()
-  // did not. Bounded, synchronous, hidden APs included. (Diagnostic-heavy: the
-  // device is locked/no serial, so these logs are the seam for a future capture.)
-  LOG_DBG("GOTO", "pre-connect: mode=%d status=%d; scanning...", (int)WiFi.getMode(), (int)WiFi.status());
-  const int16_t found = WiFi.scanNetworks(/*async=*/false, /*show_hidden=*/true);
-  LOG_DBG("GOTO", "pre-connect scan found %d networks", (int)found);
-
-  if (!cred->password.empty()) {
-    WiFi.begin(cred->ssid.c_str(), cred->password.c_str());
-  } else {
-    WiFi.begin(cred->ssid.c_str());
-  }
-
-  // Connect budget measured from begin() (unchanged at kReconnectTimeoutMs); the
-  // scan above is separate warm-up time, not a lengthened connect timeout.
-  const uint32_t start = millis();
-  wl_status_t lastStatus = WL_IDLE_STATUS;
-  while (millis() - start < kReconnectTimeoutMs) {
-    if (wifiUp()) {
-      WIFI_STORE.setLastConnectedSsid(cred->ssid);
-      LOG_INF("GOTO", "silent reconnect succeeded (%.1fs, ip=%s)", (millis() - start) / 1000.0,
-              WiFi.localIP().toString().c_str());
-      return true;
-    }
-    const wl_status_t now = WiFi.status();
-    if (now != lastStatus) {
-      LOG_DBG("GOTO", "reconnect status %d -> %d @ %lums", (int)lastStatus, (int)now, millis() - start);
-      lastStatus = now;
-    }
-    delay(kReconnectPollMs);
-  }
-  LOG_INF("GOTO", "silent reconnect timed out (status=%d); staying offline", (int)WiFi.status());
-  return false;
-}
 
 std::string cacheEditionPath(const std::string& editionId) {
   return std::string(kCacheEditionsDir) + "/" + editionId + ".json";
@@ -218,13 +127,14 @@ bool loadFromCache(GotoEdition& out, std::string& editionId) {
 }
 }  // namespace
 
+bool gotoWifiConnected() { return wifiUp(); }
+
 GotoLoadResult loadCurrentGotoEdition(GotoEdition& out) {
   GotoLoadResult result;
 
-  // 1) Network path. If Wi-Fi is down but a saved network exists, attempt a
-  //    bounded SILENT reconnect first (no interactive picker, no prompt). The
-  //    reader open path never provisions Wi-Fi; that stays in CrossPoint's flow.
-  if (ensureWifiConnected()) {
+  // 1) Network path, only if Wi-Fi is already connected. GotoActivity opens
+  //    CrossPoint's Wi-Fi picker first when it is not.
+  if (wifiUp()) {
     std::string manifestJson;
     if (fetchBounded(std::string(kServerBase) + "/current.json", manifestJson, goto_limits::kMaxManifestBytes)) {
       std::string editionId;

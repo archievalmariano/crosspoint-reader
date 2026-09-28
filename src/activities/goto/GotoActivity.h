@@ -37,6 +37,7 @@ class GotoActivity final : public Activity {
   int fsTapW = 0;
   int fsTapH = 0;
 
+  void loadEdition();  // load for this session, then render page 1
   int contentTopY() const;
   void drawMasthead();
   void drawStoryPage(const GotoStory& story);

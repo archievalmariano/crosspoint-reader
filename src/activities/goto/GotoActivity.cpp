@@ -3,6 +3,8 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <I18n.h>
+#include <Memory.h>
+#include <WiFi.h>
 
 #include <cctype>
 #include <cstdio>
@@ -11,6 +13,7 @@
 
 #include "GotoEditionSource.h"
 #include "MappedInputManager.h"
+#include "activities/network/WifiSelectionActivity.h"
 #include "fontIds.h"
 #include "util/QrUtils.h"
 
@@ -67,6 +70,24 @@ bool storyUrlIsValid(const std::string& url) {
 
 void GotoActivity::onEnter() {
   Activity::onEnter();
+  if (gotoWifiConnected()) {
+    loadEdition();
+    return;
+  }
+  // Not connected: open CrossPoint's Wi-Fi picker, which first tries the saved
+  // network. After sleep its auto-connect succeeds where a background reconnect
+  // from here does not; Back skips it and the cached edition loads as before.
+  auto picker = makeUniqueNoThrow<WifiSelectionActivity>(renderer, mappedInput);
+  if (!picker) {
+    LOG_ERR("GOTO", "OOM: WifiSelectionActivity; loading offline");
+    loadEdition();
+    return;
+  }
+  WiFi.mode(WIFI_STA);
+  startActivityForResult(std::move(picker), [this](const ActivityResult&) { loadEdition(); });
+}
+
+void GotoActivity::loadEdition() {
   // Load once per session (offline-first: network -> SD cache -> builtin). The
   // edition is fixed for this reading session; a server-side change is only
   // picked up on the next entry (Back -> Home -> GOTO), never mid-session.
