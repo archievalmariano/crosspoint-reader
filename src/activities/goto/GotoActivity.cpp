@@ -70,6 +70,7 @@ bool storyUrlIsValid(const std::string& url) {
 
 void GotoActivity::onEnter() {
   Activity::onEnter();
+  backPressSeen = false;
   if (gotoWifiConnected()) {
     loadEdition();
     return;
@@ -101,6 +102,12 @@ void GotoActivity::loadEdition() {
 void GotoActivity::loop() {
   using Button = MappedInputManager::Button;
 
+  // Act on a Back release only if GOTO also saw its press. The Wi-Fi picker
+  // closes on the press, so without this its release would exit GOTO too.
+  if (mappedInput.wasPressed(Button::Back)) backPressSeen = true;
+  const bool backReleased = backPressSeen && mappedInput.wasReleased(Button::Back);
+  if (backReleased) backPressSeen = false;
+
   // Dedicated Home key (X4 Pro / any home-key board): exit GOTO to CrossPoint
   // home from ANY screen. Board-agnostic — boards without a home key return
   // false here, so this is inert on the X4 (which exits via Back below).
@@ -121,7 +128,7 @@ void GotoActivity::loop() {
   if (showingQr) {
     int tx = 0;
     int ty = 0;
-    const bool backOut = mappedInput.wasReleased(Button::Back) || mappedInput.wasScreenTapped(tx, ty) ||
+    const bool backOut = backReleased || mappedInput.wasScreenTapped(tx, ty) ||
                          (mappedInput.hasTouch() &&
                           (mappedInput.wasPressed(Button::NavNext) || mappedInput.wasPressed(Button::NavPrevious)));
     if (backOut) {
@@ -135,7 +142,7 @@ void GotoActivity::loop() {
   // Back on a story/terminal page = exit GOTO to the Apps launcher (front Back
   // button on X4, or a left-edge back swipe on touch boards). Pre-gate so it
   // stays responsive.
-  if (mappedInput.wasReleased(Button::Back)) {
+  if (backReleased) {
     activityManager.goToApps(AppId::Goto);
     return;
   }
