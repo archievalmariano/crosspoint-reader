@@ -36,6 +36,9 @@
 #include "util/BmpViewerActivity.h"
 #include "util/FrontlightPanelActivity.h"
 #include "util/FullScreenMessageActivity.h"
+#include "utilities/calculator/CalculatorActivity.h"
+#include "utilities/calendar/CalendarActivity.h"
+#include "utilities/clock/ClockActivity.h"
 
 static portMUX_TYPE activityManagerSpinlock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -277,6 +280,33 @@ void ActivityManager::goToOnPoint() {
   replaceActivity(std::move(activity));
 }
 #endif
+
+void ActivityManager::goToCalendar() {
+  auto activity = makeUniqueNoThrow<CalendarActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Calendar activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+
+void ActivityManager::goToCalculator() {
+  auto activity = makeUniqueNoThrow<CalculatorActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Calculator activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+
+void ActivityManager::goToClock() {
+  auto activity = makeUniqueNoThrow<ClockActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Clock activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
 
 #ifdef GATE_ENABLED
 void ActivityManager::goToGate() {

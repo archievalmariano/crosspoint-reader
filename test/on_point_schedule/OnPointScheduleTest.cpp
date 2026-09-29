@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <iterator>
 
 #include "activities/on_point/OnPointSchedule.h"
 #include "activities/on_point/OnPointScheduleData.h"
@@ -186,6 +187,34 @@ TEST(OnPointScheduleData, BalagtasHolidaysUseTheWeekendTimetable) {
       on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 11, 24, 4, 0));
   EXPECT_EQ(tuesday.next.local.hour, 4);
   EXPECT_EQ(tuesday.next.local.minute, 30);
+}
+
+// The holiday dates moved into the shared marked-date list; ON POINT must keep
+// exactly the 21 dates it used before (2026 non-working days + NCR ASEAN days).
+TEST(OnPointScheduleData, HolidayOverridesMatchThe2026NonWorkingDays) {
+  constexpr on_point::CivilDate EXPECTED[] = {
+      {2026, 1, 1},   {2026, 2, 17},  {2026, 4, 2},  {2026, 4, 3},   {2026, 4, 4},   {2026, 4, 9},   {2026, 5, 1},
+      {2026, 6, 12},  {2026, 8, 21},  {2026, 8, 31}, {2026, 11, 1},  {2026, 11, 2},  {2026, 11, 16}, {2026, 11, 17},
+      {2026, 11, 18}, {2026, 11, 30}, {2026, 12, 8}, {2026, 12, 24}, {2026, 12, 25}, {2026, 12, 30}, {2026, 12, 31},
+  };
+  for (const bool reversed : {false, true}) {
+    const on_point::Schedule& schedule = on_point::scheduleForRoute(0, reversed);
+    ASSERT_EQ(schedule.dateOverrideCount, std::size(EXPECTED)) << schedule.routeId;
+    for (size_t i = 0; i < std::size(EXPECTED); ++i) {
+      const on_point::CivilDate& date = schedule.dateOverrides[i].date;
+      EXPECT_EQ(date.year, EXPECTED[i].year) << schedule.routeId << " #" << i;
+      EXPECT_EQ(date.month, EXPECTED[i].month) << schedule.routeId << " #" << i;
+      EXPECT_EQ(date.day, EXPECTED[i].day) << schedule.routeId << " #" << i;
+    }
+  }
+}
+
+// EDSA Anniversary is a special working day: buses keep the weekday timetable.
+TEST(OnPointScheduleData, SpecialWorkingDayKeepsTheWeekdayTimetable) {
+  const DepartureState edsa =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 2, 25, 4, 0));
+  EXPECT_EQ(edsa.next.local.hour, 4);
+  EXPECT_EQ(edsa.next.local.minute, 30);
 }
 
 TEST(OnPointScheduleData, NewOperatorTimetables) {

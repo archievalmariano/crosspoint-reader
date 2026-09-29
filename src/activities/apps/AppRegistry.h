@@ -14,7 +14,7 @@
 
 // Stable app identity. `None` means "no app to focus" (e.g. Home -> Apps).
 // Values are never reordered: they are also the sort tie-breaker.
-enum class AppId : uint8_t { None, Goto, OnPoint, Gate };
+enum class AppId : uint8_t { None, Goto, OnPoint, Gate, Calendar, Calculator, Clock };
 
 namespace app_registry {
 

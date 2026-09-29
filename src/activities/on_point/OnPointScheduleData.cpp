@@ -1,7 +1,10 @@
 #include "OnPointScheduleData.h"
 
+#include <array>
 #include <cstring>
 #include <iterator>
+
+#include "util/MarkedDates.h"
 
 namespace on_point {
 namespace {
@@ -37,14 +40,20 @@ constexpr uint16_t TRINOMA_TO_BALAGTAS_WEEKENDS[] = {
 };
 
 // Philippine holidays, which take Bulacan P2P's Saturday/Sunday/holiday
-// timetable: 2026 regular and special non-working holidays (Official Gazette,
-// Proclamation No. 1006) plus the NCR special non-working days for the ASEAN
-// Summit (November 16-18). Add each year's list once it is proclaimed.
-constexpr CivilDate HOLIDAYS_2026[] = {
-    {2026, 1, 1},   {2026, 2, 17},  {2026, 4, 2},  {2026, 4, 3},   {2026, 4, 4},   {2026, 4, 9},   {2026, 5, 1},
-    {2026, 6, 12},  {2026, 8, 21},  {2026, 8, 31}, {2026, 11, 1},  {2026, 11, 2},  {2026, 11, 16}, {2026, 11, 17},
-    {2026, 11, 18}, {2026, 11, 30}, {2026, 12, 8}, {2026, 12, 24}, {2026, 12, 25}, {2026, 12, 30}, {2026, 12, 31},
-};
+// timetable: the non-working official days (regular and special non-working
+// holidays, including the NCR ASEAN Summit days) from the shared marked-date
+// list. Special working days such as the EDSA anniversary keep the weekday
+// timetable.
+constexpr auto HOLIDAYS_2026 = [] {
+  std::array<CivilDate, marked_dates::countNonWorking(marked_dates::PHILIPPINES_2026)> dates{};
+  size_t count = 0;
+  for (const marked_dates::MarkedDate& date : marked_dates::PHILIPPINES_2026) {
+    if (!marked_dates::isNonWorking(date.kind)) continue;
+    dates[count++] = CivilDate{static_cast<int16_t>(date.year), date.month, date.day};
+  }
+  return dates;
+}();
+static_assert(HOLIDAYS_2026.size() == 21, "each holiday needs a BALAGTAS_HOLIDAYS and TRINOMA_HOLIDAYS entry");
 
 constexpr DateOverride BALAGTAS_HOLIDAYS[] = {
     {HOLIDAYS_2026[0], {BALAGTAS_TO_TRINOMA_WEEKENDS, std::size(BALAGTAS_TO_TRINOMA_WEEKENDS)}},

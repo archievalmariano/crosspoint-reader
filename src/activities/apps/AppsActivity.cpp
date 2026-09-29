@@ -30,6 +30,17 @@ const char* gotoLabel() { return cachedCurrentIsTogo() ? tr(STR_TOGO) : tr(STR_G
 // Declaration order is irrelevant: rows are sorted by key in onEnter(). Each
 // app is present only when its package flag is built in (scripts/git_branch.py).
 constexpr AppDescriptor APP_TABLE[] = {
+    // Utilities ship in every package.
+    {{AppId::Calculator, "CALCULATOR"},
+     [] { return tr(STR_CALCULATOR); },
+     [] { activityManager.goToCalculator(); },
+     nullptr},
+    {{AppId::Calendar, "CALENDAR"}, [] { return tr(STR_CALENDAR); }, [] { activityManager.goToCalendar(); }, nullptr},
+    // The time needs a real-time clock, so Clock is listed only on boards with an RTC.
+    {{AppId::Clock, "CLOCK"},
+     [] { return tr(STR_CLOCK); },
+     [] { activityManager.goToClock(); },
+     [] { return halClock.isAvailable(); }},
 #ifdef GOTO_ENABLED
     {{AppId::Goto, "GOTO"}, gotoLabel, [] { activityManager.goToGoto(); }, nullptr},
 #endif

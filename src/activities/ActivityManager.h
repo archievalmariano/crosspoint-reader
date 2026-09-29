@@ -97,6 +97,10 @@ class ActivityManager {
 #ifdef GATE_ENABLED
   void goToGate();
 #endif
+  // Utilities, in every package. Clock is listed only on boards with an RTC.
+  void goToCalendar();
+  void goToCalculator();
+  void goToClock();
   // Custom-app launcher; `focus` selects that app's row (first row when None or absent).
   void goToApps(AppId focus = AppId::None);
   void goToReader(std::string path, bool allowFastInitialRefresh = false);
