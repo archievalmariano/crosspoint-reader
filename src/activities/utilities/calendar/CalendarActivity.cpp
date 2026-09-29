@@ -356,15 +356,17 @@ void CalendarActivity::drawDayCell(const uint8_t day, const int x, const int y, 
   renderer.drawText(DAY_FONT, textX, textY, number, ink, style);
 
   // Significance is a secondary mark under the number, never a frame: a solid
-  // rule for official days, a dotted rule for observances.
+  // rule for official days, a dotted rule for observances. Every mark is as
+  // wide as a two-digit day, so single digits get the same mark.
   const int markY = textY + lineH + 1;
-  const int markW = std::max(textW, 12);
-  const int markX = x + (w - markW) / 2;
+  const int markW = renderer.getTextWidth(DAY_FONT, "00", EpdFontFamily::BOLD);
   const auto mark = marked_dates::markOn(viewYear, viewMonth, day);
   if (mark == marked_dates::Mark::Official) {
-    renderer.fillRect(markX, markY, markW, MARK_THICKNESS, ink);
+    renderer.fillRect(x + (w - markW) / 2, markY, markW, MARK_THICKNESS, ink);
   } else if (mark == marked_dates::Mark::Observance) {
-    for (int dotX = markX; dotX < markX + markW; dotX += 2 * MARK_THICKNESS) {
+    const int dots = (markW + MARK_THICKNESS) / (2 * MARK_THICKNESS);
+    const int dotsW = dots * 2 * MARK_THICKNESS - MARK_THICKNESS;
+    for (int i = 0, dotX = x + (w - dotsW) / 2; i < dots; ++i, dotX += 2 * MARK_THICKNESS) {
       renderer.fillRect(dotX, markY, MARK_THICKNESS, MARK_THICKNESS, ink);
     }
   }

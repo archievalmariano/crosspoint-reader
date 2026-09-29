@@ -82,11 +82,12 @@ inline constexpr std::array<MarkedDate, 13> OBSERVANCES = {{
      "UN day marking the first Moon landing, in 1969."},
     {EVERY_YEAR, 9, 8, Kind::InternationalObservance, "International Literacy Day",
      "UNESCO day for literacy and learning."},
-    {EVERY_YEAR, 10, 1, Kind::InternationalObservance, "International Coffee Day", nullptr},
+    {EVERY_YEAR, 10, 1, Kind::InternationalObservance, "International Coffee Day",
+     "International Coffee Organization day for coffee and its growers."},
     {EVERY_YEAR, 10, 5, Kind::InternationalObservance, "World Teachers' Day", "UNESCO day honoring teachers."},
     {EVERY_YEAR, 10, 31, Kind::CulturalObservance, "Halloween", nullptr},
     {EVERY_YEAR, 11, 11, Kind::CulturalObservance, "Singles' Day",
-     "An informal celebration associated with being single, originating in China."},
+     "An informal celebration of being single, originating in China."},
 }};
 
 template <size_t N>
