@@ -76,6 +76,16 @@ TEST(AppRegistry, AbsentOrNoFocusFallsBackToFirstRow) {
   EXPECT_EQ(app_registry::rowForApp(keys, order, 2, AppId::None), 0);
 }
 
+TEST(AppRegistry, ToolsFollowStandaloneAppsWhateverTheirKeys) {
+  using app_registry::AppGroup;
+  const AppKey keys[] = {{AppId::Calculator, "CALCULATOR", AppGroup::Tools},
+                         {AppId::Clock, "CLOCK", AppGroup::Tools},
+                         kOnPoint,
+                         {AppId::Calendar, "CALENDAR", AppGroup::Tools},
+                         kGoto};
+  expectOrder(keys, {AppId::Goto, AppId::OnPoint, AppId::Calculator, AppId::Calendar, AppId::Clock});
+}
+
 TEST(AppRegistry, EmptyRegistryIsSafe) {
   uint8_t order[1]{};
   app_registry::sortedOrder(nullptr, 0, order);

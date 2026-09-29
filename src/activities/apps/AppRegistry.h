@@ -18,9 +18,14 @@ enum class AppId : uint8_t { None, Goto, OnPoint, Gate, Calendar, Calculator, Cl
 
 namespace app_registry {
 
+// Launcher sections, in display order: standalone apps first, then the Tools
+// set (Calendar, Calculator, Clock) under its own heading.
+enum class AppGroup : uint8_t { Standalone, Tools };
+
 struct AppKey {
   AppId id;
   const char* sortKey;
+  AppGroup group = AppGroup::Standalone;
 };
 
 // ASCII case-insensitive strcmp. Non-ASCII bytes compare by raw value.
@@ -33,8 +38,9 @@ inline int compareSortKeys(const char* a, const char* b) {
   return static_cast<int>(fold(*a)) - static_cast<int>(fold(*b));
 }
 
-// Strict weak ordering: sort key first, AppId as a deterministic tie-break.
+// Strict weak ordering: group, then sort key, AppId as a deterministic tie-break.
 inline bool keyLess(const AppKey& a, const AppKey& b) {
+  if (a.group != b.group) return a.group < b.group;
   const int c = compareSortKeys(a.sortKey, b.sortKey);
   if (c != 0) return c < 0;
   return static_cast<uint8_t>(a.id) < static_cast<uint8_t>(b.id);

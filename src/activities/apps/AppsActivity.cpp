@@ -30,14 +30,17 @@ const char* gotoLabel() { return cachedCurrentIsTogo() ? tr(STR_TOGO) : tr(STR_G
 // Declaration order is irrelevant: rows are sorted by key in onEnter(). Each
 // app is present only when its package flag is built in (scripts/git_branch.py).
 constexpr AppDescriptor APP_TABLE[] = {
-    // Utilities ship in every package.
-    {{AppId::Calculator, "CALCULATOR"},
+    // The Tools set ships in every package, listed under its own heading.
+    {{AppId::Calculator, "CALCULATOR", app_registry::AppGroup::Tools},
      [] { return tr(STR_CALCULATOR); },
      [] { activityManager.goToCalculator(); },
      nullptr},
-    {{AppId::Calendar, "CALENDAR"}, [] { return tr(STR_CALENDAR); }, [] { activityManager.goToCalendar(); }, nullptr},
+    {{AppId::Calendar, "CALENDAR", app_registry::AppGroup::Tools},
+     [] { return tr(STR_CALENDAR); },
+     [] { activityManager.goToCalendar(); },
+     nullptr},
     // The time needs a real-time clock, so Clock is listed only on boards with an RTC.
-    {{AppId::Clock, "CLOCK"},
+    {{AppId::Clock, "CLOCK", app_registry::AppGroup::Tools},
      [] { return tr(STR_CLOCK); },
      [] { activityManager.goToClock(); },
      [] { return halClock.isAvailable(); }},
@@ -87,6 +90,12 @@ void AppsActivity::onEnter() {
     fui::ListItem item;
     item.label = APP_TABLE[order[row]].label();
     item.actionValue = static_cast<int16_t>(row);
+    // Only the Tools set gets a heading; the standalone apps sit under the
+    // screen's own "Apps" title.
+    const auto group = keys[sorted[row]].group;
+    if (group == app_registry::AppGroup::Tools && (row == 0 || keys[sorted[row - 1]].group != group)) {
+      item.sectionHeading = tr(STR_TOOLS);
+    }
     rowItems[row] = item;
   }
 
