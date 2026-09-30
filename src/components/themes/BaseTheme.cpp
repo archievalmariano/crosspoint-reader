@@ -14,6 +14,7 @@
 
 #include "I18n.h"
 #include "RecentBooksStore.h"
+#include "activities/utilities/UtilityDates.h"
 #include "components/UIScale.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
@@ -374,6 +375,37 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
                                        : static_cast<int16_t>(band.right() - batteryEdgeInset - batteryReserve);
   const int16_t batteryH = static_cast<int16_t>(metrics.batteryBarHeight);
   fui::batteryIndicator(ui.frame, fui::Rect{batteryX, band.y, batteryReserve, batteryH}, battery);
+
+  // Date (Settings > Customise Status Bar > Date) in the corner opposite the
+  // battery, on the battery's row. Date only: menus don't redraw on their own,
+  // so a time here would go stale. Skipped when the date can't be trusted,
+  // when the battery takes the left corner, and when the title shares the row
+  // and would reach the date (left-aligned, or a centred title too wide).
+  char dateBuf[28];
+  if (SETTINGS.clockShowDate != 0 && !batteryLeft && utility_dates::trustedShortDate(dateBuf, sizeof(dateBuf))) {
+    fui::TextStyle dateStyle = tokens.smallText;
+    dateStyle.align = fui::TextAlign::Left;
+    const int16_t dateW = ui.target.measureText(fui::GfxRendererTarget::FONT_SMALL, dateBuf, dateStyle).width;
+    const int16_t dateX = static_cast<int16_t>(band.x + batteryEdgeInset);
+    bool fits = true;
+    if (!batteryDetached && title != nullptr) {
+      if (tokens.headerTitleAlign != fui::TextAlign::Center) {
+        fits = false;
+      } else {
+        // The header centres the title in the band or in the space left of the
+        // battery reserve; check against whichever puts it further left.
+        const int titleW = ui.target.measureText(fui::GfxRendererTarget::FONT_TITLE, title, props.titleText).width;
+        const int bandCentred = band.x + (band.width - titleW) / 2;
+        const int reserveCentred =
+            band.x + tokens.headerSidePadding +
+            (band.width - 2 * tokens.headerSidePadding - batteryReserve - tokens.spaceMd - titleW) / 2;
+        fits = dateX + dateW + tokens.spaceMd <= std::min(bandCentred, reserveCentred);
+      }
+    }
+    if (fits) {
+      fui::drawText(ui.target, fui::Rect{dateX, band.y, dateW, batteryH}, dateBuf, dateStyle);
+    }
+  }
 
   if (manualRightLabel) {
     const fui::Size labelSize = ui.target.measureText(fui::GfxRendererTarget::FONT_SMALL, subtitle, tokens.smallText);
@@ -812,7 +844,15 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
   if (sb.showsClock() && halClock.isAvailable()) {
     char timeBuf[9];
     if (halClock.formatTime(timeBuf, sizeof(timeBuf), sb.clockUtcOffsetQ, sb.clock12h)) {
-      int clockTextWidth = renderer.getTextWidth(SMALL_FONT_ID, timeBuf);
+      // With Date on, the date leads the time ("Wed 30 Sep 15:25").
+      char clockBuf[40];
+      char dateBuf[28];
+      if (sb.showDate && utility_dates::trustedShortDate(dateBuf, sizeof(dateBuf))) {
+        snprintf(clockBuf, sizeof(clockBuf), "%s %s", dateBuf, timeBuf);
+      } else {
+        snprintf(clockBuf, sizeof(clockBuf), "%s", timeBuf);
+      }
+      int clockTextWidth = renderer.getTextWidth(SMALL_FONT_ID, clockBuf);
       int clockX = 0;
       // Position to the left or right of the progress text (with a small gap)
       if (sb.clockMode == CrossPointSettings::STATUS_BAR_CLOCK_LEFT) {
@@ -822,7 +862,7 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
         clockX = rightClusterX - rightClusterWidth - (rightClusterWidth > 0 ? 10 : 0) - clockTextWidth;
         rightClusterWidth += clockTextWidth + 10;
       }
-      renderer.drawText(SMALL_FONT_ID, clockX, textY, timeBuf);
+      renderer.drawText(SMALL_FONT_ID, clockX, textY, clockBuf);
     }
   }
 

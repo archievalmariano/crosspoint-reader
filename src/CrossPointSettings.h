@@ -223,6 +223,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t clockUtcOffsetQ = 48;
   // Clock display format: 0 = 24-hour, 1 = 12-hour
   uint8_t clockFormat = 0;
+  // Show the date ("Wed 30 Sep") in system headers and beside the status-bar
+  // clock: 0 = off, 1 = on. Only drawn when the RTC date can be trusted.
+  uint8_t clockShowDate = 0;
   // Set once an NTP sync succeeds. Used to skip re-syncing on every WiFi connect.
   // Resetting to 0 (e.g. via the web UI) forces a re-sync on next WiFi connect.
   uint8_t clockHasBeenSynced = 0;
@@ -376,6 +379,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     bool showBatteryPercent = false;
     uint8_t clockMode = STATUS_BAR_CLOCK_HIDE;  // STATUS_BAR_CLOCK_MODE
     bool clock12h = false;
+    bool showDate = false;
     uint8_t clockUtcOffsetQ = 48;             // 48 = UTC+0
     uint8_t progressBarMode = HIDE_PROGRESS;  // STATUS_BAR_PROGRESS_BAR
     uint8_t progressBarHeightPx = 0;          // (thickness+1)*2; 0 when the bar is hidden

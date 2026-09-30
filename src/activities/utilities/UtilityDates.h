@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "util/CivilCalendar.h"
 
-// Shared by the Calendar and Clock utilities.
+// Shared by the Calendar and Clock utilities, and the system date in headers
+// and the reader status bar.
 namespace utility_dates {
 
 // The local date and time from the RTC, only when it can be trusted: the board
@@ -18,6 +20,10 @@ int localOffsetMinutes();
 
 const char* monthName(uint8_t month);           // 1..12
 const char* weekdayName(uint8_t weekday);       // 0 = Sunday
-const char* weekdayShortName(uint8_t weekday);  // 0 = Sunday
+const char* weekdayShortName(uint8_t weekday);  // 0 = Sunday, uppercase grid label ("SUN")
+
+// Today's short date ("Wed 30 Sep", see util/ShortDate.h) when the local date
+// can be trusted (trustedLocalNow); false, with buf empty, otherwise.
+bool trustedShortDate(char* buf, size_t size);
 
 }  // namespace utility_dates

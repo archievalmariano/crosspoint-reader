@@ -451,6 +451,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         SettingInfo::Enum(StrId::STR_CLOCK_FORMAT, &CrossPointSettings::clockFormat,
                           {StrId::STR_CLOCK_FORMAT_24H, StrId::STR_CLOCK_FORMAT_12H}, "clockFormat",
                           StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Toggle(StrId::STR_CLOCK_DATE, &CrossPointSettings::clockShowDate, "clockShowDate",
+                            StrId::STR_CUSTOMISE_STATUS_BAR),
         // Persistence flag for NTP debounce. Resetting from the web UI forces a re-sync
         // on next WiFi connect, which is useful when crossing time zones.
         SettingInfo::Toggle(StrId::STR_CLOCK_SYNCED, &CrossPointSettings::clockHasBeenSynced, "clockHasBeenSynced",

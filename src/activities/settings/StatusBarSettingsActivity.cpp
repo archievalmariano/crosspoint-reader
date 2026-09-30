@@ -29,6 +29,7 @@ enum MenuItem {
   ITEM_XTC_STATUS_BAR,
   ITEM_CLOCK,             // X3 only
   ITEM_CLOCK_FORMAT,      // X3 only
+  ITEM_CLOCK_DATE,        // X3 only
   ITEM_CLOCK_UTC_OFFSET,  // X3 only, launches ClockOffsetActivity
   ITEM_CLOCK_SYNC,        // X3 only, launches ClockSyncActivity
   ITEM_COUNT
@@ -49,6 +50,7 @@ const StrId menuNames[FULL_MENU_ITEMS] = {
     StrId::STR_XTC_STATUS_BAR,
     StrId::STR_CLOCK,
     StrId::STR_CLOCK_FORMAT,
+    StrId::STR_CLOCK_DATE,
     StrId::STR_CLOCK_UTC_OFFSET,
     StrId::STR_CLOCK_SYNC_NOW,
 };
@@ -190,6 +192,9 @@ void StatusBarSettingsActivity::handleSelection() {
     case ITEM_CLOCK_FORMAT:
       SETTINGS.clockFormat = (SETTINGS.clockFormat + 1) % CLOCK_FORMAT_ITEMS;
       break;
+    case ITEM_CLOCK_DATE:
+      SETTINGS.clockShowDate = (SETTINGS.clockShowDate + 1) % 2;
+      break;
     case ITEM_CLOCK_UTC_OFFSET:
       // Launch the dedicated offset picker. It saves on exit, no result handler needed.
       startActivityForResult(std::make_unique<ClockOffsetActivity>(renderer, mappedInput), nullptr);
@@ -225,6 +230,8 @@ std::string StatusBarSettingsActivity::rowValueText(const int index) {
       const uint8_t fmt = SETTINGS.clockFormat < CLOCK_FORMAT_ITEMS ? SETTINGS.clockFormat : 0;
       return std::string(I18N.get(clockFormatNames[fmt]));
     }
+    case ITEM_CLOCK_DATE:
+      return SETTINGS.clockShowDate ? tr(STR_SHOW) : tr(STR_HIDE);
     case ITEM_CLOCK_UTC_OFFSET:
       return formatUtcOffset(SETTINGS.clockUtcOffsetQ);
     case ITEM_CLOCK_SYNC:

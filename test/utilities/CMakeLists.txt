@@ -2,6 +2,7 @@ add_executable(UtilitiesTest
   CalculatorEngineTest.cpp
   CivilCalendarTest.cpp
   MarkedDatesTest.cpp
+  ShortDateTest.cpp
   ${REPO_ROOT}/src/activities/utilities/calculator/CalculatorEngine.cpp
 )
 
