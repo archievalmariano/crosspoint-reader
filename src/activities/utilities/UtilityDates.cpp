@@ -5,6 +5,7 @@
 
 #include "CrossPointSettings.h"
 #include "util/ShortDate.h"
+#include "util/Timezones.h"
 
 namespace utility_dates {
 namespace {
@@ -37,19 +38,19 @@ constexpr StrId MONTHS_ABBR[12] = {
 };
 }  // namespace
 
-int localOffsetMinutes() {
-  uint8_t biased = SETTINGS.clockUtcOffsetQ;
-  if (biased > 104) biased = 104;  // same clamp as HalClock::formatTime
-  return civil_cal::offsetMinutesFromBiasedQuarters(biased);
-}
+const char* zoneName() { return timezones::table()[timezones::activeIndex()].name; }
 
 bool trustedLocalNow(civil_cal::DateTime& out) {
   if (!halClock.isAvailable() || !SETTINGS.clockHasBeenSynced) return false;
-  HalClock::DateTime utc;
-  if (!halClock.getDateTime(utc, true)) return false;
-  if (utc.year < EARLIEST_TRUSTED_YEAR) return false;
-  out = civil_cal::shift({static_cast<int16_t>(utc.year), utc.month, utc.day}, utc.hour, utc.minute, utc.second,
-                         localOffsetMinutes());
+  struct tm local;
+  if (!halClock.localTime(local, true)) return false;
+  const int year = local.tm_year + 1900;
+  if (year < EARLIEST_TRUSTED_YEAR) return false;
+  out.date = {static_cast<int16_t>(year), static_cast<uint8_t>(local.tm_mon + 1), static_cast<uint8_t>(local.tm_mday)};
+  out.hour = static_cast<uint8_t>(local.tm_hour);
+  out.minute = static_cast<uint8_t>(local.tm_min);
+  out.second = static_cast<uint8_t>(local.tm_sec);
+  out.weekday = static_cast<uint8_t>(local.tm_wday);
   return true;
 }
 

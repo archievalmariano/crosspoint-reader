@@ -111,10 +111,10 @@ void GotoActivity::loop() {
   const bool confirmReleased =
       confirmGate.update(mappedInput.wasPressed(Button::Confirm), mappedInput.wasReleased(Button::Confirm));
 
-  // Dedicated Home key (X4 Pro / any home-key board): exit GOTO to CrossPoint
-  // home from ANY screen. Board-agnostic — boards without a home key return
-  // false here, so this is inert on the X4 (which exits via Back below).
-  if (mappedInput.wasHomeGesture() || mappedInput.wasHomeKeyHold()) {
+  // Home (the Home-key press set to Home in Settings, or the bottom-edge swipe
+  // on touch boards without a Home key): exit GOTO to CrossPoint home from ANY
+  // screen. The X4 has neither, so it exits via Back below.
+  if (mappedInput.wasHomeGesture()) {
     activityManager.goHome();
     return;
   }

@@ -5,7 +5,7 @@
 #include <I18n.h>
 
 #include <cstdio>
-#include <cstdlib>
+#include <string>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -48,7 +48,7 @@ void ClockActivity::updateTime() {
 
 void ClockActivity::loop() {
   using Button = MappedInputManager::Button;
-  if (mappedInput.wasHomeGesture() || mappedInput.wasHomeKeyHold()) {
+  if (mappedInput.wasHomeGesture()) {
     activityManager.goHome();
     return;
   }
@@ -113,14 +113,14 @@ void ClockActivity::render(RenderLock&&) {
   const int width = renderer.getScreenWidth();
   renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_CLOCK), true, EpdFontFamily::BOLD);
 
-  // Annotation: the offset local time is computed with, so a wrong Settings
-  // offset is visible rather than silently shown as local time.
-  const int offset = utility_dates::localOffsetMinutes();
-  char zone[16];
-  snprintf(zone, sizeof(zone), "%s%c%02d:%02d", tr(STR_CLOCK_UTC), offset < 0 ? '-' : '+', std::abs(offset) / 60,
-           std::abs(offset) % 60);
-  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, zone, EpdFontFamily::BOLD),
-                    HEADER_META_Y, zone, true, EpdFontFamily::BOLD);
+  // Annotation: the time zone local time is computed in, so a wrong Settings
+  // zone is visible rather than silently shown as local time. Long zone names
+  // are shortened to the space right of the title.
+  const int titleRight = MARGIN + renderer.getTextWidth(HEADER_FONT, tr(STR_CLOCK), EpdFontFamily::BOLD);
+  const int zoneMaxW = width - MARGIN - titleRight - 24;
+  const std::string zone = renderer.truncatedText(LABEL_FONT, utility_dates::zoneName(), zoneMaxW, EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, zone.c_str(), EpdFontFamily::BOLD),
+                    HEADER_META_Y, zone.c_str(), true, EpdFontFamily::BOLD);
   renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
 
   if (!clockReady) {

@@ -160,7 +160,7 @@ void CalculatorActivity::press(const Key& key) {
 
 void CalculatorActivity::loop() {
   using Button = MappedInputManager::Button;
-  if (mappedInput.wasHomeGesture() || mappedInput.wasHomeKeyHold()) {
+  if (mappedInput.wasHomeGesture()) {
     activityManager.goHome();
     return;
   }

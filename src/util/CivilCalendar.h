@@ -75,25 +75,4 @@ constexpr uint8_t weekRows(const int year, const int month) {
   return static_cast<uint8_t>((leadingBlankDays(year, month) + daysInMonth(year, month) + 6) / 7);
 }
 
-// Local wall-clock time for a UTC date/time shifted by `offsetMinutes`.
-constexpr DateTime shift(const Date& utcDate, const int hour, const int minute, const int second,
-                         const int offsetMinutes) {
-  const int32_t total = hour * 60 + minute + offsetMinutes;
-  const int32_t dayShift = total >= 0 ? total / 1440 : (total - 1439) / 1440;  // floor division
-  const int32_t minutes = total - dayShift * 1440;
-  DateTime local;
-  local.date = civilFromDays(daysFromCivil(utcDate.year, utcDate.month, utcDate.day) + dayShift);
-  local.hour = static_cast<uint8_t>(minutes / 60);
-  local.minute = static_cast<uint8_t>(minutes % 60);
-  local.second = static_cast<uint8_t>(second);
-  local.weekday = weekday(local.date.year, local.date.month, local.date.day);
-  return local;
-}
-
-// UTC offset in minutes from CrossPointSettings::clockUtcOffsetQ (quarter
-// hours, biased by 48 so 48 = UTC+0).
-constexpr int offsetMinutesFromBiasedQuarters(const uint8_t biasedQuarters) {
-  return (static_cast<int>(biasedQuarters) - 48) * 15;
-}
-
 }  // namespace civil_cal

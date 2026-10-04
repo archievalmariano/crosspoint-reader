@@ -285,7 +285,7 @@ void CalendarActivity::handlePickerInput() {
 
 void CalendarActivity::loop() {
   using Button = MappedInputManager::Button;
-  if (mappedInput.wasHomeGesture() || mappedInput.wasHomeKeyHold()) {
+  if (mappedInput.wasHomeGesture()) {
     activityManager.goHome();
     return;
   }

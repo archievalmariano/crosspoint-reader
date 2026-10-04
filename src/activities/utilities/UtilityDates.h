@@ -15,8 +15,8 @@ namespace utility_dates {
 // "today" or a time.
 bool trustedLocalNow(civil_cal::DateTime& out);
 
-// The UTC offset used for local time, from Settings (minutes).
-int localOffsetMinutes();
+// The configured time zone's name (Settings > System > Clock > Time Zone).
+const char* zoneName();
 
 const char* monthName(uint8_t month);           // 1..12
 const char* weekdayName(uint8_t weekday);       // 0 = Sunday
