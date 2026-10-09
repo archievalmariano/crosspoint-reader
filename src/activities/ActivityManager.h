@@ -12,12 +12,13 @@
 
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
+#include "apps/AppRegistry.h"
 #include "util/ScreenshotInfo.h"
 
 class Activity;    // forward declaration
 class RenderLock;  // forward declaration
 
-enum class HomeMenuItem { NONE, FILE_BROWSER, LIBRARY, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU };
+enum class HomeMenuItem { NONE, FILE_BROWSER, LIBRARY, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU, APPS };
 
 /**
  * ActivityManager
@@ -87,6 +88,18 @@ class ActivityManager {
   void goToFileBrowser(std::string path = {});
   void goToLibrary();
   void goToBrowser();
+#ifdef GOTO_ENABLED
+  void goToGoto();
+#endif
+#ifdef ON_POINT_ENABLED
+  void goToOnPoint();
+#endif
+  // Utilities, in every package. Clock is listed only on boards with an RTC.
+  void goToCalendar();
+  void goToCalculator();
+  void goToClock();
+  // Custom-app launcher; `focus` selects that app's row (first row when None or absent).
+  void goToApps(AppId focus = AppId::None);
   void goToReader(std::string path, bool allowFastInitialRefresh = false);
   void goToSleep(bool fromTimeout = false);
   void goToBoot();

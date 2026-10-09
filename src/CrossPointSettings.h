@@ -6,6 +6,7 @@
 
 #include <cstdint>
 
+#include "UsbStayAwake.h"
 #include "util/HomeButtonInput.h"
 
 class CrossPointSettings : public PersistableStore<CrossPointSettings> {
@@ -250,6 +251,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t clockDst = CLOCK_DST_AUTO;
   // Show the clock opposite the battery in every header band that draws one.
   uint8_t clockShowInHeader = 0;
+  // Show the short date ("Wed 30 Sep") in the header clock slot (alone when
+  // the header clock is off) and before the status-bar clock: 0 = off, 1 = on.
+  // Only drawn when the RTC date can be trusted.
+  uint8_t clockShowDate = 0;
   // Set once an NTP sync succeeds. Used to skip re-syncing on every WiFi connect.
   // Resetting to 0 (e.g. via the web UI) forces a re-sync on next WiFi connect.
   uint8_t clockHasBeenSynced = 0;
@@ -294,6 +299,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t paragraphAlignment = JUSTIFIED;
   // Auto-sleep timeout setting (default 10 minutes). Legacy sleepTimeout enum values are migration-only.
   uint8_t sleepTimeoutMinutes = 10;
+  // Opt-in: suppress the automatic idle-timeout sleep while USB power is detected
+  // (X4 Pro production feature only; default OFF preserves the normal sleep policy).
+  // Persisted as a keyed toggle via SettingsList; only exposed/consumed on X4 Pro
+  // builds compiled with FEATURE_USB_STAYAWAKE.
+  uint8_t stayAwakeWhileUsb = kUsbStayAwakeDefaultEnabled;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
   uint8_t hyphenationEnabled = 0;
@@ -307,6 +317,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // OPDS server list. Persisted via a category-less SettingInfo::String in
   // SettingsList.h, so it stays out of the on-device Settings screen.
   char opdsDownloadFolder[64] = "";
+  // Stable route-pair ID pinned by On Point. Persisted through a category-less
+  // string setting so the route screen owns the interaction and presentation.
+  char onPointMainRouteId[48] = "p2p-balagtas-trinoma";
   // On-disk filename format for OPDS downloads (0=Author-Title default, 1=Title-Author,
   // 2=Title). See OpdsFilenameFormat. Persisted via a category-less SettingInfo::Enum,
   // edited from the OPDS server list; hidden from the on-device Settings screen.
@@ -414,6 +427,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     bool showBatteryPercent = false;
     uint8_t clockMode = STATUS_BAR_CLOCK_HIDE;  // STATUS_BAR_CLOCK_MODE
     bool clock12h = false;
+    bool showDate = false;
     uint8_t progressBarMode = HIDE_PROGRESS;  // STATUS_BAR_PROGRESS_BAR
     uint8_t progressBarHeightPx = 0;          // (thickness+1)*2; 0 when the bar is hidden
     uint8_t xtcMode = XTC_STATUS_BAR_HIDE;    // XTC_STATUS_BAR_MODE

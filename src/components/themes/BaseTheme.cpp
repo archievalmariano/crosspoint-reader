@@ -15,6 +15,7 @@
 #include "I18n.h"
 #include "RecentBooksStore.h"
 #include "components/HeaderBackTapTarget.h"
+#include "activities/utilities/UtilityDates.h"
 #include "components/UIScale.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
@@ -364,10 +365,22 @@ void BaseTheme::applyHeaderStatus(const GfxRenderer& renderer, freeink::ui::Head
   // Header clock, opposite the battery, on every screen that draws this band
   // (SETTINGS.clockShowInHeader). Themes whose title layout has no room for
   // the clock's left reserve opt out via headerShowsClock.
-  static char clockText[10];
-  if (metrics.headerShowsClock && SETTINGS.clockShowInHeader && halClock.isAvailable() &&
-      halClock.formatTime(clockText, sizeof(clockText), SETTINGS.clockFormat == 1)) {
-    status.clockText = clockText;
+  // With Date on, the short date leads it ("Wed 30 Sep 16:07"), or stands
+  // alone when the header clock is off: a date doesn't go stale on a menu
+  // that sits unredrawn the way a time can.
+  static char clockText[40];
+  if (metrics.headerShowsClock && halClock.isAvailable()) {
+    char timeBuf[10];
+    char dateBuf[28];
+    const bool showTime =
+        SETTINGS.clockShowInHeader && halClock.formatTime(timeBuf, sizeof(timeBuf), SETTINGS.clockFormat == 1);
+    const bool showDate = SETTINGS.clockShowDate && utility_dates::trustedShortDate(dateBuf, sizeof(dateBuf));
+    if (showDate && showTime) {
+      snprintf(clockText, sizeof(clockText), "%s %s", dateBuf, timeBuf);
+    } else if (showDate || showTime) {
+      snprintf(clockText, sizeof(clockText), "%s", showDate ? dateBuf : timeBuf);
+    }
+    if (showDate || showTime) status.clockText = clockText;
   }
 }
 
@@ -863,7 +876,15 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
   if (sb.showsClock() && halClock.isAvailable()) {
     char timeBuf[9];
     if (halClock.formatTime(timeBuf, sizeof(timeBuf), sb.clock12h)) {
-      int clockTextWidth = renderer.getTextWidth(SMALL_FONT_ID, timeBuf);
+      // With Date on, the date leads the time ("Wed 30 Sep 15:25").
+      char clockBuf[40];
+      char dateBuf[28];
+      if (sb.showDate && utility_dates::trustedShortDate(dateBuf, sizeof(dateBuf))) {
+        snprintf(clockBuf, sizeof(clockBuf), "%s %s", dateBuf, timeBuf);
+      } else {
+        snprintf(clockBuf, sizeof(clockBuf), "%s", timeBuf);
+      }
+      int clockTextWidth = renderer.getTextWidth(SMALL_FONT_ID, clockBuf);
       int clockX = 0;
       // Position to the left or right of the progress text (with a small gap)
       if (sb.clockMode == CrossPointSettings::STATUS_BAR_CLOCK_LEFT) {
@@ -873,7 +894,7 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
         clockX = rightClusterX - rightClusterWidth - (rightClusterWidth > 0 ? 10 : 0) - clockTextWidth;
         rightClusterWidth += clockTextWidth + 10;
       }
-      renderer.drawText(SMALL_FONT_ID, clockX, textY, timeBuf);
+      renderer.drawText(SMALL_FONT_ID, clockX, textY, clockBuf);
     }
   }
 

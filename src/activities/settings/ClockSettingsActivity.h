@@ -2,13 +2,13 @@
 #include "activities/UiListActivity.h"
 
 // Clock configuration under System settings: timezone, 12/24-hour format,
-// home-header display, and manual NTP sync. Only reachable when
+// home-header display, the date beside the clock, and manual NTP sync. Only reachable when
 // halClock.isAvailable() — SettingsActivity gates the entry.
 class ClockSettingsActivity final : public UiListActivity {
  public:
   explicit ClockSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
 
-  static constexpr int ITEM_COUNT = 5;
+  static constexpr int ITEM_COUNT = 6;
 
   void onEnter() override;
 

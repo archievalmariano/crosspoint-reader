@@ -12,22 +12,32 @@
 
 #include "CrossPointSettings.h"
 #include "OpdsServerStore.h"
+#include "apps/AppsActivity.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
 #include "components/HeaderBackTapTarget.h"
+#ifdef GOTO_ENABLED
+#include "goto/GotoActivity.h"
+#endif
 #include "home/CrashActivity.h"
 #include "home/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
 #include "library/LibraryListActivity.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "network/UsbDriveActivity.h"
+#ifdef ON_POINT_ENABLED
+#include "on_point/OnPointActivity.h"
+#endif
 #include "reader/ReaderActivity.h"
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/BmpViewerActivity.h"
 #include "util/FrontlightPanelActivity.h"
 #include "util/FullScreenMessageActivity.h"
+#include "utilities/calculator/CalculatorActivity.h"
+#include "utilities/calendar/CalendarActivity.h"
+#include "utilities/clock/ClockActivity.h"
 
 static portMUX_TYPE activityManagerSpinlock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -117,7 +127,8 @@ void ActivityManager::loop() {
     bool statusBarTap = false;
     if (mappedInput.hasTouch() &&
         (currentActivity->name == "Home" || currentActivity->name == "FileBrowser" ||
-         currentActivity->name == "Settings" || currentActivity->name == "NetworkModeSelection")) {
+         currentActivity->name == "Settings" || currentActivity->name == "NetworkModeSelection" ||
+         currentActivity->name == "Apps")) {
       int tx = 0;
       int ty = 0;
       // The header back button shares this band; its taps stay Back.
@@ -277,6 +288,64 @@ void ActivityManager::goToLibrary() {
   replaceActivity(std::move(activity));
 }
 
+#ifdef GOTO_ENABLED
+void ActivityManager::goToGoto() { replaceActivity(std::make_unique<GotoActivity>(renderer, mappedInput)); }
+#endif
+
+#ifdef ON_POINT_ENABLED
+void ActivityManager::goToOnPoint() {
+  auto activity = makeUniqueNoThrow<OnPointActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: On Point activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+#endif
+
+void ActivityManager::goToCalendar() {
+  auto activity = makeUniqueNoThrow<CalendarActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Calendar activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+
+void ActivityManager::goToCalculator() {
+  auto activity = makeUniqueNoThrow<CalculatorActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Calculator activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+
+void ActivityManager::goToClock() {
+  auto activity = makeUniqueNoThrow<ClockActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: Clock activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+
+void ActivityManager::goToApps(const AppId focus) {
+  // The current activity is still alive while the next one is allocated (the
+  // replace is deferred), so both allocations are checked: fall back to Home,
+  // and if even that fails keep the current activity instead of aborting.
+  app_registry::LaunchOutcome outcome;
+  auto activity = app_registry::launchWithFallback<Activity>(
+      [&] { return makeUniqueNoThrow<AppsActivity>(renderer, mappedInput, focus); },
+      [&] { return makeUniqueNoThrow<HomeActivity>(renderer, mappedInput, HomeMenuItem::APPS); }, outcome);
+  if (outcome == app_registry::LaunchOutcome::None) {
+    LOG_ERR("ACT", "OOM: Apps and Home activities; staying on current activity");
+    return;
+  }
+  if (outcome == app_registry::LaunchOutcome::Fallback) LOG_ERR("ACT", "OOM: Apps activity; falling back to Home");
+  replaceActivity(std::move(activity));
+}
+
 void ActivityManager::goToBrowser() {
   const auto& servers = OPDS_STORE.getServers();
   // Skip the server picker when there's only one server configured
@@ -333,6 +402,8 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::FILE_TRANSFER;
     } else if (activityName == "Settings") {
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
+    } else if (activityName == "Apps" || activityName == "Goto" || activityName == "OnPoint") {
+      initialMenuItem = HomeMenuItem::APPS;
     }
   }
   replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput, initialMenuItem, cleanInitialRefresh));

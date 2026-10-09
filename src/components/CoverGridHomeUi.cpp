@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iterator>
+#include <type_traits>
 #include <utility>
 
 #include "MappedInputManager.h"
@@ -266,9 +268,13 @@ void CoverGridHomeUi::drawGrid(UiScreen& screen) {
 }
 
 void CoverGridHomeUi::drawTabs(UiScreen& screen, fui::Rect rect) {
-  static constexpr const uint8_t* ICONS[] = {FolderIcon, LibraryIcon, BlocksIcon, TransferIcon, Settings2Icon};
+  // Same order as HomeActivity's menu; the last tab is the custom-app launcher
+  // (Apps), drawn with the book icon the list home uses for it.
+  static constexpr const uint8_t* ICONS[] = {FolderIcon,   LibraryIcon,   BlocksIcon,
+                                             TransferIcon, Settings2Icon, BookIcon};
+  static_assert(std::size(ICONS) <= std::tuple_size_v<decltype(tabItems)>, "raise tabItems");
   int count = 0;
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < static_cast<int>(std::size(ICONS)); ++i) {
     if (i == 2 && !hasOpds) continue;
     auto& tab = tabItems[count];
     tab.value = books->size() + count;

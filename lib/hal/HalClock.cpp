@@ -34,11 +34,11 @@ void HalClock::setTimezone(const char* posixTz) {
   _lastPollMs = 0;  // re-derive local time under the new rule immediately
 }
 
-bool HalClock::localTime(struct tm& out) const {
+bool HalClock::pollUtc(const bool forcePoll) const {
   if (!_available) return false;
 
   const unsigned long now = millis();
-  if (_lastPollMs == 0 || (now - _lastPollMs) >= CLOCK_POLL_MS) {
+  if (forcePoll || _lastPollMs == 0 || (now - _lastPollMs) >= CLOCK_POLL_MS) {
     Rtc::DateTime dt;
     if (_sdkRtc.now(dt)) {
       _cachedUtc = epochFromUtc(dt);
@@ -48,7 +48,23 @@ bool HalClock::localTime(struct tm& out) const {
     }
     _lastPollMs = now != 0 ? now : 1;  // 0 doubles as the invalidation sentinel
   }
+  return true;
+}
+
+bool HalClock::localTime(struct tm& out, const bool forcePoll) const {
+  if (!pollUtc(forcePoll)) return false;
   localtime_r(&_cachedUtc, &out);
+  return true;
+}
+
+bool HalClock::getDateTime(DateTime& dateTime, const bool forcePoll) const {
+  if (!pollUtc(forcePoll)) return false;
+  struct tm utc;
+  gmtime_r(&_cachedUtc, &utc);
+  dateTime = {static_cast<uint16_t>(utc.tm_year + 1900), static_cast<uint8_t>(utc.tm_mon + 1),
+              static_cast<uint8_t>(utc.tm_mday),         static_cast<uint8_t>(utc.tm_hour),
+              static_cast<uint8_t>(utc.tm_min),          static_cast<uint8_t>(utc.tm_sec),
+              static_cast<uint8_t>(utc.tm_wday)};
   return true;
 }
 

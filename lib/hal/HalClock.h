@@ -7,6 +7,20 @@ class HalClock;
 extern HalClock halClock;  // Singleton
 
 class HalClock {
+ public:
+  // A UTC calendar reading from the RTC (getDateTime). The HAL type keeps
+  // callers independent from the RTC chip/SDK implementation.
+  struct DateTime {
+    uint16_t year = 2000;
+    uint8_t month = 1;
+    uint8_t day = 1;
+    uint8_t hour = 0;
+    uint8_t minute = 0;
+    uint8_t second = 0;
+    uint8_t weekday = 0;  // 0 = Sunday
+  };
+
+ private:
   bool _available = false;
   mutable Rtc _sdkRtc;
   // The RTC keeps UTC; local time comes from newlib's localtime_r under the
@@ -17,6 +31,10 @@ class HalClock {
   mutable unsigned long _lastPollMs = 0;
 
   static constexpr unsigned long CLOCK_POLL_MS = 10000;  // 10 seconds
+
+  // Refreshes _cachedUtc from the RTC when the cache is stale (or always with
+  // forcePoll). False only when the RTC has never been readable.
+  bool pollUtc(bool forcePoll) const;
 
  public:
   // Call after BoardConfig has selected the active device.
@@ -30,9 +48,14 @@ class HalClock {
   // shows immediately.
   void setTimezone(const char* posixTz);
 
-  // Current wall-clock time in the configured timezone.
+  // Current wall-clock time in the configured timezone. `forcePoll` bypasses
+  // the short read cache for exact minute/schedule boundaries.
   // Returns false if RTC is not available.
-  bool localTime(struct tm& out) const;
+  bool localTime(struct tm& out, bool forcePoll = false) const;
+
+  // The current UTC date and time, independent of the configured timezone
+  // (ON POINT applies each route's own fixed offset). `forcePoll` as above.
+  bool getDateTime(DateTime& dateTime, bool forcePoll = false) const;
 
   // Get current local hour (0-23) and minute (0-59).
   // Returns false if RTC is not available.
