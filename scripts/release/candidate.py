@@ -331,14 +331,23 @@ class PostPublishProblem(Exception):
     preflight handler can catch it."""
 
 
+class PublishUncertain(RuntimeError):
+    """The publication request may have reached GitHub; its effect is unknown."""
+
+
+PUBLISH_TIMEOUT_S = 120
+
+
 class GitHub:
     """The few REST calls publish needs, through the authenticated `gh` CLI.
 
-    publish_latest returns only when GitHub answered 2xx. It raises
-    PublishNotApplied only when the request certainly had no effect: `gh` could
-    not be started, or GitHub answered 4xx (rejected before any change). Any
-    other failure (5xx, network, timeout) may have been applied and raises
-    something else."""
+    publish_latest returns only when `gh` exits 0 (GitHub answered 2xx). It
+    raises PublishNotApplied only when the request certainly had no effect:
+    the `gh` process could not be created (no child ever existed), or GitHub
+    answered 4xx (rejected before any change). Once the process exists, every
+    other failure -- communicating, waiting, decoding, timing out, a 5xx, a
+    network error, an exit with no HTTP status -- may have been applied and
+    raises PublishUncertain."""
 
     def get(self, path: str):
         out = subprocess.run(["gh", "api", path], check=True, capture_output=True, text=True).stdout
@@ -347,15 +356,28 @@ class GitHub:
     def publish_latest(self, repository: str, release_id: int) -> None:
         argv = ["gh", "api", "-X", "PATCH", f"repos/{repository}/releases/{release_id}",
                 "-F", "draft=false", "-f", "make_latest=true"]
+        # Phase 1, creation: if this raises, no child process exists and nothing was sent.
         try:
-            done = subprocess.run(argv, capture_output=True, text=True)
-        except OSError as err:  # nothing was sent
-            raise PublishNotApplied(f"could not run gh: {err}") from err
-        if done.returncode != 0:
-            stderr = (done.stderr or "").strip()
-            if re.search(r"\(HTTP 4[0-9][0-9]\)", stderr):
-                raise PublishNotApplied(f"GitHub rejected the request: {stderr}")
-            raise RuntimeError(f"gh api PATCH exited {done.returncode}: {stderr}")
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    text=True)
+        except (OSError, ValueError, subprocess.SubprocessError) as err:
+            raise PublishNotApplied(f"could not start gh: {err}") from err
+        # Phase 2, communication: the request may have reached GitHub from here on.
+        try:
+            _stdout, stderr = proc.communicate(timeout=PUBLISH_TIMEOUT_S)
+        except BaseException as err:  # noqa: BLE001 -- includes timeouts, pipe errors, decoding, Ctrl-C
+            try:
+                proc.kill()
+                proc.wait(timeout=5)
+            except BaseException:  # noqa: BLE001 -- best effort; the outcome is uncertain regardless
+                pass
+            raise PublishUncertain(f"gh api PATCH started, then {type(err).__name__}: {err}") from err
+        stderr = (stderr or "").strip()
+        if proc.returncode == 0:
+            return
+        if re.search(r"\(HTTP 4[0-9][0-9]\)", stderr):
+            raise PublishNotApplied(f"GitHub rejected the request: {stderr}")
+        raise PublishUncertain(f"gh api PATCH exited {proc.returncode} without a 4xx rejection: {stderr}")
 
 
 def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str) -> None:

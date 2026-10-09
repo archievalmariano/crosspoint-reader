@@ -307,6 +307,9 @@ class FakeGitHub:
         self.patches.append((repository, release_id))
         if self.patch_error:
             raise self.patch_error
+        self.apply_publication(release_id)
+
+    def apply_publication(self, release_id):
         release = copy.deepcopy(self.gets["repos/o/r/releases?per_page=100"][0])
         release.update(draft=False, immutable=self.immutable_after)
         if self.tamper_after:
@@ -315,7 +318,7 @@ class FakeGitHub:
         self.gets["repos/o/r/releases/latest"] = release
 
 
-class PublishTests(Base):
+class PublishBase(Base):
     TAG, COMMIT, RUN_ID = "v1.1.1", "b" * 40, 42
 
     def setUp(self):
@@ -356,6 +359,33 @@ class PublishTests(Base):
     def draft(self):
         return self.gets["repos/o/r/releases?per_page=100"][0]
 
+    def main(self, gh):
+        """The command as the owner runs it, with `gh` as GitHub; (exit code, stderr)."""
+        original = c.GitHub
+        c.GitHub = lambda: gh
+        try:
+            code, _, err = run("publish", "--repository", "o/r", "--tag", self.TAG, "--commit", self.COMMIT,
+                               "--run-id", self.RUN_ID, "--candidate", self.out, "--sums-sha256", self.sums_sha(),
+                               "--publish")
+        except BaseException as escaped:  # noqa: BLE001 -- an escape is itself the failure under test
+            return -1, f"escaped main(): {type(escaped).__name__}"
+        finally:
+            c.GitHub = original
+        return code, err
+
+    def assert_uncertain(self, gh):
+        code, err = self.main(gh)
+        self.assertEqual((code, len(gh.patches)), (2, 1), err)
+        self.assertIn("MAY BE PUBLISHED", err)
+
+    def assert_not_published(self, gh, code_expected):
+        code, err = self.main(gh)
+        self.assertEqual(code, code_expected, err)
+        self.assertNotIn("MAY BE PUBLISHED", err)
+        return err
+
+
+class PublishTests(PublishBase):
     def test_a_clean_preflight_publishes_once_and_verifies(self):
         gh = FakeGitHub(self.gets)
         out = self.publish(gh)
@@ -446,31 +476,6 @@ class PublishTests(Base):
         with self.assertRaises(c.PostPublishProblem):
             self.publish(gh)
 
-    def main(self, gh):
-        """The command as the owner runs it, with `gh` as GitHub; (exit code, stderr)."""
-        original = c.GitHub
-        c.GitHub = lambda: gh
-        try:
-            code, _, err = run("publish", "--repository", "o/r", "--tag", self.TAG, "--commit", self.COMMIT,
-                               "--run-id", self.RUN_ID, "--candidate", self.out, "--sums-sha256", self.sums_sha(),
-                               "--publish")
-        except BaseException as escaped:  # noqa: BLE001 -- an escape is itself the failure under test
-            return -1, f"escaped main(): {type(escaped).__name__}"
-        finally:
-            c.GitHub = original
-        return code, err
-
-    def assert_uncertain(self, gh):
-        code, err = self.main(gh)
-        self.assertEqual((code, len(gh.patches)), (2, 1), err)
-        self.assertIn("MAY BE PUBLISHED", err)
-
-    def assert_not_published(self, gh, code_expected):
-        code, err = self.main(gh)
-        self.assertEqual(code, code_expected, err)
-        self.assertNotIn("MAY BE PUBLISHED", err)
-        return err
-
     def test_a_clean_run_exits_0(self):
         gh = FakeGitHub(self.gets)
         self.assertEqual(self.main(gh), (0, ""))
@@ -527,46 +532,153 @@ class PublishTests(Base):
                 self.assert_uncertain(FakeGitHub(self.gets, patch_error=error))
 
 
+def fake_popen(behaviour: dict, record: list):
+    """A stand-in for subprocess.Popen: `start` raises on creation, `communicate`
+    raises while talking to the child, else the child exits `rc` with `stderr`."""
+
+    class FakeProcess:
+        def __init__(self, argv, **kwargs):
+            record.append(("start", argv))
+            if "start" in behaviour:
+                raise behaviour["start"]
+            self.returncode = None
+
+        def communicate(self, timeout=None):
+            record.append(("communicate", timeout))
+            if "communicate" in behaviour:
+                raise behaviour["communicate"]
+            self.returncode = behaviour.get("rc", 0)
+            return "", behaviour.get("stderr", "")
+
+        def kill(self):
+            record.append(("kill",))
+
+        def wait(self, timeout=None):
+            record.append(("wait",))
+            self.returncode = -9
+            return -9
+
+    return FakeProcess
+
+
+class popen_as:  # noqa: N801 -- a context manager used like a function
+    def __init__(self, behaviour):
+        self.behaviour, self.record = behaviour, []
+
+    def __enter__(self):
+        self.original = c.subprocess.Popen
+        c.subprocess.Popen = fake_popen(self.behaviour, self.record)
+        return self.record
+
+    def __exit__(self, *exc):
+        c.subprocess.Popen = self.original
+        return False
+
+
+STARTUP_FAILURES = (FileNotFoundError("gh"), PermissionError("gh"), OSError("fork failed"), ValueError("bad argv"))
+COMMUNICATION_FAILURES = (OSError("read failed"), BrokenPipeError(), ConnectionResetError(),
+                          UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+                          subprocess.TimeoutExpired(["gh"], 120), KeyboardInterrupt())
+REJECTIONS = ("gh: Validation Failed (HTTP 422)", "gh: Not Found (HTTP 404)",
+              "gh: Resource not accessible by integration (HTTP 403)")
+UNCERTAIN_EXITS = ("gh: Server Error (HTTP 502)", "gh: (HTTP 500)", "error connecting to api.github.com", "",
+                   "HTTP 422 without gh's parentheses", "timeout awaiting response headers")
+
+
 class GitHubClientTests(unittest.TestCase):
-    """publish_latest's contract: return on 2xx; PublishNotApplied only when the
-    request certainly had no effect; anything else is possibly applied."""
+    """publish_latest: creation failure or a 4xx is PublishNotApplied; once the
+    process exists, anything else is PublishUncertain."""
 
-    def patch_with(self, behaviour):
-        calls = []
+    def call(self, behaviour):
+        with popen_as(behaviour) as record:
+            try:
+                c.GitHub().publish_latest("o/r", 7)
+                return None, record
+            except BaseException as err:  # noqa: BLE001
+                return err, record
 
-        def fake_run(argv, **kwargs):
-            calls.append(argv)
-            if isinstance(behaviour, BaseException):
-                raise behaviour
-            return subprocess.CompletedProcess(argv, behaviour[0], "", behaviour[1])
-        original = c.subprocess.run
-        c.subprocess.run = fake_run
-        try:
-            c.GitHub().publish_latest("o/r", 7)
-        finally:
-            c.subprocess.run = original
-            self.calls = calls
+    def test_success_sends_one_patch_with_a_timeout(self):
+        err, record = self.call({"rc": 0})
+        self.assertIsNone(err)
+        self.assertEqual(record, [("start", ["gh", "api", "-X", "PATCH", "repos/o/r/releases/7", "-F", "draft=false",
+                                             "-f", "make_latest=true"]), ("communicate", c.PUBLISH_TIMEOUT_S)])
 
-    def test_success_sends_one_patch(self):
-        self.patch_with((0, ""))
-        self.assertEqual(self.calls, [["gh", "api", "-X", "PATCH", "repos/o/r/releases/7", "-F", "draft=false",
-                                       "-f", "make_latest=true"]])
+    def test_a_process_that_was_never_created_is_not_applied(self):
+        for failure in STARTUP_FAILURES:
+            with self.subTest(failure=repr(failure)):
+                err, record = self.call({"start": failure})
+                self.assertIsInstance(err, c.PublishNotApplied)
+                self.assertEqual([r[0] for r in record], ["start"])
 
-    def test_certainly_not_applied(self):
-        for behaviour in (FileNotFoundError("gh"), PermissionError("gh"),
-                          (1, "gh: Validation Failed (HTTP 422)"), (1, "gh: Not Found (HTTP 404)"),
-                          (1, "gh: Resource not accessible by integration (HTTP 403)")):
-            with self.subTest(behaviour=behaviour), self.assertRaises(c.PublishNotApplied):
-                self.patch_with(behaviour)
+    def test_any_failure_after_the_process_started_is_uncertain(self):
+        for failure in COMMUNICATION_FAILURES:
+            with self.subTest(failure=type(failure).__name__):
+                err, record = self.call({"communicate": failure})
+                self.assertIsInstance(err, c.PublishUncertain)
+                self.assertNotIsInstance(err, c.PublishNotApplied)
+                self.assertIn(("kill",), record)
 
-    def test_possibly_applied_is_never_reported_as_not_applied(self):
-        for behaviour in ((1, "gh: Server Error (HTTP 502)"), (1, "gh: (HTTP 500)"),
-                          (1, "error connecting to api.github.com"), (1, ""), (2, "HTTP 422 somewhere else"),
-                          (1, "timeout awaiting response headers")):
-            with self.subTest(behaviour=behaviour):
-                with self.assertRaises(Exception) as ctx:
-                    self.patch_with(behaviour)
-                self.assertNotIsInstance(ctx.exception, c.PublishNotApplied)
+    def test_only_an_explicit_4xx_from_a_started_process_is_not_applied(self):
+        for stderr in REJECTIONS:
+            with self.subTest(stderr=stderr):
+                self.assertIsInstance(self.call({"rc": 1, "stderr": stderr})[0], c.PublishNotApplied)
+        for stderr in UNCERTAIN_EXITS:
+            with self.subTest(stderr=stderr):
+                self.assertIsInstance(self.call({"rc": 1, "stderr": stderr})[0], c.PublishUncertain)
+
+
+REAL_GITHUB = c.GitHub  # PublishTests.main swaps c.GitHub out for the fake
+
+
+class ClientGitHub(FakeGitHub):
+    """Canned GETs, but the publication request goes through the real client
+    (over a fake Popen), so its classification reaches the exit status."""
+
+    def publish_latest(self, repository, release_id):
+        self.patches.append((repository, release_id))
+        REAL_GITHUB.publish_latest(self, repository, release_id)
+        self.apply_publication(release_id)
+
+
+class PublishRequestExitTests(PublishBase):
+    def exit_for(self, behaviour):
+        gh = ClientGitHub(self.gets)
+        with popen_as(behaviour):
+            code, err = self.main(gh)
+        return code, err, gh
+
+    def test_startup_failure_exits_3(self):
+        for failure in STARTUP_FAILURES:
+            with self.subTest(failure=repr(failure)):
+                code, err, _ = self.exit_for({"start": failure})
+                self.assertEqual(code, 3, err)
+                self.assertIn("not published", err)
+                self.assertNotIn("MAY BE PUBLISHED", err)
+
+    def test_communication_failures_after_start_exit_2(self):
+        for failure in COMMUNICATION_FAILURES:
+            with self.subTest(failure=type(failure).__name__):
+                code, err, _ = self.exit_for({"communicate": failure})
+                self.assertEqual(code, 2, err)
+                self.assertIn("MAY BE PUBLISHED", err)
+
+    def test_explicit_4xx_exits_3(self):
+        for stderr in REJECTIONS:
+            with self.subTest(stderr=stderr):
+                code, err, _ = self.exit_for({"rc": 1, "stderr": stderr})
+                self.assertEqual(code, 3, err)
+                self.assertNotIn("MAY BE PUBLISHED", err)
+
+    def test_5xx_unknown_or_no_status_exits_2(self):
+        for stderr in UNCERTAIN_EXITS:
+            with self.subTest(stderr=stderr):
+                code, err, _ = self.exit_for({"rc": 1, "stderr": stderr})
+                self.assertEqual(code, 2, err)
+                self.assertIn("MAY BE PUBLISHED", err)
+
+    def test_a_successful_request_still_publishes_and_verifies(self):
+        code, err, gh = self.exit_for({"rc": 0})
+        self.assertEqual((code, err, len(gh.patches)), (0, "", 1))
 
 
 class SliceTests(Base):

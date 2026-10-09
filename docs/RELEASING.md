@@ -132,10 +132,15 @@ X4 Pro is installed only over USB.
       - the tag is unchanged.
 
    Exit status:
-   - **0:** published, latest, immutable and verified.
+   - **0:** one of two things. Without `--publish`, the preflight passed and nothing was requested or changed; the release is still a draft. With `--publish`, the release was published, is latest and immutable, and verified.
    - **1:** a preflight failure. Nothing was requested and nothing changed.
-   - **3:** the publication request certainly had no effect: `gh` could not run, or GitHub answered 4xx. Nothing changed.
-   - **2, "MAY BE PUBLISHED":** the request returned success and then anything at all failed, or the request failed in a way that may still have reached GitHub (5xx, network, timeout, interruption). Check the release at once; it may be public.
+   - **3:** the publication request certainly had no effect. Either the `gh` process could not be created (no child process ever existed), or GitHub answered 4xx. Nothing changed.
+   - **2, "MAY BE PUBLISHED":** the request may have reached GitHub and the outcome is not verified. Once the `gh` process exists, this covers any of:
+     - a communication, pipe, decoding or timeout failure, or an interruption;
+     - an exit with a 5xx, a network error or no HTTP status;
+     - any failure after a successful request.
+
+     Check the release at once; it may be public.
 
 **Release asset integrity.** `verify-release`, and `publish` around its single state change, fail unless every one of these holds:
 - the release is that tag, and in the expected draft or published state, and not a prerelease;
