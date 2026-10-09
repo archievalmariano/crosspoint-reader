@@ -94,6 +94,9 @@ class ActivityManager {
 #ifdef ON_POINT_ENABLED
   void goToOnPoint();
 #endif
+#ifdef DOGEAR_ENABLED
+  void goToDogear();
+#endif
   // Utilities, in every package. Clock is listed only on boards with an RTC.
   void goToCalendar();
   void goToCalculator();

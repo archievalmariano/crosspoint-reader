@@ -41,6 +41,11 @@ TEST(AppRegistry, OrderIsIndependentOfDeclarationOrder) {
   expectOrder(keys, {AppId::Goto, AppId::OnPoint, AppId::Calendar});
 }
 
+TEST(AppRegistry, DogearSortsByItsKeyAmongStandaloneApps) {
+  const AppKey keys[] = {kGoto, kOnPoint, {AppId::Dogear, "DOGEAR"}};
+  expectOrder(keys, {AppId::Dogear, AppId::Goto, AppId::OnPoint});
+}
+
 TEST(AppRegistry, SortsOnKeyNotDisplayLabel) {
   // GOTO renders as "TOGO" in the evening; its key stays "GOTO", so it must
   // not jump past ON POINT (which a label sort on "TOGO" would do).

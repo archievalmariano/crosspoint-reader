@@ -17,6 +17,9 @@
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
 #include "components/HeaderBackTapTarget.h"
+#ifdef DOGEAR_ENABLED
+#include "dogear/DogearActivity.h"
+#endif
 #ifdef GOTO_ENABLED
 #include "goto/GotoActivity.h"
 #endif
@@ -330,6 +333,17 @@ void ActivityManager::goToClock() {
   replaceActivity(std::move(activity));
 }
 
+#ifdef DOGEAR_ENABLED
+void ActivityManager::goToDogear() {
+  auto activity = makeUniqueNoThrow<DogearActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("ACT", "OOM: DOGEAR activity");
+    return;
+  }
+  replaceActivity(std::move(activity));
+}
+#endif
+
 void ActivityManager::goToApps(const AppId focus) {
   // The current activity is still alive while the next one is allocated (the
   // replace is deferred), so both allocations are checked: fall back to Home,
@@ -402,7 +416,8 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::FILE_TRANSFER;
     } else if (activityName == "Settings") {
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
-    } else if (activityName == "Apps" || activityName == "Goto" || activityName == "OnPoint") {
+    } else if (activityName == "Apps" || activityName == "Goto" || activityName == "OnPoint" ||
+               activityName == "Dogear") {
       initialMenuItem = HomeMenuItem::APPS;
     }
   }

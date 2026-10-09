@@ -54,6 +54,9 @@ constexpr AppDescriptor APP_TABLE[] = {
      [] { activityManager.goToOnPoint(); },
      [] { return halClock.isAvailable(); }},
 #endif
+#ifdef DOGEAR_ENABLED
+    {{AppId::Dogear, "DOGEAR"}, [] { return tr(STR_DOGEAR); }, [] { activityManager.goToDogear(); }, nullptr},
+#endif
 };
 constexpr int APP_COUNT = sizeof(APP_TABLE) / sizeof(APP_TABLE[0]);
 static_assert(APP_COUNT <= AppsActivity::MAX_APPS, "raise AppsActivity::MAX_APPS");
