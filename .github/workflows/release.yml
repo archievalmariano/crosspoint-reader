@@ -1,23 +1,23 @@
-# Publishes a suite firmware release when a version tag is pushed.
+# Promotes a physically accepted release candidate to a DRAFT release when its
+# version tag is pushed. Nothing is built here: the published files are the
+# candidate's own bytes (see release_candidate.yml and docs/RELEASING.md).
 #
-# Tag format: v{apps_version}, e.g. v1.0.1 for `apps_version = 1.0.1` in
-# platformio.ini. The tag must match apps_version exactly; the on-device update
-# check compares the latest release tag against the running apps_version.
+# Tag format: an ANNOTATED tag v{apps_version} on the candidate's commit, whose
+# message carries the acceptance record:
+#   candidate-run: <run id of release_candidate.yml>
+#   candidate-sums-sha256: <sha256 of that run's SHA256SUMS.txt>
+#   physically-accepted: x4-g x4pro-g x4pro-p x4pro-gp
+# The job stops, creating nothing, unless the tag matches apps_version, the run
+# is this repository's release_candidate.yml dispatched on release/v{apps_version}
+# at exactly the tagged commit and succeeded, every package was physically
+# accepted, and the downloaded artifact matches the accepted digest. The draft
+# is then checked asset by asset against GitHub's own digests. Publishing it
+# (and marking it latest) is a separate, manual step.
 #
-# Each build is one app package (custom_package in platformio.ini; g = GOTO,
-# p = ON POINT). The update check downloads firmware-<board>-<package>.bin
-# (src/network/OtaAsset.h), so a device stays on the package it runs:
-#   firmware-x4-g.bin       X4: GOTO                (gh_release)
-#   firmware-x4pro-g.bin    X4 Pro: GOTO            (x4pro-goto-gh_release)
-#   firmware-x4pro-p.bin    X4 Pro: ON POINT        (x4pro-onpoint-gh_release)
-#   firmware-x4pro-gp.bin   X4 Pro: GOTO + ON POINT (x4pro-gh_release)
-# X4 Pro packages also get <asset>.factory.bin for USB installs (flash at 0x0).
-# Builds from before packages (1.0.1) look for firmware.bin (X4) and
-# firmware-x4pro.bin (X4 Pro); those copies carry them to x4-g and x4pro-gp.
-#
-# Builds are cold (no PlatformIO cache) with the same pinned tooling as the
-# Suite production build workflow.
-name: Compile Release
+# The update check downloads firmware-<board>-<package>.bin from the latest
+# release (src/network/OtaAsset.h), so a device stays on the package it runs;
+# firmware.bin and firmware-x4pro.bin carry 1.0.1 devices to x4-g and x4pro-gp.
+name: Publish Release Draft
 
 on:
   push:
@@ -28,14 +28,21 @@ permissions:
   contents: read
 
 jobs:
-  version:
-    name: Check tag matches apps_version
+  promote:
+    name: Promote the accepted candidate
     runs-on: ubuntu-latest
-    outputs:
-      display: ${{ steps.check.outputs.display }}
+    permissions:
+      contents: write  # create the draft release
+      actions: read    # read the candidate run and download its artifact
     steps:
       - uses: actions/checkout@v6
-      - id: check
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.15'
+      - name: Check the tag, the candidate run and the acceptance record
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           apps=$(python3 -c "import configparser; c=configparser.ConfigParser(); c.read('platformio.ini'); print(c.get('crosspoint','apps_version'))")
@@ -44,95 +51,47 @@ jobs:
             echo "::error::Tag ${GITHUB_REF_NAME} does not match apps_version ${apps} (expected v${apps})"
             exit 1
           fi
+          ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}")
+          if [ "$(jq -r .object.type <<<"$ref")" != "tag" ]; then
+            echo "::error::${GITHUB_REF_NAME} is a lightweight tag; the acceptance record needs an annotated tag"
+            exit 1
+          fi
+          tag=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(jq -r .object.sha <<<"$ref")")
+          if [ "$(jq -r .object.type <<<"$tag")" != "commit" ] || [ "$(jq -r .object.sha <<<"$tag")" != "${GITHUB_SHA}" ]; then
+            echo "::error::${GITHUB_REF_NAME} does not point directly at ${GITHUB_SHA}"
+            exit 1
+          fi
+          jq -r .message <<<"$tag" > tag-message.txt
+          python3 scripts/release/candidate.py parse-tag tag-message.txt > fields.txt
+          cat fields.txt >> "$GITHUB_OUTPUT"
+          run_id=$(sed -n 's/^candidate_run=//p' fields.txt)
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > run.json
+          workflow_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release_candidate.yml" --jq .id)
+          python3 scripts/release/candidate.py check-run run.json --repository "${GITHUB_REPOSITORY}" \
+            --workflow-id "${workflow_id}" --commit "${GITHUB_SHA}" --branch-prefix "release/v${apps}"
           echo "display=${base}-A${apps}" >> "$GITHUB_OUTPUT"
-
-  build:
-    name: Build ${{ matrix.env }}
-    needs: version
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - env: gh_release
-            package: G
-            asset: firmware-x4-g
-            legacy: firmware.bin
-          - env: x4pro-goto-gh_release
-            package: G
-            asset: firmware-x4pro-g
-            factory: true
-          - env: x4pro-onpoint-gh_release
-            package: P
-            asset: firmware-x4pro-p
-            factory: true
-          - env: x4pro-gh_release
-            package: GP
-            asset: firmware-x4pro-gp
-            factory: true
-            legacy: firmware-x4pro.bin
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.13.15'
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: "0.12.18"
-          enable-cache: false
-      - name: Install PlatformIO Core
-        run: |
-          uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
-          uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
-            "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
-            "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
-            "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
-      - name: Build ${{ matrix.env }} firmware
-        run: |
-          set -euo pipefail
-          pio run -e ${{ matrix.env }} | tee pio.log
-          grep -q "CrossPoint build version: ${{ needs.version.outputs.display }}-${{ matrix.package }}$" pio.log
-      - name: Name release assets
-        run: |
-          set -euo pipefail
-          mkdir -p out
-          cp .pio/build/${{ matrix.env }}/firmware.bin out/${{ matrix.asset }}.bin
-          if [ "${{ matrix.factory }}" = "true" ]; then
-            cp .pio/build/${{ matrix.env }}/firmware.factory.bin out/${{ matrix.asset }}.factory.bin
-          fi
-          if [ -n "${{ matrix.legacy }}" ]; then
-            cp .pio/build/${{ matrix.env }}/firmware.bin out/${{ matrix.legacy }}
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.env }}
-          path: out/*
-          if-no-files-found: error
-          retention-days: 14
-
-  publish:
-    name: Publish GitHub release
-    needs: [version, build]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: release-*
-          merge-multiple: true
-          path: out
-      - name: Checksums
-        run: cd out && sha256sum * | tee SHA256SUMS.txt
-      - name: Create release
+          name: release-candidate
+          run-id: ${{ steps.check.outputs.candidate_run }}
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Verify the accepted bytes
+        env:
+          RUN_ID: ${{ steps.check.outputs.candidate_run }}
+          SUMS_SHA256: ${{ steps.check.outputs.candidate_sums_sha256 }}
+        run: |
+          python3 scripts/release/candidate.py verify-dir candidate \
+            --sums-sha256 "${SUMS_SHA256}" --commit "${GITHUB_SHA}" --run-id "${RUN_ID}"
+      - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          DISPLAY_VERSION: ${{ needs.version.outputs.display }}
+          DISPLAY_VERSION: ${{ steps.check.outputs.display }}
+          RUN_ID: ${{ steps.check.outputs.candidate_run }}
         run: |
           set -euo pipefail
+          mkdir publish
+          cp candidate/*.bin candidate/SHA256SUMS.txt publish/
           cat > notes.md <<EOF
           Firmware ${DISPLAY_VERSION} (CrossPoint base + APPS ${GITHUB_REF_NAME#v}), in app packages.
           Every package opens its apps from Home > Apps.
@@ -147,10 +106,21 @@ jobs:
           - **X4 (microSD):** copy the file to the card and use Settings > System > SD Card Firmware Update.
           - \`firmware.bin\` and \`firmware-x4pro.bin\` are for devices updating from 1.0.1.
 
-          Checksums are in \`SHA256SUMS.txt\`.
+          Checksums are in \`SHA256SUMS.txt\`. These are the files built by release-candidate run
+          ${RUN_ID} from ${GITHUB_SHA} and accepted on device before publication.
           EOF
-          gh release create "${GITHUB_REF_NAME}" out/* \
+          gh release create "${GITHUB_REF_NAME}" publish/* \
             --repo "${GITHUB_REPOSITORY}" \
             --title "CrossPoint ${DISPLAY_VERSION}" \
             --notes-file notes.md \
-            --latest
+            --draft \
+            --verify-tag
+      - name: Check the draft against the accepted bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"${GITHUB_REF_NAME}\" and .draft)" > release.json
+          python3 scripts/release/candidate.py verify-release release.json \
+            --sums candidate/SHA256SUMS.txt --tag "${GITHUB_REF_NAME}" --state draft

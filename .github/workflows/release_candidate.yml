@@ -1,92 +1,151 @@
+# Builds a suite release candidate: exactly the release, from exactly this commit.
+#
+# Dispatch it on a branch named release/v{apps_version}[-...], e.g.
+# release/v1.1.1-clean for `apps_version = 1.1.1`. Each release env is built
+# cold with the same pinned tooling as before, and the `release-candidate`
+# artifact holds:
+#   the 9 release files      firmware-x4-g.bin, firmware-x4pro-{g,p,gp}.bin and
+#                            their .factory.bin, plus the legacy firmware.bin and
+#                            firmware-x4pro.bin copies for devices on 1.0.1
+#   SHA256SUMS.txt           over those 9 files
+#   provenance.json          commit, ref, run id/attempt, workflow ref, digests
+# and `x4pro-flash-support` (never published) holds the X4 Pro USB pieces
+# (bootloader.bin, partitions.bin, boot_app0.bin) of each X4 Pro build. The run
+# fails unless every build passes and every .factory.bin is exactly its pieces.
+#
+# These bytes are what gets installed and physically accepted; release.yml
+# later publishes this same artifact, never a rebuild (builds embed their build
+# time, so no rebuild could match). See docs/RELEASING.md.
 name: Compile Release Candidate
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-release-candidate:
+  version:
+    name: Check branch matches apps_version
+    if: startsWith(github.ref_name, 'release/')
+    runs-on: ubuntu-latest
+    outputs:
+      display: ${{ steps.check.outputs.display }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: check
+        run: |
+          set -euo pipefail
+          apps=$(python3 -c "import configparser; c=configparser.ConfigParser(); c.read('platformio.ini'); print(c.get('crosspoint','apps_version'))")
+          base=$(python3 -c "import configparser; c=configparser.ConfigParser(); c.read('platformio.ini'); print(c.get('crosspoint','version'))")
+          case "${GITHUB_REF_NAME}" in
+            "release/v${apps}" | "release/v${apps}-"*) ;;
+            *) echo "::error::Branch ${GITHUB_REF_NAME} is not release/v${apps}[-...]"; exit 1 ;;
+          esac
+          echo "display=${base}-A${apps}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.env }}
+    needs: version
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
-          - pio_env: gh_release_rc
-            asset: firmware.bin
-          - pio_env: sticky-gh_release_rc
-            asset: firmware-sticky.bin
-          - pio_env: x4pro-gh_release_rc
-            asset: firmware-x4pro.bin
-          - pio_env: x4c-gh_release_rc
-            asset: firmware-x4c.bin
-          - pio_env: papermono-gh_release_rc
-            asset: firmware-papermono.bin
+          - env: gh_release
+            package: G
+          - env: x4pro-goto-gh_release
+            package: G
+            factory: true
+          - env: x4pro-onpoint-gh_release
+            package: P
+            factory: true
+          - env: x4pro-gh_release
+            package: GP
+            factory: true
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
-
+          python-version: '3.13.15'
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
-          version: "latest"
+          version: "0.12.18"
           enable-cache: false
-
       - name: Install PlatformIO Core
         run: |
           uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
-          # platform-espressif32's builder/main.py imports these unconditionally; its own
-          # penv bootstrap (builder/penv_setup.py) is supposed to install them automatically
-          # but isn't picking them up reliably in this runner image, so pin them explicitly.
           uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
             "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
             "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
             "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
-
-      - name: Cache PlatformIO packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.platformio
-          key: pio-v2-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-v2-${{ runner.os }}-
-
-      - name: Pin pioarduino core inside the platform penv
+      - name: Build ${{ matrix.env }} firmware
         run: |
           set -euo pipefail
-          # Envs with custom_sdkconfig run a nested `pio run` from
-          # ~/.platformio/penv. Keep that core on the same version as the outer core.
-          # See https://github.com/pioarduino/platform-espressif32/issues/529
-          pio pkg install -e ${{ matrix.pio_env }}
-          uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
-          ~/.platformio/penv/bin/pio --version
-
-      - name: Extract env
+          pio run -e ${{ matrix.env }} | tee pio.log
+          grep -q "CrossPoint build version: ${{ needs.version.outputs.display }}-${{ matrix.package }}$" pio.log
+      - name: Collect build outputs
         run: |
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
-          echo "BRANCH_SUFFIX=${GITHUB_REF_NAME#release/}" >> $GITHUB_ENV
-
-      - name: Build CrossPoint Release Candidate
-        env:
-          CROSSPOINT_RC_HASH: ${{ env.SHORT_SHA }}
-        run: pio run -e ${{ matrix.pio_env }} -j1
-
-      - name: Name release asset
-        run: |
-          if [ "${{ matrix.asset }}" != "firmware.bin" ]; then
-            cp ".pio/build/${{ matrix.pio_env }}/firmware.bin" \
-              ".pio/build/${{ matrix.pio_env }}/${{ matrix.asset }}"
+          set -euo pipefail
+          b=.pio/build/${{ matrix.env }}
+          out=build-${{ matrix.env }}
+          mkdir -p "$out"
+          cp "$b/firmware.bin" "$out/"
+          sed -n 's/^CrossPoint build version: //p' pio.log | tail -n 1 > "$out/version.txt"
+          if [ "${{ matrix.factory }}" = "true" ]; then
+            cp "$b/firmware.factory.bin" "$b/bootloader.bin" "$b/partitions.bin" "$out/"
+            # The otadata image merged at 0xe000; assemble checks it is exactly that slice.
+            cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin "$out/"
           fi
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v4
         with:
-          name: CrossPoint-RC-${{ env.BRANCH_SUFFIX }}-${{ matrix.pio_env }}
-          path: |
-            .pio/build/${{ matrix.pio_env }}/bootloader.bin
-            .pio/build/${{ matrix.pio_env }}/${{ matrix.asset }}
-            .pio/build/${{ matrix.pio_env }}/firmware.elf
-            .pio/build/${{ matrix.pio_env }}/firmware.map
-            .pio/build/${{ matrix.pio_env }}/partitions.bin
+          name: build-${{ matrix.env }}
+          path: build-${{ matrix.env }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    name: Assemble release candidate
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.15'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: builds
+      - name: Assemble and verify
+        run: |
+          set -euo pipefail
+          python3 scripts/release/candidate.py assemble --builds builds --out candidate --support support \
+            --display "${{ needs.version.outputs.display }}" --commit "${GITHUB_SHA}" --ref "${GITHUB_REF_NAME}" \
+            --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --workflow-ref "${GITHUB_WORKFLOW_REF}" --repository "${GITHUB_REPOSITORY}"
+          python3 scripts/release/candidate.py verify-dir candidate --support support \
+            --commit "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}"
+          {
+            echo "### Release candidate ${{ needs.version.outputs.display }}"
+            echo "commit \`${GITHUB_SHA}\`, run ${GITHUB_RUN_ID} attempt ${GITHUB_RUN_ATTEMPT}"
+            echo "SHA256SUMS.txt sha256: \`$(sha256sum candidate/SHA256SUMS.txt | cut -d' ' -f1)\`"
+            echo '```'
+            cat candidate/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x4pro-flash-support
+          path: support/
+          if-no-files-found: error
+          retention-days: 90
