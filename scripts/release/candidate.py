@@ -341,13 +341,12 @@ PUBLISH_TIMEOUT_S = 120
 class GitHub:
     """The few REST calls publish needs, through the authenticated `gh` CLI.
 
-    publish_latest returns only when `gh` exits 0 (GitHub answered 2xx). It
-    raises PublishNotApplied only when the request certainly had no effect:
-    the `gh` process could not be created (no child ever existed), or GitHub
-    answered 4xx (rejected before any change). Once the process exists, every
-    other failure -- communicating, waiting, decoding, timing out, a 5xx, a
-    network error, an exit with no HTTP status -- may have been applied and
-    raises PublishUncertain."""
+    publish_latest returns only when `gh` exits 0. It raises PublishNotApplied
+    only when the `gh` process could not be created: no child ever existed, so
+    nothing was sent. Once the process exists, every other outcome -- any
+    exception while communicating, waiting, decoding or timing out, and any
+    non-zero exit whatever its status or message -- may have been applied and
+    raises PublishUncertain. stderr is never parsed to decide this."""
 
     def get(self, path: str):
         out = subprocess.run(["gh", "api", path], check=True, capture_output=True, text=True).stdout
@@ -372,12 +371,8 @@ class GitHub:
             except BaseException:  # noqa: BLE001 -- best effort; the outcome is uncertain regardless
                 pass
             raise PublishUncertain(f"gh api PATCH started, then {type(err).__name__}: {err}") from err
-        stderr = (stderr or "").strip()
-        if proc.returncode == 0:
-            return
-        if re.search(r"\(HTTP 4[0-9][0-9]\)", stderr):
-            raise PublishNotApplied(f"GitHub rejected the request: {stderr}")
-        raise PublishUncertain(f"gh api PATCH exited {proc.returncode} without a 4xx rejection: {stderr}")
+        if proc.returncode != 0:
+            raise PublishUncertain(f"gh api PATCH exited {proc.returncode}: {(stderr or '').strip()}")
 
 
 def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str) -> None:
@@ -428,8 +423,8 @@ def publish(args, gh=None) -> None:
     if not args.publish:
         print("dry run: nothing changed (pass --publish to publish and mark latest)")
         return
-    # 4. The only state change. PublishNotApplied (exit 3) means certainly nothing
-    # changed; any other failure from here on may leave the release public.
+    # 4. The only state change. PublishNotApplied (exit 3) means gh never started,
+    # so nothing changed; any other failure from here on may leave the release public.
     try:
         gh.publish_latest(repository, release["id"])
     except PublishNotApplied:

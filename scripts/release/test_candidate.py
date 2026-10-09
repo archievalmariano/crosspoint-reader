@@ -522,7 +522,7 @@ class PublishTests(PublishBase):
                 self.gets[path] = saved
 
     def test_a_patch_certainly_not_applied_exits_3(self):
-        gh = FakeGitHub(self.gets, patch_error=c.PublishNotApplied("GitHub rejected the request: (HTTP 422)"))
+        gh = FakeGitHub(self.gets, patch_error=c.PublishNotApplied("could not start gh: [Errno 2] gh"))
         self.assertIn("not published", self.assert_not_published(gh, 3))
         self.assertEqual(len(gh.patches), 1)
 
@@ -579,15 +579,17 @@ STARTUP_FAILURES = (FileNotFoundError("gh"), PermissionError("gh"), OSError("for
 COMMUNICATION_FAILURES = (OSError("read failed"), BrokenPipeError(), ConnectionResetError(),
                           UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
                           subprocess.TimeoutExpired(["gh"], 120), KeyboardInterrupt())
-REJECTIONS = ("gh: Validation Failed (HTTP 422)", "gh: Not Found (HTTP 404)",
-              "gh: Resource not accessible by integration (HTTP 403)")
-UNCERTAIN_EXITS = ("gh: Server Error (HTTP 502)", "gh: (HTTP 500)", "error connecting to api.github.com", "",
-                   "HTTP 422 without gh's parentheses", "timeout awaiting response headers")
+# Every non-zero exit of a started gh is uncertain, even a clean-looking 4xx:
+# stderr cannot prove the PATCH was not applied.
+NONZERO_EXITS = ((1, "gh: Validation Failed (HTTP 422)"), (1, "gh: Not Found (HTTP 404)"),
+                 (1, "gh: Resource not accessible by integration (HTTP 403)"), (1, "gh: Server Error (HTTP 502)"),
+                 (1, "gh: (HTTP 500)"), (1, "error connecting to api.github.com"), (1, ""),
+                 (1, "timeout awaiting response headers (HTTP 422)"), (2, "gh: Validation Failed (HTTP 422)"))
 
 
 class GitHubClientTests(unittest.TestCase):
-    """publish_latest: creation failure or a 4xx is PublishNotApplied; once the
-    process exists, anything else is PublishUncertain."""
+    """publish_latest: only a creation failure is PublishNotApplied; once the
+    process exists, every non-success outcome is PublishUncertain."""
 
     def call(self, behaviour):
         with popen_as(behaviour) as record:
@@ -618,13 +620,12 @@ class GitHubClientTests(unittest.TestCase):
                 self.assertNotIsInstance(err, c.PublishNotApplied)
                 self.assertIn(("kill",), record)
 
-    def test_only_an_explicit_4xx_from_a_started_process_is_not_applied(self):
-        for stderr in REJECTIONS:
-            with self.subTest(stderr=stderr):
-                self.assertIsInstance(self.call({"rc": 1, "stderr": stderr})[0], c.PublishNotApplied)
-        for stderr in UNCERTAIN_EXITS:
-            with self.subTest(stderr=stderr):
-                self.assertIsInstance(self.call({"rc": 1, "stderr": stderr})[0], c.PublishUncertain)
+    def test_every_nonzero_exit_of_a_started_process_is_uncertain(self):
+        for rc, stderr in NONZERO_EXITS:
+            with self.subTest(rc=rc, stderr=stderr):
+                err, _ = self.call({"rc": rc, "stderr": stderr})
+                self.assertIsInstance(err, c.PublishUncertain)
+                self.assertNotIsInstance(err, c.PublishNotApplied)
 
 
 REAL_GITHUB = c.GitHub  # PublishTests.main swaps c.GitHub out for the fake
@@ -662,17 +663,10 @@ class PublishRequestExitTests(PublishBase):
                 self.assertEqual(code, 2, err)
                 self.assertIn("MAY BE PUBLISHED", err)
 
-    def test_explicit_4xx_exits_3(self):
-        for stderr in REJECTIONS:
-            with self.subTest(stderr=stderr):
-                code, err, _ = self.exit_for({"rc": 1, "stderr": stderr})
-                self.assertEqual(code, 3, err)
-                self.assertNotIn("MAY BE PUBLISHED", err)
-
-    def test_5xx_unknown_or_no_status_exits_2(self):
-        for stderr in UNCERTAIN_EXITS:
-            with self.subTest(stderr=stderr):
-                code, err, _ = self.exit_for({"rc": 1, "stderr": stderr})
+    def test_any_nonzero_exit_even_a_clean_4xx_exits_2(self):
+        for rc, stderr in NONZERO_EXITS:
+            with self.subTest(rc=rc, stderr=stderr):
+                code, err, _ = self.exit_for({"rc": rc, "stderr": stderr})
                 self.assertEqual(code, 2, err)
                 self.assertIn("MAY BE PUBLISHED", err)
 
