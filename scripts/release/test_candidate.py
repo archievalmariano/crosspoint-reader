@@ -5,6 +5,7 @@ import copy
 import hashlib
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -282,17 +283,30 @@ class ReleaseTests(Base):
 class FakeGitHub:
     """GitHub as publish sees it: canned GETs, and a recorded PATCH that publishes."""
 
-    def __init__(self, gets: dict, immutable_after=True, tamper_after=None):
+    def __init__(self, gets: dict, immutable_after=True, tamper_after=None, raise_on=None, after_patch=None,
+                 patch_error=None):
         self.gets, self.patches = gets, []
         self.immutable_after, self.tamper_after = immutable_after, tamper_after
+        self.raise_on = raise_on or {}        # path -> exception raised by GET (from the start)
+        self.after_patch = after_patch or {}  # path -> exception or value, once the PATCH succeeded
+        self.patch_error = patch_error
 
     def get(self, path):
+        if self.patches and path in self.after_patch:
+            outcome = self.after_patch[path]
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return copy.deepcopy(outcome)
+        if path in self.raise_on:
+            raise self.raise_on[path]
         if path not in self.gets:
             raise c.Problem(f"unexpected GET {path}")
         return copy.deepcopy(self.gets[path])
 
     def publish_latest(self, repository, release_id):
         self.patches.append((repository, release_id))
+        if self.patch_error:
+            raise self.patch_error
         release = copy.deepcopy(self.gets["repos/o/r/releases?per_page=100"][0])
         release.update(draft=False, immutable=self.immutable_after)
         if self.tamper_after:
@@ -432,18 +446,127 @@ class PublishTests(Base):
         with self.assertRaises(c.PostPublishProblem):
             self.publish(gh)
 
-    def test_a_post_publication_failure_exits_2(self):
-        gh = FakeGitHub(self.gets, immutable_after=False)
+    def main(self, gh):
+        """The command as the owner runs it, with `gh` as GitHub; (exit code, stderr)."""
         original = c.GitHub
         c.GitHub = lambda: gh
         try:
             code, _, err = run("publish", "--repository", "o/r", "--tag", self.TAG, "--commit", self.COMMIT,
                                "--run-id", self.RUN_ID, "--candidate", self.out, "--sums-sha256", self.sums_sha(),
                                "--publish")
+        except BaseException as escaped:  # noqa: BLE001 -- an escape is itself the failure under test
+            return -1, f"escaped main(): {type(escaped).__name__}"
         finally:
             c.GitHub = original
-        self.assertEqual(code, 2)
+        return code, err
+
+    def assert_uncertain(self, gh):
+        code, err = self.main(gh)
+        self.assertEqual((code, len(gh.patches)), (2, 1), err)
         self.assertIn("MAY BE PUBLISHED", err)
+
+    def assert_not_published(self, gh, code_expected):
+        code, err = self.main(gh)
+        self.assertEqual(code, code_expected, err)
+        self.assertNotIn("MAY BE PUBLISHED", err)
+        return err
+
+    def test_a_clean_run_exits_0(self):
+        gh = FakeGitHub(self.gets)
+        self.assertEqual(self.main(gh), (0, ""))
+        self.assertEqual(len(gh.patches), 1)
+
+    def test_post_publication_validation_failures_exit_2(self):
+        self.assert_uncertain(FakeGitHub(self.gets, immutable_after=False))
+        self.assert_uncertain(FakeGitHub(self.gets, tamper_after=lambda r: r["assets"].pop()))
+
+    def test_post_publication_oserror_on_the_first_refetch_exits_2(self):
+        self.assert_uncertain(FakeGitHub(self.gets, after_patch={"repos/o/r/releases/7": OSError("connection reset")}))
+
+    def test_post_publication_malformed_responses_exit_2(self):
+        for path, value in (("repos/o/r/releases/7", ["not", "a", "release"]),   # AttributeError
+                            ("repos/o/r/releases/7", "text"),                     # AttributeError
+                            ("repos/o/r/releases/7", {"tag_name": "v1.1.1", "draft": False, "prerelease": False,
+                                                      "immutable": True, "assets": [{"name": None}]}),
+                            ("repos/o/r/releases/latest", None),                   # AttributeError
+                            ("repos/o/r/releases/latest", ValueError("Expecting value: line 1 column 1")),
+                            ("repos/o/r/releases/latest", KeyError("id")),
+                            (f"repos/o/r/git/tags/{'t' * 40}", RuntimeError("gh crashed")),
+                            (f"repos/o/r/git/tags/{'t' * 40}", subprocess.CalledProcessError(1, ["gh"], "", "HTTP 502")),
+                            ("repos/o/r/releases/7", KeyboardInterrupt())):
+            with self.subTest(path=path, value=type(value).__name__):
+                self.assert_uncertain(FakeGitHub(self.gets, after_patch={path: value}))
+
+    def test_preflight_errors_exit_1_and_never_say_may_be_published(self):
+        for path, value in (("repos/o/r/immutable-releases", OSError("network down")),
+                            ("repos/o/r/immutable-releases", ValueError("Expecting value")),
+                            ("repos/o/r/releases?per_page=100", subprocess.CalledProcessError(1, ["gh"], "", "HTTP 502")),
+                            ("repos/o/r/actions/workflows/release_candidate.yml", KeyError("id"))):
+            with self.subTest(path=path, value=type(value).__name__):
+                gh = FakeGitHub(self.gets, raise_on={path: value})
+                self.assert_not_published(gh, 1)
+                self.assertEqual(gh.patches, [])
+        for path, value in (("repos/o/r/immutable-releases", ["enabled"]),          # AttributeError
+                            (f"repos/o/r/git/tags/{'t' * 40}", {"object": None})):  # TypeError
+            with self.subTest(path=path, value=repr(value)):
+                saved = self.gets[path]
+                self.gets[path] = value
+                gh = FakeGitHub(self.gets)
+                self.assert_not_published(gh, 1)
+                self.assertEqual(gh.patches, [])
+                self.gets[path] = saved
+
+    def test_a_patch_certainly_not_applied_exits_3(self):
+        gh = FakeGitHub(self.gets, patch_error=c.PublishNotApplied("GitHub rejected the request: (HTTP 422)"))
+        self.assertIn("not published", self.assert_not_published(gh, 3))
+        self.assertEqual(len(gh.patches), 1)
+
+    def test_a_patch_that_may_have_been_applied_exits_2(self):
+        for error in (RuntimeError("gh api PATCH exited 1: (HTTP 502)"), TimeoutError(), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                self.assert_uncertain(FakeGitHub(self.gets, patch_error=error))
+
+
+class GitHubClientTests(unittest.TestCase):
+    """publish_latest's contract: return on 2xx; PublishNotApplied only when the
+    request certainly had no effect; anything else is possibly applied."""
+
+    def patch_with(self, behaviour):
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            if isinstance(behaviour, BaseException):
+                raise behaviour
+            return subprocess.CompletedProcess(argv, behaviour[0], "", behaviour[1])
+        original = c.subprocess.run
+        c.subprocess.run = fake_run
+        try:
+            c.GitHub().publish_latest("o/r", 7)
+        finally:
+            c.subprocess.run = original
+            self.calls = calls
+
+    def test_success_sends_one_patch(self):
+        self.patch_with((0, ""))
+        self.assertEqual(self.calls, [["gh", "api", "-X", "PATCH", "repos/o/r/releases/7", "-F", "draft=false",
+                                       "-f", "make_latest=true"]])
+
+    def test_certainly_not_applied(self):
+        for behaviour in (FileNotFoundError("gh"), PermissionError("gh"),
+                          (1, "gh: Validation Failed (HTTP 422)"), (1, "gh: Not Found (HTTP 404)"),
+                          (1, "gh: Resource not accessible by integration (HTTP 403)")):
+            with self.subTest(behaviour=behaviour), self.assertRaises(c.PublishNotApplied):
+                self.patch_with(behaviour)
+
+    def test_possibly_applied_is_never_reported_as_not_applied(self):
+        for behaviour in ((1, "gh: Server Error (HTTP 502)"), (1, "gh: (HTTP 500)"),
+                          (1, "error connecting to api.github.com"), (1, ""), (2, "HTTP 422 somewhere else"),
+                          (1, "timeout awaiting response headers")):
+            with self.subTest(behaviour=behaviour):
+                with self.assertRaises(Exception) as ctx:
+                    self.patch_with(behaviour)
+                self.assertNotIsInstance(ctx.exception, c.PublishNotApplied)
 
 
 class SliceTests(Base):

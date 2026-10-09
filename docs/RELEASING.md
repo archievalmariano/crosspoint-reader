@@ -131,7 +131,11 @@ X4 Pro is installed only over USB.
       - `/releases/latest` is this release;
       - the tag is unchanged.
 
-      A failure here exits with status 2 and says the release may be public, so it can be dealt with at once.
+   Exit status:
+   - **0:** published, latest, immutable and verified.
+   - **1:** a preflight failure. Nothing was requested and nothing changed.
+   - **3:** the publication request certainly had no effect: `gh` could not run, or GitHub answered 4xx. Nothing changed.
+   - **2, "MAY BE PUBLISHED":** the request returned success and then anything at all failed, or the request failed in a way that may still have reached GitHub (5xx, network, timeout, interruption). Check the release at once; it may be public.
 
 **Release asset integrity.** `verify-release`, and `publish` around its single state change, fail unless every one of these holds:
 - the release is that tag, and in the expected draft or published state, and not a prerelease;

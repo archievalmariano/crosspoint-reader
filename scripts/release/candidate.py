@@ -321,20 +321,41 @@ def verify_release(args) -> None:
 # ---- publish ---------------------------------------------------------------
 
 
-class PostPublishProblem(Problem):
-    """The release is already public but does not verify: never silent."""
+class PublishNotApplied(Exception):
+    """GitHub certainly did not apply the publication request (exit 3)."""
+
+
+class PostPublishProblem(Exception):
+    """The publication request may have been applied and the outcome is not
+    verified (exit 2, "MAY BE PUBLISHED"). Deliberately not a Problem, so no
+    preflight handler can catch it."""
 
 
 class GitHub:
-    """The few REST calls publish needs, through the authenticated `gh` CLI."""
+    """The few REST calls publish needs, through the authenticated `gh` CLI.
+
+    publish_latest returns only when GitHub answered 2xx. It raises
+    PublishNotApplied only when the request certainly had no effect: `gh` could
+    not be started, or GitHub answered 4xx (rejected before any change). Any
+    other failure (5xx, network, timeout) may have been applied and raises
+    something else."""
 
     def get(self, path: str):
         out = subprocess.run(["gh", "api", path], check=True, capture_output=True, text=True).stdout
         return json.loads(out)
 
     def publish_latest(self, repository: str, release_id: int) -> None:
-        subprocess.run(["gh", "api", "-X", "PATCH", f"repos/{repository}/releases/{release_id}",
-                        "-F", "draft=false", "-f", "make_latest=true"], check=True, capture_output=True, text=True)
+        argv = ["gh", "api", "-X", "PATCH", f"repos/{repository}/releases/{release_id}",
+                "-F", "draft=false", "-f", "make_latest=true"]
+        try:
+            done = subprocess.run(argv, capture_output=True, text=True)
+        except OSError as err:  # nothing was sent
+            raise PublishNotApplied(f"could not run gh: {err}") from err
+        if done.returncode != 0:
+            stderr = (done.stderr or "").strip()
+            if re.search(r"\(HTTP 4[0-9][0-9]\)", stderr):
+                raise PublishNotApplied(f"GitHub rejected the request: {stderr}")
+            raise RuntimeError(f"gh api PATCH exited {done.returncode}: {stderr}")
 
 
 def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str) -> None:
@@ -385,19 +406,28 @@ def publish(args, gh=None) -> None:
     if not args.publish:
         print("dry run: nothing changed (pass --publish to publish and mark latest)")
         return
-    # 4. The only state change. From here on, any failure means the release may be public.
+    # 4. The only state change. PublishNotApplied (exit 3) means certainly nothing
+    # changed; any other failure from here on may leave the release public.
     try:
         gh.publish_latest(repository, release["id"])
-        # 5. Re-fetch: published, latest, not a prerelease, immutable, same digests.
+    except PublishNotApplied:
+        raise
+    except BaseException as err:  # noqa: BLE001 -- includes KeyboardInterrupt
+        raise PostPublishProblem(f"{tag} MAY BE PUBLISHED: the publication request failed after it may have "
+                                 f"reached GitHub ({type(err).__name__}: {err}); check the release now") from err
+    # 5. Re-fetch: published, latest, not a prerelease, immutable, same digests.
+    # The request succeeded, so every failure of any kind is an uncertain outcome.
+    try:
         published = gh.get(f"repos/{repository}/releases/{release['id']}")
         check_release_json(published, sums_bytes, tag=tag, state="published", require_immutable=True)
         latest = gh.get(f"repos/{repository}/releases/latest")
         require(latest.get("id") == release["id"] and latest.get("tag_name") == tag, f"latest is {latest.get('tag_name')}")
         check_tag(gh, repository, tag, commit, run_id, sums_sha)
-    except (Problem, subprocess.CalledProcessError, KeyError, ValueError) as err:
+        print(f"published {tag} as latest: immutable, {len(published['assets'])} assets match the accepted bytes")
+    except BaseException as err:  # noqa: BLE001 -- includes KeyboardInterrupt
         detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
-        raise PostPublishProblem(f"{tag} MAY BE PUBLISHED but does not verify; check it now: {detail}") from err
-    print(f"published {tag} as latest: immutable, {len(published['assets'])} assets match the accepted bytes")
+        raise PostPublishProblem(f"{tag} MAY BE PUBLISHED but does not verify; check it now "
+                                 f"({type(err).__name__}: {detail})") from err
 
 
 def slice_factory(args) -> None:
@@ -472,10 +502,13 @@ def main(argv=None) -> int:
     except PostPublishProblem as err:
         print(f"::error::{err}", file=sys.stderr)
         return 2
+    except PublishNotApplied as err:
+        print(f"::error::not published: {err}", file=sys.stderr)
+        return 3
     except subprocess.CalledProcessError as err:
         print(f"::error::{' '.join(err.cmd[:4])} failed: {(err.stderr or '').strip()}", file=sys.stderr)
         return 1
-    except (Problem, OSError, ValueError, KeyError) as err:
+    except (Problem, OSError, ValueError, KeyError, AttributeError, TypeError) as err:
         print(f"::error::{err}" if not isinstance(err, KeyError) else f"::error::missing {err}", file=sys.stderr)
         return 1
     return 0
