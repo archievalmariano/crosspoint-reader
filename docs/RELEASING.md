@@ -14,7 +14,7 @@ release/v<apps>[-...] branch ── release_candidate.yml (dispatch) ── `rel
 annotated tag v<apps> (run id, SHA256SUMS digest, packages) ── release.yml ── DRAFT release
                                                                                │ verify-release
                                                                                ▼
-                                                     publish + latest (manual) ── verify-release ── OTA test
+                                       candidate.py publish (preflight, then publish + latest) ── OTA test
 ```
 
 Scripts: `scripts/release/candidate.py` (tests:
@@ -111,26 +111,38 @@ X4 Pro is installed only over USB.
 
    It then creates a **draft** from those files, never marked latest, and checks the
    draft's assets against GitHub's own sha256 digests.
-3. Check the draft yourself, publish it, and check again:
-   ```bash
-   gh api repos/<owner>/<repo>/releases --jq '.[] | select(.tag_name=="v1.1.1" and .draft)' > draft.json
-   python3 scripts/release/candidate.py verify-release draft.json --sums SHA256SUMS.txt --tag v1.1.1 --state draft
-   gh release edit v1.1.1 --draft=false --latest
-   gh api repos/<owner>/<repo>/releases/tags/v1.1.1 > published.json
-   python3 scripts/release/candidate.py verify-release published.json --sums SHA256SUMS.txt --tag v1.1.1 \
-     --state published --require-immutable
-   gh api repos/<owner>/<repo>/releases/latest --jq .tag_name   # v1.1.1
-   ```
+3. **Publish only with `candidate.py publish`.** Never publish or mark a release latest any other way: not on the website, and not with `gh release edit`.
 
-**Release asset integrity.** `verify-release` fails unless every one of these holds:
+   Run it first without `--publish`. That is a dry run: it performs the whole preflight and changes nothing. Then run it again with `--publish`:
+   ```bash
+   python3 scripts/release/candidate.py publish --repository <owner>/<repo> --tag v1.1.1 \
+     --commit <candidate sha> --run-id <run-id> --candidate release-candidate \
+     --sums-sha256 <accepted sha256 of SHA256SUMS.txt> [--publish]
+   ```
+   In order, and failing closed before any state change:
+   0. The local `release-candidate` folder is the accepted one: its files match its `SHA256SUMS.txt`, whose sha256 is the accepted digest, and its provenance names the commit and run.
+   1. `GET /repos/<owner>/<repo>/immutable-releases` reports `enabled: true`.
+   2. Exactly one release carries the tag. It is still a **draft** (an already published release is refused, never republished) and not a prerelease. The tag is annotated, points directly at the commit, and its message names the same run and digest and every package as physically accepted.
+   3. The run is this repository's `release_candidate.yml`, dispatched on `release/<tag>*`, successful, at the commit. The draft's assets are exactly the accepted files plus `SHA256SUMS.txt`, with GitHub digests equal to the accepted ones.
+   4. Only then, one `PATCH` sets `draft: false` and `make_latest: true`.
+   5. It re-fetches and requires all of these:
+      - published, not a prerelease, `immutable: true`;
+      - the same assets and digests;
+      - `/releases/latest` is this release;
+      - the tag is unchanged.
+
+      A failure here exits with status 2 and says the release may be public, so it can be dealt with at once.
+
+**Release asset integrity.** `verify-release`, and `publish` around its single state change, fail unless every one of these holds:
 - the release is that tag, and in the expected draft or published state, and not a prerelease;
 - its assets are exactly the accepted files plus `SHA256SUMS.txt`, with nothing missing, nothing extra and no duplicates;
 - every asset is `uploaded`;
 - GitHub's `digest` for each asset is `sha256:` plus the accepted digest;
-- `--require-immutable` is passed and the release is marked `immutable`.
+- the release is marked `immutable` (always checked after publishing, or when `--require-immutable` is passed).
 
-- **With immutability on:** the repository setting *Release immutability* must be on before publishing. Then the published release's assets and tag cannot be changed.
-- **Re-verify regardless:** anything that later relies on a release re-fetches these digests and fails closed on any difference. That covers anything that verifies devices or syncs a firmware contract.
+Two layers protect the published release:
+- **Immutability:** the repository setting *Release immutability* is a precondition of `publish`. Once published, the release's assets and tag cannot be changed.
+- **Re-verify regardless:** anything that later relies on a release re-fetches these digests with `verify-release --state published --require-immutable` and fails closed on any difference. That covers anything that verifies devices or syncs a firmware contract.
 
 ## 4. X4 Pro USB install (NVS kept)
 

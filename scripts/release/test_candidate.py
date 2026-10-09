@@ -1,5 +1,6 @@
 """Tests for scripts/release/candidate.py: python3 -m unittest discover -s scripts/release"""
 
+import argparse
 import copy
 import hashlib
 import io
@@ -276,6 +277,173 @@ class ReleaseTests(Base):
     def test_a_different_sums_file_fails(self):
         with self.assertRaises(c.Problem):
             c.check_release_json(self.release, self.sums + b"\n", tag="v1.1.1", state="draft", require_immutable=False)
+
+
+class FakeGitHub:
+    """GitHub as publish sees it: canned GETs, and a recorded PATCH that publishes."""
+
+    def __init__(self, gets: dict, immutable_after=True, tamper_after=None):
+        self.gets, self.patches = gets, []
+        self.immutable_after, self.tamper_after = immutable_after, tamper_after
+
+    def get(self, path):
+        if path not in self.gets:
+            raise c.Problem(f"unexpected GET {path}")
+        return copy.deepcopy(self.gets[path])
+
+    def publish_latest(self, repository, release_id):
+        self.patches.append((repository, release_id))
+        release = copy.deepcopy(self.gets["repos/o/r/releases?per_page=100"][0])
+        release.update(draft=False, immutable=self.immutable_after)
+        if self.tamper_after:
+            self.tamper_after(release)
+        self.gets[f"repos/o/r/releases/{release_id}"] = release
+        self.gets["repos/o/r/releases/latest"] = release
+
+
+class PublishTests(Base):
+    TAG, COMMIT, RUN_ID = "v1.1.1", "b" * 40, 42
+
+    def setUp(self):
+        super().setUp()
+        self.assertEqual(self.assemble()[0], 0)
+        sums = self.sums_sha()
+        draft = {"id": 7, "tag_name": self.TAG, "draft": True, "prerelease": False, "immutable": False,
+                 "assets": [{"name": n, "state": "uploaded", "digest": "sha256:" + hashlib.sha256(
+                     (self.out / n).read_bytes()).hexdigest()} for n in c.release_files() + [c.SUMS]]}
+        message = (f"{self.TAG}\n\ncandidate-run: {self.RUN_ID}\ncandidate-sums-sha256: {sums}\n"
+                   "physically-accepted: x4-g x4pro-g x4pro-p x4pro-gp\n")
+        self.gets = {
+            "repos/o/r/immutable-releases": {"enabled": True, "enforced_by_owner": False},
+            "repos/o/r/releases?per_page=100": [draft, {"id": 6, "tag_name": "v1.1.0", "draft": False}],
+            f"repos/o/r/git/ref/tags/{self.TAG}": {"object": {"type": "tag", "sha": "t" * 40}},
+            f"repos/o/r/git/tags/{'t' * 40}": {"object": {"type": "commit", "sha": self.COMMIT}, "message": message},
+            "repos/o/r/actions/workflows/release_candidate.yml": {"id": 77},
+            f"repos/o/r/actions/runs/{self.RUN_ID}": dict(RUN, id=self.RUN_ID, head_sha=self.COMMIT),
+        }
+
+    def publish(self, gh, publish=True, **override):
+        args = dict(repository="o/r", tag=self.TAG, commit=self.COMMIT, run_id=str(self.RUN_ID),
+                    candidate=str(self.out), sums_sha256=self.sums_sha(), publish=publish)
+        args.update(override)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            c.publish(argparse.Namespace(**args), gh)
+        return out.getvalue()
+
+    def refused(self, gh=None, **override):
+        gh = gh or FakeGitHub(self.gets)
+        with self.assertRaises(c.Problem) as ctx:
+            self.publish(gh, **override)
+        self.assertNotIsInstance(ctx.exception, c.PostPublishProblem)
+        self.assertEqual(gh.patches, [], "no publication action may happen")
+        return str(ctx.exception)
+
+    def draft(self):
+        return self.gets["repos/o/r/releases?per_page=100"][0]
+
+    def test_a_clean_preflight_publishes_once_and_verifies(self):
+        gh = FakeGitHub(self.gets)
+        out = self.publish(gh)
+        self.assertEqual(gh.patches, [("o/r", 7)])
+        self.assertIn("published v1.1.1 as latest: immutable", out)
+
+    def test_a_dry_run_changes_nothing(self):
+        gh = FakeGitHub(self.gets)
+        self.assertIn("dry run", self.publish(gh, publish=False))
+        self.assertEqual(gh.patches, [])
+
+    def test_immutability_disabled_or_unknown_refuses(self):
+        for setting in ({"enabled": False, "enforced_by_owner": False}, {}, {"enabled": "true"}):
+            self.gets["repos/o/r/immutable-releases"] = setting
+            self.assertIn("immutability", self.refused())
+
+    def test_draft_asset_tampering_refuses(self):
+        self.draft()["assets"][4]["digest"] = "sha256:" + "0" * 64
+        self.assertIn("not the accepted sha256", self.refused())
+
+    def test_missing_extra_duplicate_or_undigested_assets_refuse(self):
+        original = copy.deepcopy(self.draft()["assets"])
+        for mutate in (lambda a: a.pop(0),
+                       lambda a: a.append({"name": "provenance.json", "state": "uploaded", "digest": "sha256:" + "1" * 64}),
+                       lambda a: a.append(dict(a[0])),
+                       lambda a: a[1].update(digest=None)):
+            self.draft()["assets"] = copy.deepcopy(original)
+            mutate(self.draft()["assets"])
+            self.refused()
+
+    def test_wrong_tag_commit_or_run_refuses(self):
+        tag_obj = f"repos/o/r/git/tags/{'t' * 40}"
+        run = f"repos/o/r/actions/runs/{self.RUN_ID}"
+        cases = [
+            (f"repos/o/r/git/ref/tags/{self.TAG}", {"object": {"type": "commit", "sha": self.COMMIT}}),  # lightweight
+            (tag_obj, dict(self.gets[tag_obj], object={"type": "commit", "sha": "c" * 40})),
+            (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace("run: 42", "run: 43"))),
+            (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace(" x4pro-p", ""))),
+            (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace(self.sums_sha(), "e" * 64))),
+            (run, dict(self.gets[run], head_sha="c" * 40)),
+            (run, dict(self.gets[run], path=".github/workflows/release.yml")),
+            (run, dict(self.gets[run], head_branch="release/v1.1.0-clean")),
+            (run, dict(self.gets[run], conclusion="failure")),
+        ]
+        for path, value in cases:
+            saved = self.gets[path]
+            self.gets[path] = value
+            self.refused()
+            self.gets[path] = saved
+
+    def test_a_local_candidate_that_is_not_the_accepted_one_refuses(self):
+        self.refused(commit="c" * 40)
+        self.refused(run_id="43")
+        self.refused(sums_sha256="e" * 64)
+        p = self.out / "firmware-x4pro-gp.bin"
+        p.write_bytes(p.read_bytes() + b"\0")
+        self.refused()
+
+    def test_an_already_published_missing_or_duplicated_release_refuses(self):
+        self.draft()["draft"] = False
+        self.assertIn("already published", self.refused())
+        self.draft()["draft"] = True
+        self.draft()["prerelease"] = True
+        self.assertIn("prerelease", self.refused())
+        self.draft()["prerelease"] = False
+        releases = self.gets["repos/o/r/releases?per_page=100"]
+        self.gets["repos/o/r/releases?per_page=100"] = releases[1:]
+        self.assertIn("0 releases", self.refused())
+        self.gets["repos/o/r/releases?per_page=100"] = releases + [copy.deepcopy(releases[0])]
+        self.assertIn("2 releases", self.refused())
+
+    def test_post_publication_requires_immutable_and_the_accepted_digests(self):
+        for gh in (FakeGitHub(self.gets, immutable_after=False),
+                   FakeGitHub(self.gets, tamper_after=lambda r: r["assets"][0].update(digest="sha256:" + "0" * 64)),
+                   FakeGitHub(self.gets, tamper_after=lambda r: r.update(prerelease=True))):
+            with self.assertRaises(c.PostPublishProblem):
+                self.publish(gh)
+            self.assertEqual(len(gh.patches), 1)
+
+    def test_post_publication_requires_it_to_be_latest(self):
+        gh = FakeGitHub(self.gets)
+        real = gh.publish_latest
+
+        def publish_but_not_latest(repository, release_id):
+            real(repository, release_id)
+            gh.gets["repos/o/r/releases/latest"] = {"id": 6, "tag_name": "v1.1.0"}
+        gh.publish_latest = publish_but_not_latest
+        with self.assertRaises(c.PostPublishProblem):
+            self.publish(gh)
+
+    def test_a_post_publication_failure_exits_2(self):
+        gh = FakeGitHub(self.gets, immutable_after=False)
+        original = c.GitHub
+        c.GitHub = lambda: gh
+        try:
+            code, _, err = run("publish", "--repository", "o/r", "--tag", self.TAG, "--commit", self.COMMIT,
+                               "--run-id", self.RUN_ID, "--candidate", self.out, "--sums-sha256", self.sums_sha(),
+                               "--publish")
+        finally:
+            c.GitHub = original
+        self.assertEqual(code, 2)
+        self.assertIn("MAY BE PUBLISHED", err)
 
 
 class SliceTests(Base):

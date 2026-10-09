@@ -12,7 +12,8 @@
 # at exactly the tagged commit and succeeded, every package was physically
 # accepted, and the downloaded artifact matches the accepted digest. The draft
 # is then checked asset by asset against GitHub's own digests. Publishing it
-# (and marking it latest) is a separate, manual step.
+# and marking it latest happen only through `scripts/release/candidate.py
+# publish`, which checks release immutability and everything above first.
 #
 # The update check downloads firmware-<board>-<package>.bin from the latest
 # release (src/network/OtaAsset.h), so a device stays on the package it runs;

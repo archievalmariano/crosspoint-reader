@@ -14,6 +14,7 @@ Standard library only; every subcommand exits non-zero on the first problem.
     parse-tag       read an annotated release tag's acceptance fields
     check-run       prove a workflow run is this repo's release_candidate.yml at a commit
     verify-release  compare a GitHub release's asset digests with accepted sums
+    publish         the ONLY way to publish: full preflight, then draft -> published + latest
     slice-factory   cut a .factory.bin into the X4 Pro USB flash pieces (NVS untouched)
 
 See docs/RELEASING.md.
@@ -26,6 +27,7 @@ import csv
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -316,6 +318,88 @@ def verify_release(args) -> None:
           f"{len(release['assets'])} assets match {SUMS} sha256 {sha256(sums_bytes)}")
 
 
+# ---- publish ---------------------------------------------------------------
+
+
+class PostPublishProblem(Problem):
+    """The release is already public but does not verify: never silent."""
+
+
+class GitHub:
+    """The few REST calls publish needs, through the authenticated `gh` CLI."""
+
+    def get(self, path: str):
+        out = subprocess.run(["gh", "api", path], check=True, capture_output=True, text=True).stdout
+        return json.loads(out)
+
+    def publish_latest(self, repository: str, release_id: int) -> None:
+        subprocess.run(["gh", "api", "-X", "PATCH", f"repos/{repository}/releases/{release_id}",
+                        "-F", "draft=false", "-f", "make_latest=true"], check=True, capture_output=True, text=True)
+
+
+def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str) -> None:
+    ref = gh.get(f"repos/{repository}/git/ref/tags/{tag}")
+    require((ref.get("object") or {}).get("type") == "tag", f"{tag} is not an annotated tag")
+    obj = gh.get(f"repos/{repository}/git/tags/{ref['object']['sha']}")
+    target = obj.get("object") or {}
+    require(target.get("type") == "commit" and target.get("sha") == commit, f"{tag} does not point at {commit}")
+    fields = parse_tag_message(obj.get("message", ""))
+    require(int(fields["candidate-run"]) == run_id, f"{tag} names run {fields['candidate-run']}, not {run_id}")
+    require(fields["candidate-sums-sha256"] == sums_sha, f"{tag} names a different accepted {SUMS} digest")
+
+
+def find_release(gh, repository: str, tag: str) -> dict:
+    releases = gh.get(f"repos/{repository}/releases?per_page=100")
+    require(isinstance(releases, list) and len(releases) < 100, "cannot list every release in one page")
+    matching = [r for r in releases if r.get("tag_name") == tag]
+    require(len(matching) == 1, f"{len(matching)} releases are tagged {tag}, not exactly one")
+    return matching[0]
+
+
+def publish(args, gh=None) -> None:
+    """Preflight everything, then publish. Any failure before the PATCH changes
+    nothing; a failure after it raises PostPublishProblem (exit 2)."""
+    gh = gh or GitHub()
+    repository, tag, commit, run_id = args.repository, args.tag, args.commit, int(args.run_id)
+    require(re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) is not None, f"{tag} is not a release tag")
+    candidate = Path(args.candidate)
+    # 0. The accepted bytes on this machine are the candidate of that commit and run.
+    verify_dir(argparse.Namespace(dir=candidate, sums_sha256=args.sums_sha256, commit=commit, run_id=run_id,
+                                  support=None))
+    sums_bytes = (candidate / SUMS).read_bytes()
+    sums_sha = sha256(sums_bytes)
+    # 1. Release immutability must already be on, or publishing could leave assets replaceable.
+    setting = gh.get(f"repos/{repository}/immutable-releases")
+    require(setting.get("enabled") is True, "release immutability is not enabled for this repository")
+    # 2. The release: exactly one, still a draft, not a prerelease, its tag the accepted commit.
+    release = find_release(gh, repository, tag)
+    require(release.get("draft") is True, f"{tag} is already published; refusing to republish")
+    require(release.get("prerelease") is False, f"{tag} is a prerelease")
+    check_tag(gh, repository, tag, commit, run_id, sums_sha)
+    # 3. The candidate run, and the draft's assets against the accepted bytes.
+    workflow_id = gh.get(f"repos/{repository}/actions/workflows/release_candidate.yml")["id"]
+    check_run_json(gh.get(f"repos/{repository}/actions/runs/{run_id}"), repository=repository,
+                   workflow_id=workflow_id, commit=commit, branch_prefix=f"release/{tag}")
+    check_release_json(release, sums_bytes, tag=tag, state="draft", require_immutable=False)
+    print(f"preflight OK: {tag} draft {release['id']} = run {run_id} at {commit}, {SUMS} sha256 {sums_sha}")
+    if not args.publish:
+        print("dry run: nothing changed (pass --publish to publish and mark latest)")
+        return
+    # 4. The only state change. From here on, any failure means the release may be public.
+    try:
+        gh.publish_latest(repository, release["id"])
+        # 5. Re-fetch: published, latest, not a prerelease, immutable, same digests.
+        published = gh.get(f"repos/{repository}/releases/{release['id']}")
+        check_release_json(published, sums_bytes, tag=tag, state="published", require_immutable=True)
+        latest = gh.get(f"repos/{repository}/releases/latest")
+        require(latest.get("id") == release["id"] and latest.get("tag_name") == tag, f"latest is {latest.get('tag_name')}")
+        check_tag(gh, repository, tag, commit, run_id, sums_sha)
+    except (Problem, subprocess.CalledProcessError, KeyError, ValueError) as err:
+        detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
+        raise PostPublishProblem(f"{tag} MAY BE PUBLISHED but does not verify; check it now: {detail}") from err
+    print(f"published {tag} as latest: immutable, {len(published['assets'])} assets match the accepted bytes")
+
+
 def slice_factory(args) -> None:
     """The four X4 Pro USB pieces of a factory image (e.g. a published release's),
     so an install writes exactly its bytes and leaves NVS alone."""
@@ -371,6 +455,12 @@ def main(argv=None) -> int:
     g.add_argument("--state", choices=("draft", "published"), required=True)
     g.add_argument("--require-immutable", action="store_true")
     g.set_defaults(func=verify_release)
+    u = sub.add_parser("publish", help="preflight, then (with --publish) publish the draft as latest")
+    for opt in ("repository", "tag", "commit", "run-id", "candidate"):
+        u.add_argument(f"--{opt}", required=True)
+    u.add_argument("--sums-sha256", required=True, help=f"the accepted sha256 of {SUMS}")
+    u.add_argument("--publish", action="store_true", help="after a clean preflight, publish and mark latest")
+    u.set_defaults(func=publish)
     s = sub.add_parser("slice-factory")
     s.add_argument("factory")
     s.add_argument("--out", required=True)
@@ -379,6 +469,12 @@ def main(argv=None) -> int:
     args = p.parse_args(argv)
     try:
         args.func(args)
+    except PostPublishProblem as err:
+        print(f"::error::{err}", file=sys.stderr)
+        return 2
+    except subprocess.CalledProcessError as err:
+        print(f"::error::{' '.join(err.cmd[:4])} failed: {(err.stderr or '').strip()}", file=sys.stderr)
+        return 1
     except (Problem, OSError, ValueError, KeyError) as err:
         print(f"::error::{err}" if not isinstance(err, KeyError) else f"::error::missing {err}", file=sys.stderr)
         return 1
