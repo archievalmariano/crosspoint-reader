@@ -24,9 +24,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import errno
 import hashlib
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -338,29 +341,47 @@ class PublishUncertain(RuntimeError):
 PUBLISH_TIMEOUT_S = 120
 
 
+def exec_failed(err: BaseException, exe: str) -> bool:
+    """True only for an exec of `exe` itself failing: CPython raises the exec
+    errno with the executable as `filename`. A post-fork child-setup failure can
+    raise the same errno but names something else (e.g. a working directory)."""
+    return (isinstance(err, OSError) and err.errno in (errno.ENOENT, errno.EACCES)
+            and err.filename == exe)
+
+
 class GitHub:
     """The few REST calls publish needs, through the authenticated `gh` CLI.
 
     publish_latest returns only when `gh` exits 0. It raises PublishNotApplied
-    only when the `gh` process could not be created: no child ever existed, so
-    nothing was sent. Once the process exists, every other outcome -- any
-    exception while communicating, waiting, decoding or timing out, and any
-    non-zero exit whatever its status or message -- may have been applied and
-    raises PublishUncertain. stderr is never parsed to decide this."""
+    only when `gh` provably never executed: it is not on PATH or not executable
+    (checked before anything is started), or Popen failed to exec exactly that
+    file (ENOENT/EACCES naming it). Every other outcome may have been applied
+    and raises PublishUncertain: any other Popen failure (pipes, fork, a
+    post-fork child-setup error), any exception while communicating, waiting,
+    decoding or timing out, and any non-zero exit whatever its status or
+    message. stderr is never parsed to decide this."""
 
     def get(self, path: str):
         out = subprocess.run(["gh", "api", path], check=True, capture_output=True, text=True).stdout
         return json.loads(out)
 
     def publish_latest(self, repository: str, release_id: int) -> None:
-        argv = ["gh", "api", "-X", "PATCH", f"repos/{repository}/releases/{release_id}",
+        # Phase 0, before anything starts: a gh that cannot be found or executed never runs.
+        exe = shutil.which("gh")
+        if exe is None:
+            raise PublishNotApplied("gh is not on PATH; nothing was run")
+        if not os.access(exe, os.X_OK):
+            raise PublishNotApplied(f"{exe} is not executable; nothing was run")
+        argv = [exe, "api", "-X", "PATCH", f"repos/{repository}/releases/{release_id}",
                 "-F", "draft=false", "-f", "make_latest=true"]
-        # Phase 1, creation: if this raises, no child process exists and nothing was sent.
+        # Phase 1, start: only a failure to exec exactly `exe` proves gh never ran.
         try:
             proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     text=True)
-        except (OSError, ValueError, subprocess.SubprocessError) as err:
-            raise PublishNotApplied(f"could not start gh: {err}") from err
+        except BaseException as err:  # noqa: BLE001 -- classified below; Ctrl-C included
+            if exec_failed(err, exe):
+                raise PublishNotApplied(f"could not execute {exe}: {err}") from err
+            raise PublishUncertain(f"starting gh failed and may have run it ({type(err).__name__}: {err})") from err
         # Phase 2, communication: the request may have reached GitHub from here on.
         try:
             _stdout, stderr = proc.communicate(timeout=PUBLISH_TIMEOUT_S)

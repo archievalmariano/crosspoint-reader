@@ -2,9 +2,12 @@
 
 import argparse
 import copy
+import errno
 import hashlib
 import io
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -561,21 +564,41 @@ def fake_popen(behaviour: dict, record: list):
     return FakeProcess
 
 
+GH = "/opt/test/bin/gh"  # where the fake PATH lookup finds gh
+
+
 class popen_as:  # noqa: N801 -- a context manager used like a function
+    """Fake Popen, plus the PATH lookup (`which`: path or None) and the
+    executable check (`access`: bool) that run before it."""
+
     def __init__(self, behaviour):
         self.behaviour, self.record = behaviour, []
 
     def __enter__(self):
-        self.original = c.subprocess.Popen
+        self.saved = (c.subprocess.Popen, c.shutil.which, c.os.access)
         c.subprocess.Popen = fake_popen(self.behaviour, self.record)
+        c.shutil.which = lambda name: self.behaviour.get("which", GH) if name == "gh" else None
+        c.os.access = lambda path, mode: self.behaviour.get("access", True)
         return self.record
 
     def __exit__(self, *exc):
-        c.subprocess.Popen = self.original
+        c.subprocess.Popen, c.shutil.which, c.os.access = self.saved
         return False
 
 
-STARTUP_FAILURES = (FileNotFoundError("gh"), PermissionError("gh"), OSError("fork failed"), ValueError("bad argv"))
+# Provably never executed: exit 3.
+NO_EXEC = ({"which": None},                                                     # not on PATH
+           {"access": False},                                                   # not executable
+           {"start": FileNotFoundError(errno.ENOENT, "No such file or directory", GH)},
+           {"start": PermissionError(errno.EACCES, "Permission denied", GH)})
+# Popen failures that do not prove gh never ran: exit 2.
+AMBIGUOUS_STARTS = (FileNotFoundError(errno.ENOENT, "No such file or directory", "/some/cwd"),  # post-fork chdir
+                    PermissionError(errno.EACCES, "Permission denied", "/other/gh"),
+                    FileNotFoundError("gh"), PermissionError(errno.EACCES, "Permission denied"),
+                    OSError(errno.ENOEXEC, "Exec format error", GH), OSError(errno.EMFILE, "Too many open files"),
+                    OSError(errno.EAGAIN, "Resource temporarily unavailable"), OSError(errno.ENOMEM, "No memory"),
+                    OSError(), BrokenPipeError(), ValueError("bad argv"), subprocess.SubprocessError("setup"),
+                    KeyboardInterrupt())
 COMMUNICATION_FAILURES = (OSError("read failed"), BrokenPipeError(), ConnectionResetError(),
                           UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
                           subprocess.TimeoutExpired(["gh"], 120), KeyboardInterrupt())
@@ -602,15 +625,24 @@ class GitHubClientTests(unittest.TestCase):
     def test_success_sends_one_patch_with_a_timeout(self):
         err, record = self.call({"rc": 0})
         self.assertIsNone(err)
-        self.assertEqual(record, [("start", ["gh", "api", "-X", "PATCH", "repos/o/r/releases/7", "-F", "draft=false",
+        self.assertEqual(record, [("start", [GH, "api", "-X", "PATCH", "repos/o/r/releases/7", "-F", "draft=false",
                                              "-f", "make_latest=true"]), ("communicate", c.PUBLISH_TIMEOUT_S)])
 
-    def test_a_process_that_was_never_created_is_not_applied(self):
-        for failure in STARTUP_FAILURES:
-            with self.subTest(failure=repr(failure)):
-                err, record = self.call({"start": failure})
+    def test_gh_that_provably_never_executed_is_not_applied(self):
+        for behaviour in NO_EXEC:
+            with self.subTest(behaviour=repr(behaviour)):
+                err, record = self.call(behaviour)
                 self.assertIsInstance(err, c.PublishNotApplied)
-                self.assertEqual([r[0] for r in record], ["start"])
+                self.assertLessEqual(len(record), 1)  # at most the failed start
+        self.assertEqual(self.call({"which": None})[1], [])   # nothing is started at all
+        self.assertEqual(self.call({"access": False})[1], [])
+
+    def test_an_ambiguous_start_failure_is_uncertain(self):
+        for failure in AMBIGUOUS_STARTS:
+            with self.subTest(failure=repr(failure)):
+                err, _ = self.call({"start": failure})
+                self.assertIsInstance(err, c.PublishUncertain)
+                self.assertNotIsInstance(err, c.PublishNotApplied)
 
     def test_any_failure_after_the_process_started_is_uncertain(self):
         for failure in COMMUNICATION_FAILURES:
@@ -631,6 +663,34 @@ class GitHubClientTests(unittest.TestCase):
 REAL_GITHUB = c.GitHub  # PublishTests.main swaps c.GitHub out for the fake
 
 
+class ExecFailureSemanticsTests(unittest.TestCase):
+    """exec_failed against real Popen errors on this platform."""
+
+    def popen_error(self, argv, **kwargs):
+        try:
+            subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs).wait()
+        except OSError as err:
+            return err
+        self.fail("Popen did not raise")
+
+    def test_a_missing_or_non_executable_file_is_an_exec_failure(self):
+        with tempfile.TemporaryDirectory() as d:
+            missing = os.path.join(d, "gh")
+            self.assertTrue(c.exec_failed(self.popen_error([missing]), missing))
+            with open(missing, "w") as f:
+                f.write("#!/bin/sh\nexit 0\n")
+            os.chmod(missing, 0o644)
+            self.assertTrue(c.exec_failed(self.popen_error([missing]), missing))
+
+    def test_a_post_fork_setup_failure_is_not(self):
+        true = shutil.which("true")
+        with tempfile.TemporaryDirectory() as d:
+            err = self.popen_error([true], cwd=os.path.join(d, "absent"))
+        self.assertEqual(err.errno, errno.ENOENT)  # the same errno as a missing executable...
+        self.assertFalse(c.exec_failed(err, true))  # ...but it does not name the executable
+
+
+
 class ClientGitHub(FakeGitHub):
     """Canned GETs, but the publication request goes through the real client
     (over a fake Popen), so its classification reaches the exit status."""
@@ -648,13 +708,20 @@ class PublishRequestExitTests(PublishBase):
             code, err = self.main(gh)
         return code, err, gh
 
-    def test_startup_failure_exits_3(self):
-        for failure in STARTUP_FAILURES:
-            with self.subTest(failure=repr(failure)):
-                code, err, _ = self.exit_for({"start": failure})
+    def test_gh_missing_or_not_executable_exits_3(self):
+        for behaviour in NO_EXEC:
+            with self.subTest(behaviour=repr(behaviour)):
+                code, err, _ = self.exit_for(behaviour)
                 self.assertEqual(code, 3, err)
                 self.assertIn("not published", err)
                 self.assertNotIn("MAY BE PUBLISHED", err)
+
+    def test_an_ambiguous_start_failure_exits_2(self):
+        for failure in AMBIGUOUS_STARTS:
+            with self.subTest(failure=repr(failure)):
+                code, err, _ = self.exit_for({"start": failure})
+                self.assertEqual(code, 2, err)
+                self.assertIn("MAY BE PUBLISHED", err)
 
     def test_communication_failures_after_start_exit_2(self):
         for failure in COMMUNICATION_FAILURES:

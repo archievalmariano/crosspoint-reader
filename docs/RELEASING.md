@@ -134,9 +134,13 @@ X4 Pro is installed only over USB.
    Exit status:
    - **0:** one of two things. Without `--publish`, the preflight passed and nothing was requested or changed; the release is still a draft. With `--publish`, the release was published, is latest and immutable, and verified.
    - **1:** a preflight failure. Nothing was requested and nothing changed.
-   - **3:** the `gh` process for the publication request could not be created. No child process ever existed, so nothing was sent and nothing changed. This is the only "not published" outcome.
-   - **2, "MAY BE PUBLISHED":** the request may have reached GitHub and the outcome is not verified. Once the `gh` process exists, this covers any of:
-     - any exception (communication, pipe, decoding, timeout, interruption);
+   - **3:** the publication command could not execute at all, so nothing was sent and nothing changed. This is the only "not published" outcome, and it needs proof of one of:
+     - `gh` is not on `PATH`;
+     - `gh` is not executable;
+     - starting it failed to exec exactly that file (`ENOENT`/`EACCES` naming it).
+   - **2, "MAY BE PUBLISHED":** the request may have reached GitHub and the outcome is not verified. This covers any of:
+     - any other failure to start `gh` (pipes, fork, child setup, an interruption), since it does not prove `gh` never ran;
+     - once `gh` runs, any exception (communication, pipe, decoding, timeout, interruption);
      - any non-zero exit, whatever HTTP status or message `gh` reports (a 4xx included, since its error text cannot prove the request was not applied);
      - any failure after a successful request.
 
