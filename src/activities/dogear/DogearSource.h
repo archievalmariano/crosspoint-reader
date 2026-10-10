@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DogearIssue.h"
+#include "DogearState.h"
 
 // Where the loaded issue came from (same semantics as GOTO's edition origin):
 //   Network      - downloaded and hash-verified this session.
@@ -9,11 +10,17 @@
 //   None         - no readable issue anywhere. There is no compiled-in issue.
 enum class DogearOrigin { Network, CacheCurrent, CacheStale, None };
 
+struct DogearLoad {
+  DogearOrigin origin = DogearOrigin::None;
+  dogear_state::Screen screen = dogear_state::Screen::CantLoad;  // see DogearState.h
+};
+
 // Load the current issue once per reading session, offline-first:
 //   1. Network, only if Wi-Fi is already up: GET <server>/current.json, then the
 //      issue it names unless the SD copy has the same SHA-256. A download is
 //      verified against that hash and parsed before it replaces the cache.
 //   2. SD cache (/dogear/active.txt -> /dogear/issues/<id>.<sha16>.json).
-DogearOrigin loadCurrentDogearIssue(DogearIssue& out);
+//   3. No readable issue: one of the status screens, by dogear_state::choose.
+DogearLoad loadCurrentDogearIssue(DogearIssue& out);
 
 bool dogearWifiConnected();

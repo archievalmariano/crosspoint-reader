@@ -99,9 +99,13 @@ void DogearActivity::onEnter() {
 }
 
 void DogearActivity::loadIssue() {
-  origin = loadCurrentDogearIssue(issue);
-  loaded = origin != DogearOrigin::None && !issue.entries.empty();
+  const DogearLoad load = loadCurrentDogearIssue(issue);
+  origin = load.origin;
+  screen = load.screen;
+  loaded = !dogear_state::isStatus(screen) && !issue.entries.empty();
   if (loaded) layoutIssue();
+  // An issue that parsed but cannot be laid out is one DOGEAR could not load.
+  if (!loaded && !dogear_state::isStatus(screen)) screen = dogear_state::Screen::CantLoad;
   index = 0;
   showingQr = false;
   firstRender = true;
@@ -656,13 +660,40 @@ void DogearActivity::drawReadingQr(const DogearEntry& e) {
   if (!cta.note.empty()) renderer.drawCenteredText(kMeta, y, cta.note.c_str());
 }
 
+// A status screen (no readable issue anywhere): the issue masthead with
+// DOGEAR's own label and strapline, the heading and note in the Quiet A cover's
+// treatment, and a footer with only BACK. No pager and no marker.
+void DogearActivity::drawStatus() {
+  StrId heading = StrId::STR_DOGEAR_CANT_LOAD;
+  StrId note = StrId::STR_DOGEAR_CANT_LOAD_NOTE;
+  dogear_state::statusCopy(screen, heading, note);
+  const int width = renderer.getScreenWidth() - 2 * kMargin;
+  int y = kTopSafe;
+  renderer.drawText(kSans18, kMargin, y, tr(STR_DOGEAR), true, EpdFontFamily::BOLD, BidiUtils::BidiBaseDir::AUTO, 6);
+  y += renderer.getLineHeight(kSans18) + 2;
+  renderer.drawText(kSerif12, kMargin, y, tr(STR_DOGEAR_STRAPLINE), true, EpdFontFamily::ITALIC);
+  y += renderer.getLineHeight(kSerif12) + 12;
+  fillRule(renderer, y, kFeaturedRule, kMargin, kMargin + width);
+  y += kFeaturedRule + 14;
+  renderer.drawText(kSans14, kMargin, y, I18n::getInstance().get(heading), true, EpdFontFamily::BOLD,
+                    BidiUtils::BidiBaseDir::AUTO, 2);
+  y += renderer.getLineHeight(kSans14) + 2;
+  for (const auto& line : wrap(kSerif12, I18n::getInstance().get(note), 4, EpdFontFamily::ITALIC)) {
+    renderer.drawText(kSerif12, kMargin, y, line.c_str(), true, EpdFontFamily::ITALIC);
+    y += renderer.getLineHeight(kSerif12);
+  }
+  const std::string back = upperAscii(tr(STR_BACK));
+  drawFooter(back.c_str(), true, nullptr);
+}
+
 void DogearActivity::render(RenderLock&&) {
   actionTapValid = false;
   renderer.clearScreen();
 
   if (!loaded || screenCount == 0) {
-    renderer.drawCenteredText(kSans14, renderer.getScreenHeight() / 2, tr(STR_DOGEAR_NO_ISSUE));
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    drawStatus();
+    renderer.displayBuffer(firstRender ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+    firstRender = false;
     return;
   }
 

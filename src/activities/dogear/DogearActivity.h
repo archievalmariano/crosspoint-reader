@@ -36,6 +36,7 @@ class DogearActivity final : public Activity {
   int index = 0;
   bool loaded = false;
   DogearOrigin origin = DogearOrigin::None;
+  dogear_state::Screen screen = dogear_state::Screen::CantLoad;
 
   bool showingQr = false;     // the current item's reading view
   bool cleanRefresh = false;  // one HALF_REFRESH after a QR screen, against ghosting
@@ -75,6 +76,7 @@ class DogearActivity final : public Activity {
   void drawItem(const dogear_pages::Screen& s);
   void drawFinal();
   void drawReadingQr(const DogearEntry& e);
+  void drawStatus();  // NO ISSUE YET, NO ISSUE ON THIS DEVICE, CAN'T LOAD AN ISSUE
 
  public:
   DogearActivity(GfxRenderer& renderer, MappedInputManager& mappedInput) : Activity("Dogear", renderer, mappedInput) {}

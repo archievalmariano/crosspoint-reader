@@ -93,7 +93,7 @@ class SdFiles final : public dogear_cache::FileOps {
   }
 };
 
-struct Manifest {
+struct ServerManifest {
   std::string issueId;
   std::string issuePath;
   std::string issueSha;
@@ -101,7 +101,7 @@ struct Manifest {
 
 // The server's current.json: all three fields required and checked (the id
 // names a cache file; the hash is the issue's identity).
-bool parseServerManifest(const std::string& json, Manifest& m) {
+bool parseServerManifest(const std::string& json, ServerManifest& m) {
   JsonDocument doc;
   if (deserializeJson(doc, json)) return false;
   m.issueId = doc["issueId"] | "";
@@ -121,19 +121,29 @@ bool parseGeneration(const dogear_cache::Generation& g, DogearIssue& out) {
 }
 
 // Network path. True when `out` holds an issue confirmed current this session.
-bool loadFromNetwork(dogear_cache::Cache& cache, DogearIssue& out, DogearOrigin& origin) {
+// `manifest` records what /current.json gave.
+bool loadFromNetwork(dogear_cache::Cache& cache, DogearIssue& out, DogearOrigin& origin,
+                     dogear_state::Manifest& manifest) {
+  using dogear_state::Manifest;
   std::string manifestJson;
   const auto got = dogear_https::get(std::string(kServerBase) + "/current.json", manifestJson,
                                      dogear_limits::kMaxManifestBytes, dogear_https::Fetch::Manifest);
+  if (got == dogear_https::Result::NothingPublished) {
+    manifest = Manifest::NothingPublished;
+    return false;
+  }
   if (got != dogear_https::Result::Ok) {
+    manifest = Manifest::Failed;
     LOG_ERR("DOGEAR", "current.json: %s", dogear_https::describe(got));
     return false;
   }
-  Manifest m;
+  ServerManifest m;
   if (!parseServerManifest(manifestJson, m)) {
+    manifest = Manifest::Failed;
     LOG_ERR("DOGEAR", "current.json invalid");
     return false;
   }
+  manifest = Manifest::Ok;
 
   // Unchanged: the active generation is reused only if its bytes still hash to
   // the server's SHA-256 and parse as that issue.
@@ -175,23 +185,32 @@ bool loadFromNetwork(dogear_cache::Cache& cache, DogearIssue& out, DogearOrigin&
 
 bool dogearWifiConnected() { return wifiUp(); }
 
-DogearOrigin loadCurrentDogearIssue(DogearIssue& out) {
+DogearLoad loadCurrentDogearIssue(DogearIssue& out) {
   SdFiles files;
   dogear_cache::Cache cache(files, sha256Hex);
-  DogearOrigin origin = DogearOrigin::None;
-  if (wifiUp() && loadFromNetwork(cache, out, origin)) return origin;
-
-  // Offline (or the server failed): the newest generation that verifies and
-  // parses: active, an interrupted replacement, then previous.
-  dogear_cache::Generation g;
-  const char* manifest = dogear_cache::loadNewestReadable(
-      cache, g, [&out](const dogear_cache::Generation& gen) { return parseGeneration(gen, out); });
-  if (manifest != nullptr) {
-    LOG_INF("DOGEAR", "issue %s from SD (%s, verified)", g.issueId.c_str(), manifest);
-    return DogearOrigin::CacheStale;
+  DogearLoad load;
+  const bool online = wifiUp();
+  dogear_state::Manifest manifest = dogear_state::Manifest::NotTried;
+  if (online && loadFromNetwork(cache, out, load.origin, manifest)) {
+    load.screen = dogear_state::choose(online, manifest, true, false);
+    return load;
   }
-  LOG_INF("DOGEAR", "no readable issue (no network issue, no verified cache)");
-  return DogearOrigin::None;
+
+  // Offline (or the server failed, or has published nothing): the newest
+  // generation that verifies and parses: active, an interrupted replacement,
+  // then previous.
+  dogear_cache::Generation g;
+  const char* loaded = dogear_cache::loadNewestReadable(
+      cache, g, [&out](const dogear_cache::Generation& gen) { return parseGeneration(gen, out); });
+  if (loaded != nullptr) {
+    LOG_INF("DOGEAR", "issue %s from SD (%s, verified)", g.issueId.c_str(), loaded);
+    load.origin = DogearOrigin::CacheStale;
+  } else {
+    LOG_INF("DOGEAR", "no readable issue (no network issue, no verified cache)");
+    load.origin = DogearOrigin::None;
+  }
+  load.screen = dogear_state::choose(online, manifest, false, loaded != nullptr);
+  return load;
 }
 
 #endif  // DOGEAR_ENABLED
