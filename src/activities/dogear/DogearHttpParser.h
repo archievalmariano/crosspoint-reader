@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -68,8 +69,8 @@ class ResponseParser {
   void fail() { state = State::Error; }
 
   static std::string lower(std::string s) {
-    for (char& c : s)
-      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; });
     return s;
   }
   static std::string trim(const std::string& s) {

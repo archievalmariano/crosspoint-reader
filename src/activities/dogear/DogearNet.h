@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <ctime>
 #include <string>
@@ -94,8 +95,8 @@ inline bool isPrivateLanHost(const std::string& host) {
 // Strict absolute http(s) URL: no userinfo, no spaces or control characters,
 // an explicit port in 1-65535 if given.
 inline bool parseUrl(const std::string& s, Url& out) {
-  for (const char c : s) {
-    if (static_cast<unsigned char>(c) <= 0x20 || c == 0x7f) return false;
+  if (std::any_of(s.begin(), s.end(), [](char c) { return static_cast<unsigned char>(c) <= 0x20 || c == 0x7f; })) {
+    return false;
   }
   size_t rest;
   if (s.rfind("https://", 0) == 0) {
