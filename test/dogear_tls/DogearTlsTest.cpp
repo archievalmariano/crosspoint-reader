@@ -212,19 +212,21 @@ TEST(DogearTlsLive, ProductionRootsVerifyRealHosts) {
 
 // ---- the issue a verified generation must contain ----
 
-TEST(DogearVerifiedIssue, MustBeTheIssueItsManifestNames) {
-  DogearIssue builtin;
-  ASSERT_TRUE(loadBuiltinDogearIssue(builtin));
-  std::ifstream f(DOGEAR_BUILTIN_HEADER);
+// The synthetic regular issue (schema 2, 4 items): one week of the public staging
+// fixture, test data only. No firmware image contains it.
+std::string regularBytes() {
+  std::ifstream f(DOGEAR_REGULAR_FIXTURE, std::ios::binary);
   std::stringstream ss;
   ss << f.rdbuf();
-  const std::string header = ss.str();
-  const size_t a = header.find("R\"DOGEARJSON(") + 13, b = header.rfind(")DOGEARJSON\"");
-  ASSERT_LT(a, b);
-  const std::string bytes = header.substr(a, b - a);
+  return ss.str();
+}
+
+TEST(DogearVerifiedIssue, MustBeTheIssueItsManifestNames) {
+  const std::string bytes = regularBytes();
+  ASSERT_FALSE(bytes.empty());
   DogearIssue issue;
   EXPECT_TRUE(parseVerifiedIssue(bytes, "dogear-2026-11-23", issue));
-  EXPECT_EQ(issue.entries.size(), builtin.entries.size());
+  EXPECT_EQ(issue.entries.size(), 4u);
   EXPECT_FALSE(parseVerifiedIssue(bytes, "dogear-2026-11-30", issue));                              // wrong issue id
   EXPECT_FALSE(parseVerifiedIssue(bytes.substr(0, bytes.size() / 2), "dogear-2026-11-23", issue));  // truncated
   EXPECT_FALSE(parseVerifiedIssue("{}", "dogear-2026-11-23", issue));
@@ -232,21 +234,12 @@ TEST(DogearVerifiedIssue, MustBeTheIssueItsManifestNames) {
 
 // ---- issue schemas: 2 (regular) and 3 (a quiet week) -------------------------
 
-std::string builtinBytes() {
-  std::ifstream f(DOGEAR_BUILTIN_HEADER);
-  std::stringstream ss;
-  ss << f.rdbuf();
-  const std::string header = ss.str();
-  const size_t a = header.find("R\"DOGEARJSON(") + 13, b = header.rfind(")DOGEARJSON\"");
-  return header.substr(a, b - a);
-}
-
-// A quiet issue (schema 3) built from the built-in issue: `items` entries (the
-// built-in ones, repeated under new ids if needed), the first `featured` of them
+// A quiet issue (schema 3) built from the regular fixture: `items` entries (the
+// fixture's, repeated under new ids if needed), the first `featured` of them
 // featured, the approved copy. `tweak` then breaks one thing.
 std::string quietIssue(size_t items, size_t featured, const std::function<void(JsonDocument&)>& tweak = nullptr) {
   JsonDocument doc;
-  if (deserializeJson(doc, builtinBytes())) return "";
+  if (deserializeJson(doc, regularBytes())) return "";
   doc["schemaVersion"] = 3;
   doc["quiet"]["heading"] = dogear_limits::kQuietHeading;
   doc["quiet"]["note"] = dogear_limits::kQuietNote;
@@ -273,7 +266,7 @@ bool readable(const std::string& json) {
 
 TEST(DogearIssueSchema, RegularAndQuietIssuesAreRead) {
   DogearIssue issue;
-  ASSERT_TRUE(parseDogearIssue(builtinBytes().c_str(), issue));  // schema 2, 6 items
+  ASSERT_TRUE(parseDogearIssue(regularBytes().c_str(), issue));  // schema 2, 4 items
   EXPECT_FALSE(issue.quiet);
   EXPECT_TRUE(issue.quietHeading.empty() && issue.quietNote.empty());
   ASSERT_TRUE(parseDogearIssue(quietIssue(4, 1).c_str(), issue));
@@ -313,7 +306,7 @@ TEST(DogearIssueSchema, QuietCopyMustBeExactlyTheApprovedCopy) {
   }
   // A regular issue may not carry quiet copy at all, even the approved copy.
   JsonDocument regular;
-  ASSERT_FALSE(deserializeJson(regular, builtinBytes()));
+  ASSERT_FALSE(deserializeJson(regular, regularBytes()));
   regular["quiet"]["heading"] = H;
   regular["quiet"]["note"] = N;
   std::string withQuiet;
@@ -407,7 +400,7 @@ dogear_cache::Generation generation(const std::string& bytes) {
 
 TEST(DogearQuietDownload, AnUnreadableQuietIssueIsNeverCachedAndTheReadableOneStays) {
   const auto renamed = [](const char* id) { return [id](JsonDocument& d) { d["issueId"] = id; }; };
-  const std::string regular = builtinBytes();  // dogear-2026-11-23, schema 2
+  const std::string regular = regularBytes();  // dogear-2026-11-23, schema 2
   const std::string badCopy = quietIssue(4, 1, [&](JsonDocument& d) {
     renamed("dogear-2026-11-30")(d);
     d["quiet"]["note"] = "Something else entirely.";

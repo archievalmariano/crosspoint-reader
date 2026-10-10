@@ -190,10 +190,7 @@ DogearOrigin loadCurrentDogearIssue(DogearIssue& out) {
     LOG_INF("DOGEAR", "issue %s from SD (%s, verified)", g.issueId.c_str(), manifest);
     return DogearOrigin::CacheStale;
   }
-  if (loadBuiltinDogearIssue(out)) {
-    LOG_INF("DOGEAR", "compiled-in sample issue (no network, no verified cache)");
-    return DogearOrigin::Builtin;
-  }
+  LOG_INF("DOGEAR", "no readable issue (no network issue, no verified cache)");
   return DogearOrigin::None;
 }
 

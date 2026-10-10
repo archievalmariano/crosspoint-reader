@@ -10,10 +10,6 @@ lib/I18n/I18nKeys.h
 lib/I18n/I18nStrings.h
 lib/I18n/I18nStrings.cpp
 *.generated.h
-# Exception: the DOGEAR fallback issue is committed so the firmware builds
-# without a regen step (regenerate with
-# src/activities/dogear/tools/embed_issue.py).
-!src/activities/dogear/DogearBuiltinIssue.generated.h
 .vs
 build
 **/__pycache__/

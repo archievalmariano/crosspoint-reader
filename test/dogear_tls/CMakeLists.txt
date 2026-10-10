@@ -45,6 +45,6 @@ target_include_directories(DogearTlsTest PRIVATE
 )
 target_compile_definitions(DogearTlsTest PRIVATE
   DOGEAR_TLS_HOST_TEST DOGEAR_ENABLED DOGEAR_TEST_CERTS="${DOGEAR_CERT_DIR}"
-  DOGEAR_BUILTIN_HEADER="${REPO_ROOT}/src/activities/dogear/DogearBuiltinIssue.generated.h")
+  DOGEAR_REGULAR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/regular-issue.json")
 target_link_libraries(DogearTlsTest PRIVATE crosspoint_test_common dogear_host_wolfssl GTest::gtest_main)
 gtest_discover_tests(DogearTlsTest)

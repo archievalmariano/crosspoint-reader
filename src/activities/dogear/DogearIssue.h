@@ -58,6 +58,3 @@ bool parseDogearIssue(const char* json, DogearIssue& out);
 // Parse bytes whose SHA-256 the caller has already checked, and require the
 // issue to be the one its manifest names.
 bool parseVerifiedIssue(const std::string& verifiedBytes, const std::string& expectedIssueId, DogearIssue& out);
-
-// The compiled-in sample issue (used only with no network and no SD cache).
-bool loadBuiltinDogearIssue(DogearIssue& out);

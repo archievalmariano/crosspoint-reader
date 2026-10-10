@@ -9,7 +9,6 @@
 #include <cstring>
 #include <utility>
 
-#include "DogearBuiltinIssue.generated.h"
 #include "DogearLimits.h"
 
 namespace {
@@ -183,7 +182,5 @@ bool parseVerifiedIssue(const std::string& verifiedBytes, const std::string& exp
   out = std::move(issue);
   return true;
 }
-
-bool loadBuiltinDogearIssue(DogearIssue& out) { return parseDogearIssue(kDogearBuiltinIssueJson, out); }
 
 #endif  // DOGEAR_ENABLED
