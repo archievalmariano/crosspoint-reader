@@ -22,7 +22,6 @@ namespace {
 
 constexpr uint32_t kTimeoutMs = 15000;
 constexpr uint32_t kClockSyncWaitMs = 6000;
-constexpr size_t kReadChunk = 256;  // the stack-buffer guideline
 
 // wolfSSL I/O over a WiFiClient, as in SecureNet's SecureClient.
 int ioSend(WOLFSSL*, char* buf, int sz, void* ctx) {
@@ -119,17 +118,18 @@ class Connection {
     return true;
   }
 
-  // >0 bytes read, 0 nothing yet, <0 closed or failed.
+  // >0 bytes read, 0 nothing yet, dogear_http::kReadClosed (a clean end) or
+  // dogear_http::kReadFailed (an error; never the end of a response).
   int receive(char* buf, size_t len) {
-    if (!ssl) {
-      if (tcp.available() > 0) return tcp.read(reinterpret_cast<uint8_t*>(buf), len);
-      return tcp.connected() ? 0 : -1;
+    if (!ssl) {  // plain HTTP: LAN dev builds only
+      if (tcp.available() > 0) {
+        const int n = tcp.read(reinterpret_cast<uint8_t*>(buf), len);
+        return n > 0 ? n : 0;
+      }
+      return tcp.connected() ? 0 : dogear_http::kReadClosed;
     }
     const int n = wolfSSL_read(ssl, buf, static_cast<int>(len));
-    if (n > 0) return n;
-    const int err = wolfSSL_get_error(ssl, n);
-    if (wantIo(err)) return tcp.connected() || tcp.available() > 0 ? 0 : -1;
-    return -1;  // close_notify or failure
+    return dogear_tls::readResult(ssl, n, tcp.connected() || tcp.available() > 0);
   }
 
   void close() {
@@ -189,29 +189,26 @@ Result get(const std::string& startUrl, std::string& out, size_t maxBytes, Fetch
     if (!conn.send(request)) return Result::HttpError;
 
     dogear_http::ResponseParser parser(maxBytes);
-    char buf[kReadChunk];
     uint32_t lastData = millis();
-    bool eof = false;
-    while (!parser.done() && !parser.failed()) {
-      // A redirect needs only its headers.
-      if (parser.headersDone() && parser.isRedirect()) break;
-      const int n = conn.receive(buf, sizeof(buf));
-      if (n > 0) {
-        lastData = millis();
-        if (!parser.feed(buf, static_cast<size_t>(n))) break;
-      } else if (n < 0) {
-        eof = true;
-        break;
-      } else if (millis() - lastData > kTimeoutMs) {
-        break;
-      } else {
-        delay(2);
-      }
+    const auto end = dogear_http::readResponse(
+        parser,
+        [&](char* buf, size_t len) {
+          const int n = conn.receive(buf, len);
+          if (n > 0) lastData = millis();
+          return n;
+        },
+        [&] {
+          if (millis() - lastData > kTimeoutMs) return false;
+          delay(2);
+          return true;
+        });
+    if (end == dogear_http::StreamEnd::Failed) {
+      LOG_ERR("DOGEAR", "read from %s failed", url.host.c_str());
+      return url.https ? Result::TlsFailed : Result::HttpError;
     }
-    if (eof) parser.finishAtEof();
     // `conn` is a verified TLS connection here (or, in a LAN dev build only, the
     // configured plain-HTTP LAN origin): open() refused anything else.
-    const auto outcome = dogear_http::classify(parser, fetch == Fetch::Manifest && hop == 0);
+    const auto outcome = dogear_http::classify(parser, end, fetch == Fetch::Manifest && hop == 0);
     if (outcome == dogear_http::Outcome::NothingPublished) {
       LOG_INF("DOGEAR", "GET %s: nothing published yet", url.path.c_str());
       return Result::NothingPublished;

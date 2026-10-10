@@ -170,6 +170,149 @@ TEST(DogearTls, FailsClosedWhenTrustCannotBeSetUp) {
   EXPECT_FALSE(o.connected);
 }
 
+// ---- reading a response over verified TLS: how the stream ended ------------
+
+// A verified DOGEAR client and a test server, connected over a socket pair.
+class Session {
+ public:
+  Session() {
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) return;
+    fcntl(sv[0], F_SETFL, O_NONBLOCK);
+    fcntl(sv[1], F_SETFL, O_NONBLOCK);
+    sctx = wolfSSL_CTX_new(wolfSSLv23_server_method());
+    cctx = wolfSSL_CTX_new(wolfSSLv23_client_method());
+    const std::string leaf = cert("good.pem"), key = cert("good.key"), roots = cert("root.pem");
+    wolfSSL_CTX_use_certificate_buffer(sctx, reinterpret_cast<const unsigned char*>(leaf.data()),
+                                       static_cast<long>(leaf.size()), WOLFSSL_FILETYPE_PEM);
+    wolfSSL_CTX_use_PrivateKey_buffer(sctx, reinterpret_cast<const unsigned char*>(key.data()),
+                                      static_cast<long>(key.size()), WOLFSSL_FILETYPE_PEM);
+    if (!dogear_tls::configureContext(cctx, roots.data(), roots.size())) return;
+    server = wolfSSL_new(sctx);
+    client = wolfSSL_new(cctx);
+    if (!dogear_tls::configureSession(client, "dogear.test")) return;
+    wolfSSL_set_fd(client, sv[0]);
+    wolfSSL_set_fd(server, sv[1]);
+    bool serverDone = false;
+    for (int i = 0; i < 1000 && !connected; ++i) {
+      connected = wolfSSL_connect(client) == WOLFSSL_SUCCESS;
+      if (!serverDone) serverDone = wolfSSL_accept(server) == WOLFSSL_SUCCESS;
+    }
+    for (int i = 0; i < 100 && !serverDone; ++i) serverDone = wolfSSL_accept(server) == WOLFSSL_SUCCESS;
+    connected = connected && serverDone;
+  }
+  ~Session() {
+    if (client) wolfSSL_free(client);
+    if (server) wolfSSL_free(server);
+    if (cctx) wolfSSL_CTX_free(cctx);
+    if (sctx) wolfSSL_CTX_free(sctx);
+    for (const int fd : sv)
+      if (fd >= 0) close(fd);
+  }
+  void send(const std::string& data) {
+    size_t sent = 0;
+    for (int i = 0; i < 1000 && sent < data.size(); ++i) {
+      const int n = wolfSSL_write(server, data.data() + sent, static_cast<int>(data.size() - sent));
+      if (n > 0) sent += static_cast<size_t>(n);
+    }
+    ASSERT_EQ(sent, data.size());
+  }
+  void closeNotify() { wolfSSL_shutdown(server); }
+  void cut() {  // the server's end goes away with no close_notify
+    close(sv[1]);
+    sv[1] = -1;
+  }
+  void injectGarbage() {  // bytes that are not a valid TLS record
+    const char junk[] = "\x17\x03\x03\x00\x20garbage garbage garbage garbage!";
+    ASSERT_GT(write(sv[1], junk, sizeof(junk) - 1), 0);
+  }
+  // Read one response as dogear_https::get does, and classify it.
+  dogear_http::Outcome read(dogear_http::StreamEnd* endOut = nullptr) {
+    dogear_http::ResponseParser parser(4096);
+    int idle = 0;
+    const auto end = dogear_http::readResponse(
+        parser,
+        [&](char* buf, size_t len) {
+          return dogear_tls::readResult(client, wolfSSL_read(client, buf, static_cast<int>(len)), true);
+        },
+        [&] { return ++idle < 200; });
+    if (endOut) *endOut = end;
+    return dogear_http::classify(parser, end, true);
+  }
+  WOLFSSL* clientSsl() { return client; }
+  bool connected = false;
+
+ private:
+  int sv[2] = {-1, -1};
+  WOLFSSL_CTX* sctx = nullptr;
+  WOLFSSL_CTX* cctx = nullptr;
+  WOLFSSL* server = nullptr;
+  WOLFSSL* client = nullptr;
+};
+
+const std::string kExactCloseDelimited =
+    "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\nnothing published\n";
+const std::string kExactWithLength =
+    "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 18\r\nConnection: close\r\n\r\nnothing published\n";
+
+TEST(DogearTlsRead, AReadFailureAfterTheExactBodyIsNotNothingPublished) {
+  Session s;
+  ASSERT_TRUE(s.connected);
+  s.send(kExactCloseDelimited);
+  s.cut();  // a TLS read failure: the connection ends without close_notify
+  dogear_http::StreamEnd end;
+  EXPECT_EQ(s.read(&end), dogear_http::Outcome::Error);
+  EXPECT_EQ(end, dogear_http::StreamEnd::Failed);
+}
+
+TEST(DogearTlsRead, ACorruptRecordAfterTheExactBodyIsNotNothingPublished) {
+  Session s;
+  ASSERT_TRUE(s.connected);
+  s.send(kExactCloseDelimited);
+  s.injectGarbage();
+  dogear_http::StreamEnd end;
+  EXPECT_EQ(s.read(&end), dogear_http::Outcome::Error);
+  EXPECT_EQ(end, dogear_http::StreamEnd::Failed);
+}
+
+TEST(DogearTlsRead, EvenACleanCloseCannotFrameNothingPublished) {
+  Session s;
+  ASSERT_TRUE(s.connected);
+  s.send(kExactCloseDelimited);
+  s.closeNotify();
+  dogear_http::StreamEnd end;
+  EXPECT_EQ(s.read(&end), dogear_http::Outcome::Error);  // close-delimited: no explicit framing
+  EXPECT_EQ(end, dogear_http::StreamEnd::Closed);
+}
+
+TEST(DogearTlsRead, ExplicitFramingIsNothingPublishedAndACutBeforeItsEndIsNot) {
+  {
+    Session s;
+    ASSERT_TRUE(s.connected);
+    s.send(kExactWithLength);  // as production serves it
+    s.cut();
+    EXPECT_EQ(s.read(), dogear_http::Outcome::NothingPublished);  // complete before the cut is read
+  }
+  {
+    Session s;
+    ASSERT_TRUE(s.connected);
+    s.send(kExactWithLength.substr(0, kExactWithLength.size() - 1));  // one byte short
+    s.cut();
+    dogear_http::StreamEnd end;
+    EXPECT_EQ(s.read(&end), dogear_http::Outcome::Error);
+    EXPECT_EQ(end, dogear_http::StreamEnd::Failed);
+  }
+}
+
+TEST(DogearTlsRead, ReadResultWaitsOnlyWhileTheTransportIsOpen) {
+  Session s;
+  ASSERT_TRUE(s.connected);
+  char buf[8];
+  // Nothing sent yet: wait while the transport is open, fail once it is not.
+  EXPECT_EQ(dogear_tls::readResult(s.clientSsl(), wolfSSL_read(s.clientSsl(), buf, sizeof(buf)), true), 0);
+  EXPECT_EQ(dogear_tls::readResult(s.clientSsl(), wolfSSL_read(s.clientSsl(), buf, sizeof(buf)), false),
+            dogear_http::kReadFailed);
+}
+
 // Opt-in: DOGEAR_TLS_LIVE=1 checks the production roots against real hosts on
 // the platforms DOGEAR would use (Cloudflare Pages: GTS; GitHub Pages: Let's
 // Encrypt), with this wolfSSL build, including the P-384 GTS Root R4 chain.

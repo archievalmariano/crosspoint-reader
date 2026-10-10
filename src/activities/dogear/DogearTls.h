@@ -2,6 +2,8 @@
 
 #include <cstddef>
 
+#include "DogearHttpParser.h"
+
 // DOGEAR's TLS trust policy, applied to a wolfSSL client. Plain wolfSSL calls,
 // no Arduino, so the host tests run this exact code against real certificates.
 //
@@ -15,5 +17,11 @@ namespace dogear_tls {
 // callers.
 bool configureContext(void* ctx, const char* rootsPem, size_t rootsLen);
 bool configureSession(void* ssl, const char* host);
+
+// One wolfSSL_read result as a transport receive value (DogearHttpParser.h):
+// bytes (>0), 0 for nothing yet, dogear_http::kReadClosed only for the peer's
+// close_notify, and dogear_http::kReadFailed for every error, including a
+// connection that ends without close_notify (`transportOpen` false).
+int readResult(void* ssl, int ret, bool transportOpen);
 
 }  // namespace dogear_tls

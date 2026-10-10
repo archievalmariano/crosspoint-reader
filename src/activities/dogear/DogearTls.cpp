@@ -31,6 +31,14 @@ bool configureSession(void* sslPtr, const char* host) {
   return wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host, static_cast<unsigned short>(strlen(host))) == WOLFSSL_SUCCESS;
 }
 
+int readResult(void* sslPtr, int ret, bool transportOpen) {
+  if (ret > 0) return ret;
+  const int err = wolfSSL_get_error(static_cast<WOLFSSL*>(sslPtr), ret);
+  if (err == WOLFSSL_ERROR_ZERO_RETURN) return dogear_http::kReadClosed;  // close_notify
+  if ((err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE) && transportOpen) return 0;
+  return dogear_http::kReadFailed;
+}
+
 }  // namespace dogear_tls
 
 #endif

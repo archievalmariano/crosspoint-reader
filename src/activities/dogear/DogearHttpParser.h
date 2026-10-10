@@ -41,6 +41,9 @@ class ResponseParser {
   }
 
   bool headersDone() const { return state != State::StatusLine && state != State::Headers && state != State::Error; }
+  // The body's end is stated by the response itself (Content-Length or chunked),
+  // not inferred from the connection closing.
+  bool explicitlyFramed() const { return hasLength || chunked; }
   bool done() const { return state == State::Done; }
   bool failed() const { return state == State::Error; }
   int status() const { return statusCode; }
@@ -220,19 +223,58 @@ class ResponseParser {
   }
 };
 
-// What one response means. `firstManifestResponse`: the response to the first
-// request of a /current.json fetch (no redirect followed). Only that response,
-// complete, with status 503 and exactly kNothingPublishedBody, says "nothing
-// has been published yet"; everything else that is not a complete 200 (or a
-// redirect to follow) is an error.
 enum class Outcome : uint8_t { Body, NothingPublished, Redirect, Error };
 
-inline Outcome classify(const ResponseParser& p, bool firstManifestResponse) {
+// How reading one response stopped.
+//   Open   the reader stopped first: the response was complete, a redirect's
+//          headers arrived, or the wait for data ran out.
+//   Closed the peer ended the stream cleanly (TCP close; TLS close_notify).
+//   Failed a read error (a TLS failure, a connection cut without close_notify):
+//          never the end of a response.
+enum class StreamEnd : uint8_t { Open, Closed, Failed };
+
+// What a transport's receive returns besides a byte count (>0) or 0 (nothing yet).
+inline constexpr int kReadClosed = -1;
+inline constexpr int kReadFailed = -2;
+
+// Read one response into `p`. `receive(buf, len)` returns bytes read (>0), 0
+// for nothing yet, kReadClosed or kReadFailed. `idle()` waits briefly and
+// returns false once the wait for data has run out. A redirect needs only its
+// headers.
+template <typename Receive, typename Idle>
+StreamEnd readResponse(ResponseParser& p, Receive&& receive, Idle&& idle) {
+  char buf[256];  // the stack-buffer guideline
+  while (!p.done() && !p.failed()) {
+    if (p.headersDone() && p.isRedirect()) break;
+    const int n = receive(buf, sizeof(buf));
+    if (n > 0) {
+      if (!p.feed(buf, static_cast<size_t>(n))) break;
+    } else if (n == kReadClosed) {
+      return StreamEnd::Closed;
+    } else if (n == kReadFailed) {
+      return StreamEnd::Failed;
+    } else if (!idle()) {
+      break;
+    }
+  }
+  return StreamEnd::Open;
+}
+
+// What one response means. `firstManifestResponse`: the response to the first
+// request of a /current.json fetch (no redirect followed). Only that response,
+// read without error, complete by its own explicit framing (Content-Length or
+// chunked, never a connection close), with status 503 and exactly
+// kNothingPublishedBody, says "nothing has been published yet"; everything else
+// that is not a complete 200 (or a redirect to follow) is an error.
+inline Outcome classify(ResponseParser& p, StreamEnd end, bool firstManifestResponse) {
+  if (end == StreamEnd::Failed) return Outcome::Error;  // a read failure never completes a response
+  if (end == StreamEnd::Closed) p.finishAtEof();        // a close ends only a body framed by the close
   if (p.failed() || !p.headersDone()) return Outcome::Error;
   if (p.isRedirect()) return Outcome::Redirect;
   if (!p.done()) return Outcome::Error;
   if (p.status() == 200) return Outcome::Body;
-  if (firstManifestResponse && p.status() == 503 && p.body() == std::string(kNothingPublishedBody)) {
+  if (firstManifestResponse && p.explicitlyFramed() && p.status() == 503 &&
+      p.body() == std::string(kNothingPublishedBody)) {
     return Outcome::NothingPublished;
   }
   return Outcome::Error;
