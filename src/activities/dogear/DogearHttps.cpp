@@ -162,11 +162,13 @@ const char* describe(Result r) {
       return "TLS verification failed";
     case Result::HttpError:
       return "HTTP error";
+    case Result::NothingPublished:
+      return "nothing published yet";
   }
   return "?";
 }
 
-Result get(const std::string& startUrl, std::string& out, size_t maxBytes, dogear_net::Policy policy) {
+Result get(const std::string& startUrl, std::string& out, size_t maxBytes, Fetch fetch, dogear_net::Policy policy) {
   out.clear();
   dogear_net::Url url;
   if (!dogear_net::parseUrl(startUrl, url) || !dogear_net::urlAllowed(url, policy)) {
@@ -207,12 +209,19 @@ Result get(const std::string& startUrl, std::string& out, size_t maxBytes, dogea
       }
     }
     if (eof) parser.finishAtEof();
+    // `conn` is a verified TLS connection here (or, in a LAN dev build only, the
+    // configured plain-HTTP LAN origin): open() refused anything else.
+    const auto outcome = dogear_http::classify(parser, fetch == Fetch::Manifest && hop == 0);
+    if (outcome == dogear_http::Outcome::NothingPublished) {
+      LOG_INF("DOGEAR", "GET %s: nothing published yet", url.path.c_str());
+      return Result::NothingPublished;
+    }
     if (parser.failed() || !parser.headersDone()) {
       LOG_ERR("DOGEAR", "bad or oversized response from %s", url.host.c_str());
       return Result::HttpError;
     }
 
-    if (parser.isRedirect()) {
+    if (outcome == dogear_http::Outcome::Redirect) {
       dogear_net::Url next;
       if (!dogear_net::resolveRedirect(url, parser.location(), next) ||
           !dogear_net::redirectAllowed(url, next, policy)) {
@@ -222,7 +231,7 @@ Result get(const std::string& startUrl, std::string& out, size_t maxBytes, dogea
       url = next;
       continue;
     }
-    if (parser.status() != 200 || !parser.done()) {
+    if (outcome != dogear_http::Outcome::Body) {
       LOG_ERR("DOGEAR", "GET %s: status %d%s", url.path.c_str(), parser.status(), parser.done() ? "" : " (incomplete)");
       return Result::HttpError;
     }

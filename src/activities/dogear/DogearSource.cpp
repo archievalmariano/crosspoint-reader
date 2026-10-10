@@ -123,8 +123,8 @@ bool parseGeneration(const dogear_cache::Generation& g, DogearIssue& out) {
 // Network path. True when `out` holds an issue confirmed current this session.
 bool loadFromNetwork(dogear_cache::Cache& cache, DogearIssue& out, DogearOrigin& origin) {
   std::string manifestJson;
-  const auto got =
-      dogear_https::get(std::string(kServerBase) + "/current.json", manifestJson, dogear_limits::kMaxManifestBytes);
+  const auto got = dogear_https::get(std::string(kServerBase) + "/current.json", manifestJson,
+                                     dogear_limits::kMaxManifestBytes, dogear_https::Fetch::Manifest);
   if (got != dogear_https::Result::Ok) {
     LOG_ERR("DOGEAR", "current.json: %s", dogear_https::describe(got));
     return false;

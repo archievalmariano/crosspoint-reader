@@ -8,8 +8,17 @@
 // sends "Connection: close" GETs and reads a status line, headers, and a body
 // framed by Content-Length, chunked encoding, or connection close. The body is
 // collected into `body()` and capped: a response over the cap is an error, so
-// an oversized issue never reaches the parser or the SD card.
+// an oversized issue never reaches the parser or the SD card. A status other
+// than 200 (or a redirect) keeps at most kMaxStatusBodyBytes of body.
 namespace dogear_http {
+
+// The body cap for any status but 200 and redirects: enough for the server's
+// short plain-text answers, never a page of HTML.
+inline constexpr size_t kMaxStatusBodyBytes = 64;
+
+// The issue server's answer to /current.json while nothing has been published
+// (503, exactly these 18 bytes). Any other 503 body means it is unavailable.
+inline constexpr char kNothingPublishedBody[] = "nothing published\n";
 
 class ResponseParser {
  public:
@@ -105,6 +114,7 @@ class ResponseParser {
     if (!parseDecimal(line.substr(9, 3), code) || code < 100 || code > 599) return fail();
     if (line.size() > 12 && line[12] != ' ') return fail();
     statusCode = static_cast<int>(code);
+    if (statusCode != 200 && !isRedirect() && maxBody > kMaxStatusBodyBytes) maxBody = kMaxStatusBodyBytes;
     state = State::Headers;
   }
 
@@ -208,5 +218,23 @@ class ResponseParser {
     }
   }
 };
+
+// What one response means. `firstManifestResponse`: the response to the first
+// request of a /current.json fetch (no redirect followed). Only that response,
+// complete, with status 503 and exactly kNothingPublishedBody, says "nothing
+// has been published yet"; everything else that is not a complete 200 (or a
+// redirect to follow) is an error.
+enum class Outcome : uint8_t { Body, NothingPublished, Redirect, Error };
+
+inline Outcome classify(const ResponseParser& p, bool firstManifestResponse) {
+  if (p.failed() || !p.headersDone()) return Outcome::Error;
+  if (p.isRedirect()) return Outcome::Redirect;
+  if (!p.done()) return Outcome::Error;
+  if (p.status() == 200) return Outcome::Body;
+  if (firstManifestResponse && p.status() == 503 && p.body() == std::string(kNothingPublishedBody)) {
+    return Outcome::NothingPublished;
+  }
+  return Outcome::Error;
+}
 
 }  // namespace dogear_http
