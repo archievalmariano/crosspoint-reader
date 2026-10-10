@@ -69,13 +69,20 @@ def get_git_short_sha(project_dir):
 
 
 # Suite environments declare `custom_package` in platformio.ini: one letter per
-# app they include (g = GOTO, p = ON POINT). Each letter defines the app's build
-# flag; apps left out also have their sources excluded. Environments without a
-# package keep every app and get no suite identity, except these, which still
-# show the suite version string.
+# app they include (g = GOTO, p = ON POINT, d = DOGEAR). Each letter defines the
+# app's build flag; apps left out also have their sources excluded. Environments
+# without a package keep every app except the opt-in ones and get no suite
+# identity, except these, which still show the suite version string.
 PACKAGE_APPS = {
     'g': ('GOTO_ENABLED', 'activities/goto'),
     'p': ('ON_POINT_ENABLED', 'activities/on_point'),
+    'd': ('DOGEAR_ENABLED', 'activities/dogear'),
+}
+# Apps only an env that lists their letter gets (never implied by "no package").
+OPT_IN_APPS = ('d',)
+# Build flags an app's letter requires in the env's build_flags.
+APP_REQUIRED_FLAGS = {
+    'd': ('-DWOLFSSL_SHA384', '-DWOLFSSL_SP_384'),  # ${dogear.build_flags}
 }
 IDENTITY_ONLY_ENVS = ('sticky',)
 
@@ -95,8 +102,13 @@ def get_package(env):
 
 def apply_package(env, package):
     excluded = []
+    flags = [str(f).strip() for f in env.get('BUILD_FLAGS', [])]
+    for letter, required in APP_REQUIRED_FLAGS.items():
+        missing = [r for r in required if letter in package and r not in flags]
+        if missing:
+            raise ValueError(f'custom_package "{package}" needs {" ".join(missing)} in build_flags')
     for letter, (flag, src_dir) in PACKAGE_APPS.items():
-        if not package or letter in package:
+        if letter in package or (not package and letter not in OPT_IN_APPS):
             env.Append(CPPDEFINES=[(flag, 1)])
         else:
             excluded.append(f'-<{src_dir}/>')
@@ -169,7 +181,10 @@ try:
 except NameError:
     class _Env(dict):
         def Append(self, **_):
-            # Validation mode does not need SCons state; this stub only satisfies inject_version().
+            # Validation mode does not need SCons state; these stubs only satisfy inject_version().
+            return None
+
+        def Replace(self, **_):
             return None
 
     _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

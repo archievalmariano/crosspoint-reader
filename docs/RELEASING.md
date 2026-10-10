@@ -9,16 +9,18 @@ between acceptance and publication.
 release/v<apps>[-...] branch ── release_candidate.yml (dispatch) ── `release-candidate` artifact
         │                                                              │ download, hash, install
         │                                                              ▼
-        │                                                  physical acceptance (all packages)
-        ▼                                                              │ PASS
-annotated tag v<apps> (run id, SHA256SUMS digest, packages) ── release.yml ── DRAFT release
+        │                                    physical acceptance (all packages) -> ACCEPTANCE.json
+        ▼                                                              │ PASS, owner-approved
+annotated tag v<apps> (run, commit, SHA256SUMS digest, packages, record digest) ── release.yml ── DRAFT
                                                                                │ verify-release
                                                                                ▼
                                        candidate.py publish (preflight, then publish + latest) ── OTA test
 ```
 
-Scripts: `scripts/release/candidate.py` (tests:
-`python3 -m unittest discover -s scripts/release`).
+Scripts: `scripts/release/candidate.py`, with the acceptance schema
+`scripts/release/acceptance-v1.json` (tests:
+`python3 -m unittest discover -s scripts/release` and
+`python3 -m unittest scripts/test_git_branch.py`).
 
 ## 1. Candidate
 
@@ -27,7 +29,7 @@ Scripts: `scripts/release/candidate.py` (tests:
 2. Dispatch **Compile Release Candidate** (`release_candidate.yml`) on that branch.
    It builds the release envs cold and fails unless:
    - every build reports `CrossPoint build version: <version>-<PACKAGE>`;
-   - the release is exactly the 9 files below;
+   - the release is exactly the 16 files below;
    - the legacy copies are byte copies;
    - each `.factory.bin` is exactly bootloader, partition table, `boot_app0` and app,
      with `0xFF` everywhere else, NVS included.
@@ -35,9 +37,18 @@ Scripts: `scripts/release/candidate.py` (tests:
    | Env | Package | Files |
    |---|---|---|
    | `gh_release` | `x4-g` | `firmware-x4-g.bin`, legacy `firmware.bin` |
+   | `x4-goto-dogear-gh_release` | `x4-gd` | `firmware-x4-gd.bin` |
    | `x4pro-goto-gh_release` | `x4pro-g` | `firmware-x4pro-g.bin`, `.factory.bin` |
+   | `x4pro-goto-dogear-gh_release` | `x4pro-gd` | `firmware-x4pro-gd.bin`, `.factory.bin` |
    | `x4pro-onpoint-gh_release` | `x4pro-p` | `firmware-x4pro-p.bin`, `.factory.bin` |
+   | `x4pro-onpoint-dogear-gh_release` | `x4pro-pd` | `firmware-x4pro-pd.bin`, `.factory.bin` |
    | `x4pro-gh_release` | `x4pro-gp` | `firmware-x4pro-gp.bin`, `.factory.bin`, legacy `firmware-x4pro.bin` |
+   | `x4pro-all-gh_release` | `x4pro-gpd` | `firmware-x4pro-gpd.bin`, `.factory.bin` |
+
+   The package letters are `g` (GOTO), `p` (ON POINT) and `d` (DOGEAR, opt-in:
+   only an env whose own `custom_package` lists it; see `scripts/git_branch.py`).
+   This is the canonical package order everywhere: the tag, the acceptance
+   record and the tooling.
 
 3. Before downloading anything, prove the run built the intended commit:
    ```bash
@@ -57,56 +68,83 @@ Scripts: `scripts/release/candidate.py` (tests:
    ```
    Record `sha256(SHA256SUMS.txt)`. That digest is what gets accepted.
 
-## 2. Physical acceptance (every package)
+## 2. Physical acceptance (every package, before the tag)
 
-Install only the candidate's own files. Every row must pass. The tag's
-`physically-accepted` line must list exactly every package; `release.yml` refuses
-anything less.
+Install only the candidate's own files: the X4 from microSD
+(`firmware-x4-<package>.bin`, Settings > System > SD Card Firmware Update), the
+X4 Pro over USB only (§4: the env's pieces from `x4pro-flash-support` plus
+`firmware-x4pro-<package>.bin`). The X4 has no USB data connection; the X4 Pro is
+never installed from microSD.
 
-| Package | Device | Install | Checks |
-|---|---|---|---|
-| `x4-g` | X4 | microSD: `firmware-x4-g.bin`, Settings > System > SD Card Firmware Update | full |
-| `x4pro-gp` | X4 Pro | USB (§4): `x4pro-gh_release` pieces + `firmware-x4pro-gp.bin` | full |
-| `x4pro-g` | X4 Pro | USB (§4): `x4pro-goto-gh_release` pieces + `firmware-x4pro-g.bin` | boot |
-| `x4pro-p` | X4 Pro | USB (§4): `x4pro-onpoint-gh_release` pieces + `firmware-x4pro-p.bin` | boot |
+**Required checks.** `scripts/release/acceptance-v1.json` defines every check
+(by id, with what PASS means) and exactly which checks each package must record:
 
-Afterwards, reinstall `x4pro-gp` on the X4 Pro.
+| Package | Level | Checks |
+|---|---|---|
+| `x4-g` | full | `install-bytes boots version-string apps-exact goto-edition tools-open book-reads update-check` |
+| `x4-gd` | full + DOGEAR | the `x4-g` checks + the 13 DOGEAR checks |
+| `x4pro-g` | boot | `install-bytes boots version-string apps-exact goto-opens` |
+| `x4pro-gd` | boot | the `x4pro-g` checks + `dogear-opens` |
+| `x4pro-p` | boot | `install-bytes boots version-string apps-exact onpoint-opens` |
+| `x4pro-pd` | boot | the `x4pro-p` checks + `dogear-opens` |
+| `x4pro-gp` | full | `install-bytes boots version-string apps-exact goto-edition onpoint-opens tools-open book-reads settings-kept update-check` |
+| `x4pro-gpd` | full + DOGEAR | the `x4pro-gp` checks + the 13 DOGEAR checks |
 
-- **Full:**
-  - the device boots;
-  - Settings shows the version `<version>-<PACKAGE>`;
-  - Home > Apps lists the package's apps and Tools, and nothing else;
-  - GOTO loads an edition (`g`);
-  - ON POINT opens (`p`);
-  - Calculator and Calendar open, and Clock opens on the X4 Pro;
-  - a book opens and turns pages;
-  - the X4 Pro keeps its Wi-Fi network and settings;
-  - Settings > System > Check for updates offers nothing older.
-- **Boot:**
-  - the device boots;
-  - the version reads `<version>-G` or `-P`;
-  - Home > Apps lists that package's apps;
-  - the package's app opens.
+The 13 DOGEAR checks, on both flagship DOGEAR builds:
+- `dogear-opens`;
+- the status screens, with `/dogear` renamed aside: `dogear-e1-no-issue-yet`
+  (online against production while it has published nothing),
+  `dogear-e2-no-issue-on-device` (Wi-Fi off) and `dogear-e3-cant-load` (a Wi-Fi
+  network without internet);
+- a schema-2 regular issue (fixture R) as the only SD generation:
+  `dogear-v2-cache-offline` and `dogear-v2-cache-503`;
+- schema-3 quiet issues (fixtures Q1 and Q2), Wi-Fi off:
+  `dogear-v3-q1-cover`, `-pages`, `-navigation` and the same three for Q2;
+- `dogear-no-writes`.
 
-The X4 has no USB data connection and is installed only from microSD. The
-X4 Pro is installed only over USB.
+The fixtures are temporary, hash-verified SD generations
+(`/dogear/issues/<id>.<sha16>.json` and `/dogear/active.txt`), generated from the
+DOGEAR publisher commit that will be synced. Every card change is approved by the
+owner first; a device's own `/dogear` is only renamed aside and restored, never
+deleted.
+
+**The record.** Fill in `ACCEPTANCE.json` (format: `acceptance_record` in
+`scripts/release/test_candidate.py`): the candidate's repository, tag, commit,
+run and `SHA256SUMS.txt` digest; the fixtures (generator commit, issue ids,
+hashes, shape); one entry per package, in canonical order, with its env, file
+and digest, the X4 Pro pieces' digests, the install method, the date and exactly
+its required checks, each `PASS`; the owner's approval. No free text. Then:
+```bash
+python3 scripts/release/candidate.py acceptance --record ACCEPTANCE.json \
+  --candidate-dir release-candidate --flash-support x4pro-flash-support
+```
+It refuses a missing, extra, repeated or reordered package; a missing, extra or
+non-`PASS` check; any digest that is not the candidate's; and duplicate JSON
+keys. It prints `acceptance-sha256`, the sha256 of the record's canonical JSON
+(sorted keys, no spaces), which the tag carries. The owner approves that exact
+record. The full record later becomes public in DOGEAR's firmware-contract sync
+record; it is not attached to the release.
 
 ## 3. Tag, draft, publish
 
-1. Only after every row passes, create an **annotated** tag on the candidate commit and push it:
+1. Only after every package passes and the owner has approved the record, create an
+   **annotated** tag on the candidate commit and push it. Each field appears exactly
+   once, and no other `field:` line may appear:
    ```
-   v1.1.1
+   v1.2.0
 
    candidate-run: <run-id>
+   candidate-commit: <candidate sha>
    candidate-sums-sha256: <sha256 of SHA256SUMS.txt>
-   physically-accepted: x4-g x4pro-g x4pro-p x4pro-gp
+   physically-accepted: x4-g x4-gd x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp x4pro-gpd
+   acceptance-sha256: <from candidate.py acceptance>
    ```
 2. **Publish Release Draft** (`release.yml`) checks, before creating anything:
-   - the tag equals `v<apps_version>`, is annotated, and points directly at the commit;
+   - the tag equals `v<apps_version>`, is annotated, and points directly at the commit, which is its `candidate-commit`;
    - the run is this repository's `release_candidate.yml` (by workflow id, and by path
      with any `@ref` suffix removed);
    - the run was dispatched on `release/v<apps_version>*` at exactly the tagged commit, and succeeded;
-   - every package was physically accepted;
+   - every package was physically accepted, in canonical order;
    - the run's artifact matches the accepted digest.
 
    It then creates a **draft** from those files, never marked latest, and checks the
@@ -115,14 +153,14 @@ X4 Pro is installed only over USB.
 
    Run it first without `--publish`. That is a dry run: it performs the whole preflight and changes nothing. Then run it again with `--publish`:
    ```bash
-   python3 scripts/release/candidate.py publish --repository <owner>/<repo> --tag v1.1.1 \
+   python3 scripts/release/candidate.py publish --repository <owner>/<repo> --tag v1.2.0 \
      --commit <candidate sha> --run-id <run-id> --candidate release-candidate \
-     --sums-sha256 <accepted sha256 of SHA256SUMS.txt> [--publish]
+     --sums-sha256 <accepted sha256 of SHA256SUMS.txt> --acceptance ACCEPTANCE.json [--publish]
    ```
    In order, and failing closed before any state change:
-   0. The local `release-candidate` folder is the accepted one: its files match its `SHA256SUMS.txt`, whose sha256 is the accepted digest, and its provenance names the commit and run.
+   0. The local `release-candidate` folder is the accepted one: its files match its `SHA256SUMS.txt`, whose sha256 is the accepted digest, and its provenance names the commit and run. The acceptance record validates against it (as `candidate.py acceptance` does).
    1. `GET /repos/<owner>/<repo>/immutable-releases` reports `enabled: true`.
-   2. Exactly one release carries the tag. It is still a **draft** (an already published release is refused, never republished) and not a prerelease. The tag is annotated, points directly at the commit, and its message names the same run and digest and every package as physically accepted.
+   2. Exactly one release carries the tag. It is still a **draft** (an already published release is refused, never republished) and not a prerelease. The tag is annotated, points directly at the commit, and its message names the same run, commit and digest, every package as physically accepted, and exactly this acceptance record's `acceptance-sha256`.
    3. The run is this repository's `release_candidate.yml`, dispatched on `release/<tag>*`, successful, at the commit. The draft's assets are exactly the accepted files plus `SHA256SUMS.txt`, with GitHub digests equal to the accepted ones.
    4. Only then, one `PATCH` sets `draft: false` and `make_latest: true`.
    5. It re-fetches and requires all of these:
@@ -189,4 +227,7 @@ After publication:
 1. Put each device on the previous release.
 2. Run Settings > System > Check for updates. It must offer the new version; install it over Wi-Fi.
 3. Repeat the full checks.
-4. On the X4 Pro, read the OTA slot back (`esptool.py read_flash <slot offset> <size> slot.bin`, read-only) and compare its sha256 with the published app's digest.
+4. On the X4 Pro, check the OTA slot against the published app without writing:
+   `esptool.py --after hard_reset verify_flash <slot offset> firmware-x4pro-<package>.bin` (a bulk
+   `read_flash` of a whole slot is unreliable over this USB link). Never leave the chip in
+   download mode: it looks frozen until it is reset.

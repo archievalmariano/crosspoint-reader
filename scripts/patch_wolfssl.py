@@ -1,9 +1,13 @@
+"""Append CrossPoint's wolfSSL overrides to Arduino-wolfSSL's user_settings.h.
+
+A PlatformIO pre-build script (every env's copy under .pio/libdeps). Run
+directly, it patches the files it is given: the DOGEAR TLS host tests apply
+it to the pinned wolfSSL they fetch, so they build the same configuration.
+    python3 scripts/patch_wolfssl.py <user_settings.h>...
+"""
+import sys
 from pathlib import Path
 
-Import("env")
-
-
-PROJECT_DIR = Path(env.subst("$PROJECT_DIR"))
 MARKER = "/* CrossPoint wolfSSL compatibility overrides */"
 OVERRIDES = f"""
 
@@ -21,13 +25,18 @@ OVERRIDES = f"""
 """
 
 
-def patch_user_settings(path: Path) -> None:
-    text = path.read_text()
-    if MARKER in text:
-        text = text.split(MARKER, 1)[0].rstrip()
+def patch_user_settings(path: Path, shown: Path) -> None:
+    text = path.read_text().split(MARKER, 1)[0].rstrip()
     path.write_text(text + OVERRIDES + "\n")
-    print(f"Patched wolfSSL settings: {path.relative_to(PROJECT_DIR)}")
+    print(f"Patched wolfSSL settings: {shown}")
 
 
-for settings in PROJECT_DIR.glob(".pio/libdeps/*/Arduino-wolfSSL/src/user_settings.h"):
-    patch_user_settings(settings)
+try:
+    Import("env")  # noqa: F821  # type: ignore[name-defined]  (SCons)
+except NameError:
+    for arg in sys.argv[1:]:
+        patch_user_settings(Path(arg), Path(arg))
+else:
+    PROJECT_DIR = Path(env.subst("$PROJECT_DIR"))  # noqa: F821  # type: ignore[name-defined]
+    for settings in PROJECT_DIR.glob(".pio/libdeps/*/Arduino-wolfSSL/src/user_settings.h"):
+        patch_user_settings(settings, settings.relative_to(PROJECT_DIR))

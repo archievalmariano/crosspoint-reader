@@ -11,6 +11,7 @@ Standard library only; every subcommand exits non-zero on the first problem.
 
     assemble        build outputs -> candidate dir + X4 Pro flash pieces
     verify-dir      check a candidate dir (files, sums, legacy copies, provenance)
+    acceptance      validate the physical-acceptance record; print its canonical sha256
     parse-tag       read an annotated release tag's acceptance fields
     check-run       prove a workflow run is this repo's release_candidate.yml at a commit
     verify-release  compare a GitHub release's asset digests with accepted sums
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as dt
 import errno
 import hashlib
 import json
@@ -39,14 +41,21 @@ CANDIDATE_WORKFLOW = ".github/workflows/release_candidate.yml"
 SUMS = "SHA256SUMS.txt"
 PROVENANCE = "provenance.json"
 
-# The release, one row per build: env, package suffix (as in the version
-# string), asset stem, has a .factory.bin (X4 Pro), legacy copy for 1.0.1 devices.
+# The release, one row per build, in the canonical package order: env, package
+# suffix (as in the version string), asset stem, has a .factory.bin (X4 Pro),
+# legacy copy for 1.0.1 devices. The `d` twins add DOGEAR to a package.
 RELEASE = (
     ("gh_release", "G", "firmware-x4-g", False, "firmware.bin"),
+    ("x4-goto-dogear-gh_release", "GD", "firmware-x4-gd", False, None),
     ("x4pro-goto-gh_release", "G", "firmware-x4pro-g", True, None),
+    ("x4pro-goto-dogear-gh_release", "GD", "firmware-x4pro-gd", True, None),
     ("x4pro-onpoint-gh_release", "P", "firmware-x4pro-p", True, None),
+    ("x4pro-onpoint-dogear-gh_release", "PD", "firmware-x4pro-pd", True, None),
     ("x4pro-gh_release", "GP", "firmware-x4pro-gp", True, "firmware-x4pro.bin"),
+    ("x4pro-all-gh_release", "GPD", "firmware-x4pro-gpd", True, None),
 )
+# Which checks each package's physical acceptance must record (docs/RELEASING.md).
+ACCEPTANCE_SCHEMA = ROOT / "scripts" / "release" / "acceptance-v1.json"
 # The X4 Pro USB pieces, written at their offsets; NVS is never written.
 FLASH_PIECES = ("bootloader.bin", "partitions.bin", "boot_app0.bin")
 
@@ -237,32 +246,190 @@ def verify_dir(args) -> None:
     print(f"candidate OK: {SUMS} sha256 {sha256(sums_bytes)}, commit {prov.get('commit')}, run {prov.get('runId')}")
 
 
+# ---- physical acceptance ---------------------------------------------------
+#
+# One record per release candidate, filled in on hardware and approved by the
+# owner before the tag. It must hold exactly the release packages, in order,
+# each with exactly the checks acceptance-v1.json requires of it, each exactly
+# "PASS", and bind the candidate's commit, run, SHA256SUMS.txt and per-file
+# digests. The tag carries the sha256 of its canonical bytes.
+
+HEX40 = re.compile(r"[0-9a-f]{40}")
+HEX64 = re.compile(r"[0-9a-f]{64}")
+ISSUE_ID = re.compile(r"dogear-[0-9]{4}-[0-9]{2}-[0-9]{2}")
+RECORD_KEYS = ("schema", "repository", "tag", "commit", "candidateRun", "sumsSha256", "fixtures", "packages",
+               "approvedBy", "approvedOn")
+PACKAGE_KEYS = ("package", "env", "board", "file", "sha256", "install", "level", "date", "checks")
+PIECE_KEYS = ("bootloader", "partitions", "boot_app0")
+
+
+def strict_json(data: bytes):
+    """JSON with no duplicate key anywhere and no NaN/Infinity."""
+
+    def pairs(items):
+        keys = [k for k, _ in items]
+        dupes = sorted({k for k in keys if keys.count(k) > 1})
+        require(not dupes, f"duplicate key {dupes[0]!r}" if dupes else "")
+        return dict(items)
+
+    def constant(name):
+        raise Problem(f"{name} is not JSON")
+
+    try:
+        return json.loads(data.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
+    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        raise Problem(f"not JSON: {err}") from None
+
+
+def canonical(obj) -> bytes:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+
+
+def exact_keys(obj, keys, where: str) -> None:
+    require(isinstance(obj, dict), f"{where} is not an object")
+    missing, extra = sorted(set(keys) - set(obj)), sorted(set(obj) - set(keys))
+    require(not missing and not extra, f"{where}: missing {missing}, unexpected {extra}")
+
+
+def is_int(value) -> bool:
+    return type(value) is int  # not bool
+
+
+def check_date(value, where: str) -> None:
+    ok = isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value) is not None
+    if ok:
+        try:
+            dt.date.fromisoformat(value)
+        except ValueError:
+            ok = False
+    require(ok, f"{where} is not a YYYY-MM-DD date")
+
+
+def load_acceptance_schema(path: Path = ACCEPTANCE_SCHEMA) -> dict:
+    schema = strict_json(path.read_bytes())
+    require(schema.get("schema") == "crosspoint-acceptance/1", "unknown acceptance schema")
+    require(schema.get("packageOrder") == packages(), "acceptance-v1.json packages differ from the release")
+    require(sorted(schema.get("packages", {})) == sorted(packages()), "acceptance-v1.json packages are not the release")
+    for name, spec in schema["packages"].items():
+        checks = spec.get("checks")
+        require(isinstance(checks, list) and checks and len(checks) == len(set(checks)), f"{name}: bad check list")
+        require(all(c in schema.get("checks", {}) for c in checks), f"{name} names an undefined check")
+    return schema
+
+
+def check_fixtures(fixtures, schema: dict) -> None:
+    specs = schema["fixtures"]
+    exact_keys(fixtures, ["generator", *specs], "fixtures")
+    require(isinstance(fixtures["generator"], str) and HEX40.fullmatch(fixtures["generator"]) is not None,
+            "fixtures.generator is not a 40-hex commit")
+    ids, digests = set(), set()
+    for name, spec in specs.items():
+        f, where = fixtures[name], f"fixture {name}"
+        exact_keys(f, spec["keys"], where)
+        require(is_int(f["schemaVersion"]) and f["schemaVersion"] == spec["schemaVersion"],
+                f"{where} must be schema {spec['schemaVersion']}")
+        require(isinstance(f["issueId"], str) and ISSUE_ID.fullmatch(f["issueId"]) is not None, f"{where}: bad issueId")
+        require(isinstance(f["sha256"], str) and HEX64.fullmatch(f["sha256"]) is not None, f"{where}: bad sha256")
+        for key in ("items", "pages", "coverRows"):
+            if key in f:
+                require(is_int(f[key]) and f[key] > 0, f"{where}: {key} is not a positive integer")
+        require(f["pages"] == f["items"] + 2, f"{where}: pages must be the cover, one per item and the final page")
+        if f["schemaVersion"] == 3:
+            require(3 <= f["items"] <= 5, f"{where}: a quiet issue has 3 to 5 items")
+            require(f["coverRows"] <= f["items"] - 1, f"{where}: more cover rows than supporting items")
+        ids.add(f["issueId"])
+        digests.add(f["sha256"])
+    require(len(ids) == len(specs) and len(digests) == len(specs), "fixtures repeat an issue")
+
+
+def check_acceptance(record, schema: dict, sums_bytes: bytes, prov: dict) -> None:
+    exact_keys(record, RECORD_KEYS, "acceptance record")
+    require(record["schema"] == schema["schema"], f"record schema is not {schema['schema']}")
+    require(record["repository"] == prov.get("repository"), "record names another repository")
+    tag = record["tag"]
+    require(isinstance(tag, str) and re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) is not None
+            and str(prov.get("version", "")).endswith(f"-A{tag[1:]}"), f"record tag {tag!r} is not this candidate's")
+    require(isinstance(record["commit"], str) and HEX40.fullmatch(record["commit"]) is not None
+            and record["commit"] == prov.get("commit"), "record commit is not the candidate's")
+    require(is_int(record["candidateRun"]) and record["candidateRun"] == prov.get("runId"),
+            "record candidateRun is not the candidate's run")
+    require(record["sumsSha256"] == sha256(sums_bytes), f"record sumsSha256 is not this {SUMS}")
+    check_fixtures(record["fixtures"], schema)
+    sums = read_sums(sums_bytes)
+    entries = record["packages"]
+    require(isinstance(entries, list) and all(isinstance(e, dict) for e in entries), "packages is not a list of objects")
+    names = [e.get("package") for e in entries]
+    require(len(names) == len(set(names)), "record repeats a package")
+    require(names == packages(), f"record packages {names} are not exactly {packages()} in that order")
+    for (env, _pkg, stem, factory, _legacy), entry in zip(RELEASE, entries):
+        name, spec = entry["package"], schema["packages"][entry["package"]]
+        exact_keys(entry, PACKAGE_KEYS + (("pieces",) if factory else ()), name)
+        require(entry["env"] == env, f"{name} was not built by {env}")
+        require(entry["file"] == f"{stem}.bin" and entry["sha256"] == sums[f"{stem}.bin"],
+                f"{name}: its file or digest is not the candidate's {stem}.bin")
+        for key in ("board", "install", "level"):
+            require(entry[key] == spec[key], f"{name}: {key} must be {spec[key]!r}")
+        check_date(entry["date"], f"{name} date")
+        exact_keys(entry["checks"], spec["checks"], f"{name} checks")
+        failed = sorted(c for c, result in entry["checks"].items() if result != "PASS")
+        require(not failed, f"{name}: {failed} not PASS")
+        if factory:
+            exact_keys(entry["pieces"], PIECE_KEYS, f"{name} pieces")
+            for piece in PIECE_KEYS:
+                require(entry["pieces"][piece] == prov["flashSupport"][env][f"{piece}.bin"],
+                        f"{name}: {piece} is not the candidate's piece")
+    require(record["approvedBy"] == "owner", "the record must be approved by the owner")
+    check_date(record["approvedOn"], "approvedOn")
+
+
+def acceptance_digest(record_path, candidate_dir) -> str:
+    """Validate the record against the candidate on disk; return its canonical sha256."""
+    candidate = Path(candidate_dir)
+    prov = json.loads((candidate / PROVENANCE).read_text(encoding="ascii"))
+    record = strict_json(Path(record_path).read_bytes())
+    check_acceptance(record, load_acceptance_schema(), (candidate / SUMS).read_bytes(), prov)
+    return sha256(canonical(record))
+
+
+def acceptance(args) -> None:
+    verify_dir(argparse.Namespace(dir=args.candidate_dir, sums_sha256=None, commit=None, run_id=None,
+                                  support=args.flash_support))
+    digest = acceptance_digest(args.record, args.candidate_dir)
+    print(f"acceptance OK: {len(packages())} packages, every required check PASS")
+    print(f"acceptance-sha256: {digest}")
+
+
 # ---- tag, run, release -----------------------------------------------------
 
-TAG_FIELDS = ("candidate-run", "candidate-sums-sha256", "physically-accepted")
+TAG_FIELDS = ("candidate-run", "candidate-commit", "candidate-sums-sha256", "physically-accepted",
+              "acceptance-sha256")
 
 
 def parse_tag_message(text: str) -> dict:
     fields = {}
     for line in text.splitlines():
         m = re.fullmatch(r"([a-z0-9-]+):\s*(.*?)\s*", line)
-        if m and m.group(1) in TAG_FIELDS:
+        if m:
+            require(m.group(1) in TAG_FIELDS, f"tag message has an unknown field {m.group(1)}")
             require(m.group(1) not in fields, f"tag message repeats {m.group(1)}")
             fields[m.group(1)] = m.group(2)
     missing = [k for k in TAG_FIELDS if k not in fields]
     require(not missing, f"tag message lacks {', '.join(missing)}")
     require(re.fullmatch(r"[1-9][0-9]*", fields["candidate-run"]) is not None, "candidate-run is not a run id")
-    require(re.fullmatch(r"[0-9a-f]{64}", fields["candidate-sums-sha256"]) is not None, "bad candidate-sums-sha256")
+    require(HEX40.fullmatch(fields["candidate-commit"]) is not None, "candidate-commit is not a 40-hex commit")
+    require(HEX64.fullmatch(fields["candidate-sums-sha256"]) is not None, "bad candidate-sums-sha256")
+    require(HEX64.fullmatch(fields["acceptance-sha256"]) is not None, "bad acceptance-sha256")
     accepted = fields["physically-accepted"].split()
     require(len(accepted) == len(set(accepted)), "physically-accepted repeats a package")
-    # Every package of the release must have been installed and checked on hardware.
-    require(sorted(accepted) == sorted(packages()),
-            f"physically-accepted {sorted(accepted)} must be exactly the release packages {sorted(packages())}")
+    # Every package of the release, in order, must have been installed and checked on hardware.
+    require(accepted == packages(), f"physically-accepted {accepted} must be exactly {packages()}, in that order")
     return fields
 
 
 def parse_tag(args) -> None:
     fields = parse_tag_message(Path(args.message).read_text(encoding="utf-8"))
+    require(fields["candidate-commit"] == args.commit,
+            f"tag names candidate commit {fields['candidate-commit']}, but points at {args.commit}")
     for key in TAG_FIELDS:
         print(f"{key.replace('-', '_')}={fields[key]}")
 
@@ -396,7 +563,7 @@ class GitHub:
             raise PublishUncertain(f"gh api PATCH exited {proc.returncode}: {(stderr or '').strip()}")
 
 
-def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str) -> None:
+def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str, acceptance_sha: str) -> None:
     ref = gh.get(f"repos/{repository}/git/ref/tags/{tag}")
     require((ref.get("object") or {}).get("type") == "tag", f"{tag} is not an annotated tag")
     obj = gh.get(f"repos/{repository}/git/tags/{ref['object']['sha']}")
@@ -404,7 +571,9 @@ def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha:
     require(target.get("type") == "commit" and target.get("sha") == commit, f"{tag} does not point at {commit}")
     fields = parse_tag_message(obj.get("message", ""))
     require(int(fields["candidate-run"]) == run_id, f"{tag} names run {fields['candidate-run']}, not {run_id}")
+    require(fields["candidate-commit"] == commit, f"{tag} names candidate commit {fields['candidate-commit']}")
     require(fields["candidate-sums-sha256"] == sums_sha, f"{tag} names a different accepted {SUMS} digest")
+    require(fields["acceptance-sha256"] == acceptance_sha, f"{tag} names a different acceptance record")
 
 
 def find_release(gh, repository: str, tag: str) -> dict:
@@ -427,6 +596,8 @@ def publish(args, gh=None) -> None:
                                   support=None))
     sums_bytes = (candidate / SUMS).read_bytes()
     sums_sha = sha256(sums_bytes)
+    # The owner-approved acceptance record of exactly these bytes; the tag must name it (step 2).
+    acceptance_sha = acceptance_digest(args.acceptance, candidate)
     # 1. Release immutability must already be on, or publishing could leave assets replaceable.
     setting = gh.get(f"repos/{repository}/immutable-releases")
     require(setting.get("enabled") is True, "release immutability is not enabled for this repository")
@@ -434,7 +605,7 @@ def publish(args, gh=None) -> None:
     release = find_release(gh, repository, tag)
     require(release.get("draft") is True, f"{tag} is already published; refusing to republish")
     require(release.get("prerelease") is False, f"{tag} is a prerelease")
-    check_tag(gh, repository, tag, commit, run_id, sums_sha)
+    check_tag(gh, repository, tag, commit, run_id, sums_sha, acceptance_sha)
     # 3. The candidate run, and the draft's assets against the accepted bytes.
     workflow_id = gh.get(f"repos/{repository}/actions/workflows/release_candidate.yml")["id"]
     check_run_json(gh.get(f"repos/{repository}/actions/runs/{run_id}"), repository=repository,
@@ -460,7 +631,7 @@ def publish(args, gh=None) -> None:
         check_release_json(published, sums_bytes, tag=tag, state="published", require_immutable=True)
         latest = gh.get(f"repos/{repository}/releases/latest")
         require(latest.get("id") == release["id"] and latest.get("tag_name") == tag, f"latest is {latest.get('tag_name')}")
-        check_tag(gh, repository, tag, commit, run_id, sums_sha)
+        check_tag(gh, repository, tag, commit, run_id, sums_sha, acceptance_sha)
         print(f"published {tag} as latest: immutable, {len(published['assets'])} assets match the accepted bytes")
     except BaseException as err:  # noqa: BLE001 -- includes KeyboardInterrupt
         detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
@@ -508,8 +679,14 @@ def main(argv=None) -> int:
     v.add_argument("--run-id")
     v.add_argument("--support", help="also check the X4 Pro flash pieces against each factory image")
     v.set_defaults(func=verify_dir)
+    c = sub.add_parser("acceptance", help="validate an acceptance record; print the sha256 the tag must carry")
+    c.add_argument("--record", required=True)
+    c.add_argument("--candidate-dir", required=True)
+    c.add_argument("--flash-support", required=True, help="the run's x4pro-flash-support artifact")
+    c.set_defaults(func=acceptance)
     t = sub.add_parser("parse-tag")
     t.add_argument("message")
+    t.add_argument("--commit", required=True, help="the commit the tag points at")
     t.set_defaults(func=parse_tag)
     r = sub.add_parser("check-run")
     r.add_argument("run_json")
@@ -527,6 +704,7 @@ def main(argv=None) -> int:
     for opt in ("repository", "tag", "commit", "run-id", "candidate"):
         u.add_argument(f"--{opt}", required=True)
     u.add_argument("--sums-sha256", required=True, help=f"the accepted sha256 of {SUMS}")
+    u.add_argument("--acceptance", required=True, help="the owner-approved acceptance record the tag names")
     u.add_argument("--publish", action="store_true", help="after a clean preflight, publish and mark latest")
     u.set_defaults(func=publish)
     s = sub.add_parser("slice-factory")

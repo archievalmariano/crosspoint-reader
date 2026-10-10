@@ -3,14 +3,18 @@
 # candidate's own bytes (see release_candidate.yml and docs/RELEASING.md).
 #
 # Tag format: an ANNOTATED tag v{apps_version} on the candidate's commit, whose
-# message carries the acceptance record:
+# message binds the physical acceptance (each field exactly once, nothing else):
 #   candidate-run: <run id of release_candidate.yml>
+#   candidate-commit: <the candidate's commit, which the tag points at>
 #   candidate-sums-sha256: <sha256 of that run's SHA256SUMS.txt>
-#   physically-accepted: x4-g x4pro-g x4pro-p x4pro-gp
+#   physically-accepted: x4-g x4-gd x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp x4pro-gpd
+#   acceptance-sha256: <sha256 of the owner-approved acceptance record, canonical JSON>
 # The job stops, creating nothing, unless the tag matches apps_version, the run
 # is this repository's release_candidate.yml dispatched on release/v{apps_version}
 # at exactly the tagged commit and succeeded, every package was physically
-# accepted, and the downloaded artifact matches the accepted digest. The draft
+# accepted, and the downloaded artifact matches the accepted digest. The record
+# itself is checked against the tag by `candidate.py publish --acceptance`, and
+# again when DOGEAR's firmware contract is synced from this release. The draft
 # is then checked asset by asset against GitHub's own digests. Publishing it
 # and marking it latest happen only through `scripts/release/candidate.py
 # publish`, which checks release immutability and everything above first.
@@ -63,7 +67,7 @@ jobs:
             exit 1
           fi
           jq -r .message <<<"$tag" > tag-message.txt
-          python3 scripts/release/candidate.py parse-tag tag-message.txt > fields.txt
+          python3 scripts/release/candidate.py parse-tag tag-message.txt --commit "${GITHUB_SHA}" > fields.txt
           cat fields.txt >> "$GITHUB_OUTPUT"
           run_id=$(sed -n 's/^candidate_run=//p' fields.txt)
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > run.json
@@ -100,10 +104,15 @@ jobs:
           | Package | XTEINK X4 (microSD) | XTEINK X4 Pro (USB, flash at \`0x0\`) |
           |---|---|---|
           | GOTO | \`firmware-x4-g.bin\` | \`firmware-x4pro-g.factory.bin\` |
+          | GOTO + DOGEAR | \`firmware-x4-gd.bin\` | \`firmware-x4pro-gd.factory.bin\` |
           | ON POINT | not available (needs a real-time clock) | \`firmware-x4pro-p.factory.bin\` |
+          | ON POINT + DOGEAR | not available | \`firmware-x4pro-pd.factory.bin\` |
           | GOTO + ON POINT | not available | \`firmware-x4pro-gp.factory.bin\` |
+          | GOTO + ON POINT + DOGEAR | not available | \`firmware-x4pro-gpd.factory.bin\` |
 
           - **Over Wi-Fi:** Settings > System > Check for updates keeps a device on its current package.
+          - **DOGEAR** (a weekly reading digest) comes only in the packages that name it. To move a device
+            to one, install that package once by hand (as above); later updates keep it.
           - **X4 (microSD):** copy the file to the card and use Settings > System > SD Card Firmware Update.
           - \`firmware.bin\` and \`firmware-x4pro.bin\` are for devices updating from 1.0.1.
 

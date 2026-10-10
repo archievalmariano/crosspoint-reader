@@ -22,7 +22,7 @@ LAYOUT = c.partition_layout()
 NVS_OFF, NVS_SIZE = LAYOUT["nvs"]
 OTA_OFF, OTA_SIZE = LAYOUT["otadata"]
 APP_OFF, _ = LAYOUT["app0"]
-DISPLAY = "1.6.5-A1.1.1"
+DISPLAY = "1.6.5-A1.2.0"
 
 
 def run(*argv):
@@ -77,7 +77,7 @@ class Base(unittest.TestCase):
 
     def assemble(self, builds=None):
         return run("assemble", "--builds", builds or self.builds, "--out", self.out, "--support", self.support,
-                   "--display", DISPLAY, "--commit", "b" * 40, "--ref", "release/v1.1.1-clean", "--run-id", "42",
+                   "--display", DISPLAY, "--commit", "b" * 40, "--ref", "release/v1.2.0-dogear", "--run-id", "42",
                    "--run-attempt", "1", "--workflow-ref", "o/r/.github/workflows/release_candidate.yml@refs/x",
                    "--repository", "o/r")
 
@@ -85,20 +85,177 @@ class Base(unittest.TestCase):
         return hashlib.sha256((self.out / c.SUMS).read_bytes()).hexdigest()
 
 
+FIXTURES = {
+    "generator": "d" * 40,
+    "R": {"issueId": "dogear-2026-11-23", "schemaVersion": 2, "sha256": "1" * 64, "items": 4, "pages": 6},
+    "Q1": {"issueId": "dogear-2026-11-16", "schemaVersion": 3, "sha256": "2" * 64, "items": 4, "coverRows": 3,
+           "pages": 6},
+    "Q2": {"issueId": "dogear-2026-12-21", "schemaVersion": 3, "sha256": "3" * 64, "items": 5, "coverRows": 3,
+           "pages": 7},
+}
+
+
+def acceptance_record(candidate: Path) -> dict:
+    """A complete, valid acceptance record of the candidate in `candidate`."""
+    prov = json.loads((candidate / c.PROVENANCE).read_text())
+    sums = c.read_sums((candidate / c.SUMS).read_bytes())
+    schema = c.load_acceptance_schema()
+    entries = []
+    for env, _pkg, stem, has_factory, _legacy in c.RELEASE:
+        name = c.package_name(stem)
+        spec = schema["packages"][name]
+        entry = {"package": name, "env": env, "board": spec["board"], "file": f"{stem}.bin",
+                 "sha256": sums[f"{stem}.bin"], "install": spec["install"], "level": spec["level"],
+                 "date": "2026-10-20", "checks": {check: "PASS" for check in spec["checks"]}}
+        if has_factory:
+            entry["pieces"] = {k: prov["flashSupport"][env][f"{k}.bin"] for k in c.PIECE_KEYS}
+        entries.append(entry)
+    return {"schema": "crosspoint-acceptance/1", "repository": prov["repository"], "tag": "v1.2.0",
+            "commit": prov["commit"], "candidateRun": prov["runId"], "sumsSha256": prov["sumsSha256"],
+            "fixtures": copy.deepcopy(FIXTURES), "packages": entries, "approvedBy": "owner", "approvedOn": "2026-10-21"}
+
+
+class AcceptanceTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.assertEqual(self.assemble()[0], 0)
+        self.record = acceptance_record(self.out)
+        self.path = self.root / "ACCEPTANCE.json"
+
+    def write(self, record=None, text=None):
+        self.path.write_text(text if text is not None else json.dumps(record or self.record, indent=2))
+        return self.path
+
+    def digest(self, record=None, text=None):
+        return c.acceptance_digest(self.write(record, text), self.out)
+
+    def refused(self, mutate=None, text=None):
+        record = copy.deepcopy(self.record)
+        if mutate:
+            mutate(record)
+        with self.assertRaises(c.Problem):
+            self.digest(record, text)
+
+    def test_the_complete_record_passes_and_its_digest_is_canonical(self):
+        digest = self.digest()
+        self.assertEqual(digest, hashlib.sha256(c.canonical(self.record)).hexdigest())
+        # Layout and key order in the file do not change it; the content does.
+        self.assertEqual(self.digest(text=json.dumps(self.record, sort_keys=True)), digest)
+        self.assertEqual(self.digest(text=json.dumps(dict(reversed(list(self.record.items()))))), digest)
+        code, out, err = run("acceptance", "--record", self.write(), "--candidate-dir", self.out,
+                             "--flash-support", self.support)
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"acceptance-sha256: {digest}", out)
+
+    def test_exactly_the_eight_packages_once_each_in_order(self):
+        pk = "packages"
+        self.refused(lambda r: r[pk].pop(1))                                   # x4-gd missing
+        self.refused(lambda r: r[pk].append(copy.deepcopy(r[pk][0])))          # duplicate
+        self.refused(lambda r: r[pk].insert(2, copy.deepcopy(r[pk][1])))       # duplicate, in the middle
+        self.refused(lambda r: r[pk].__setitem__(slice(0, 2), r[pk][1::-1]))   # order
+        self.refused(lambda r: r[pk][1].update(package="x4-d"))                # an unknown package
+        self.refused(lambda r: r.update(packages={}))
+        self.refused(lambda r: r.update(packages=[]))
+
+    def test_exactly_the_required_checks_each_pass(self):
+        flagship = lambda r: r["packages"][7]["checks"]  # noqa: E731 -- x4pro-gpd
+        for check in ("dogear-e3-cant-load", "dogear-v3-q1-cover", "dogear-v3-q2-navigation", "dogear-v2-cache-503",
+                      "settings-kept", "install-bytes"):
+            self.refused(lambda r, k=check: flagship(r).pop(k))                  # missing
+            self.refused(lambda r, k=check: flagship(r).update({k: "FAIL"}))     # failed
+            self.refused(lambda r, k=check: flagship(r).update({k: "pass"}))     # not exactly PASS
+            self.refused(lambda r, k=check: flagship(r).update({k: True}))
+        self.refused(lambda r: r["packages"][2]["checks"].update({"dogear-opens": "PASS"}))  # x4pro-g has no DOGEAR
+        self.refused(lambda r: r["packages"][0]["checks"].update({"extra": "PASS"}))
+        self.refused(lambda r: r["packages"][1]["checks"].pop("dogear-v3-q2-cover"))         # x4-gd: Q2 mandatory
+        self.refused(lambda r: r["packages"][1]["checks"].pop("dogear-e3-cant-load"))
+        self.refused(lambda r: r["packages"][3].update(checks=["install-bytes"]))
+
+    def test_each_package_is_bound_to_its_candidate_file_and_pieces(self):
+        self.refused(lambda r: r["packages"][1].update(sha256="0" * 64))
+        self.refused(lambda r: r["packages"][1].update(sha256=r["packages"][0]["sha256"]))
+        self.refused(lambda r: r["packages"][1].update(file="firmware-x4-g.bin", sha256=r["packages"][0]["sha256"]))
+        self.refused(lambda r: r["packages"][3].update(env="x4pro-goto-gh_release"))
+        self.refused(lambda r: r["packages"][7].update(level="full"))
+        self.refused(lambda r: r["packages"][7].update(install="microSD"))
+        self.refused(lambda r: r["packages"][7].update(board="X4"))
+        self.refused(lambda r: r["packages"][7]["pieces"].update(boot_app0="0" * 64))
+        self.refused(lambda r: r["packages"][7]["pieces"].pop("partitions"))
+        self.refused(lambda r: r["packages"][7].pop("pieces"))
+        self.refused(lambda r: r["packages"][1].update(pieces=r["packages"][3]["pieces"]))  # the X4 has none
+        self.refused(lambda r: r["packages"][1].update(date="2026-13-01"))
+        self.refused(lambda r: r["packages"][1].update(notes="looked fine"))  # no free text
+
+    def test_the_record_is_bound_to_the_candidate(self):
+        self.refused(lambda r: r.update(commit="c" * 40))
+        self.refused(lambda r: r.update(candidateRun=43))
+        self.refused(lambda r: r.update(candidateRun="42"))
+        self.refused(lambda r: r.update(candidateRun=True))
+        self.refused(lambda r: r.update(sumsSha256="e" * 64))
+        self.refused(lambda r: r.update(tag="v1.2.1"))
+        self.refused(lambda r: r.update(repository="x/r"))
+        self.refused(lambda r: r.update(schema="crosspoint-acceptance/2"))
+        self.refused(lambda r: r.update(approvedBy="claude"))
+        self.refused(lambda r: r.update(approvedOn="tomorrow"))
+        self.refused(lambda r: r.update(email="someone@example.com"))
+        self.refused(lambda r: r.pop("fixtures"))
+
+    def test_fixtures_are_hash_bound_issues_of_the_right_schema(self):
+        fx = "fixtures"
+        self.refused(lambda r: r[fx]["R"].update(schemaVersion=3))
+        self.refused(lambda r: r[fx]["Q1"].update(schemaVersion=2))
+        self.refused(lambda r: r[fx]["Q2"].update(schemaVersion=True))
+        self.refused(lambda r: r[fx]["Q1"].update(sha256="2" * 63))
+        self.refused(lambda r: r[fx]["Q2"].update(sha256=r[fx]["Q1"]["sha256"]))
+        self.refused(lambda r: r[fx]["Q2"].update(issueId=r[fx]["Q1"]["issueId"]))
+        self.refused(lambda r: r[fx]["Q1"].update(items=6, pages=8))
+        self.refused(lambda r: r[fx]["Q1"].update(pages=7))
+        self.refused(lambda r: r[fx]["Q1"].update(coverRows=4))
+        self.refused(lambda r: r[fx]["R"].update(coverRows=3))
+        self.refused(lambda r: r[fx].pop("Q2"))
+        self.refused(lambda r: r[fx].update(generator="main"))
+
+    def test_duplicate_keys_and_non_json_are_refused(self):
+        text = json.dumps(self.record)
+        self.refused(text=text.replace('"approvedBy": "owner"', '"approvedBy": "owner", "approvedBy": "owner"'))
+        self.refused(text=text.replace('"install-bytes": "PASS"', '"install-bytes": "PASS", "install-bytes": "PASS"', 1))
+        self.refused(text=text.replace('"candidateRun": 42', '"candidateRun": NaN'))
+        self.refused(text=text[:-1])
+        self.refused(text="")
+
+    def test_the_schema_file_matches_the_release(self):
+        schema = c.load_acceptance_schema()
+        self.assertEqual(schema["packageOrder"], c.packages())
+        self.assertEqual(schema["dogearFlagships"], ["x4-gd", "x4pro-gpd"])
+        for name in schema["dogearFlagships"]:
+            checks = set(schema["packages"][name]["checks"])
+            for required in schema["quietChecks"] + schema["regularCacheChecks"] + [
+                    "dogear-e1-no-issue-yet", "dogear-e2-no-issue-on-device", "dogear-e3-cant-load"]:
+                self.assertIn(required, checks, name)
+        for name in ("x4pro-g", "x4pro-gd", "x4pro-p", "x4pro-pd"):
+            self.assertEqual(schema["packages"][name]["level"], "boot")
+        for name in ("x4-g", "x4pro-gp"):
+            self.assertEqual(schema["packages"][name]["level"], "full")
+
+
 class AssembleTests(Base):
     def test_assembles_exactly_the_release(self):
         code, out, err = self.assemble()
         self.assertEqual(code, 0, err)
         self.assertEqual(sorted(p.name for p in self.out.iterdir()), sorted(c.release_files() + [c.SUMS, c.PROVENANCE]))
-        self.assertEqual(len(c.release_files()), 9)
+        self.assertEqual(len(c.release_files()), 16)
+        self.assertEqual(c.packages(), ["x4-g", "x4-gd", "x4pro-g", "x4pro-gd", "x4pro-p", "x4pro-pd", "x4pro-gp",
+                                        "x4pro-gpd"])
         self.assertEqual((self.out / "firmware.bin").read_bytes(), (self.out / "firmware-x4-g.bin").read_bytes())
         self.assertEqual((self.out / "firmware-x4pro.bin").read_bytes(),
                          (self.out / "firmware-x4pro-gp.bin").read_bytes())
         prov = json.loads((self.out / c.PROVENANCE).read_text())
         self.assertEqual((prov["commit"], prov["runId"], prov["sumsSha256"]), ("b" * 40, 42, self.sums_sha()))
-        for env in ("x4pro-goto-gh_release", "x4pro-onpoint-gh_release", "x4pro-gh_release"):
+        for env in ("x4pro-goto-gh_release", "x4pro-goto-dogear-gh_release", "x4pro-onpoint-gh_release",
+                    "x4pro-onpoint-dogear-gh_release", "x4pro-gh_release", "x4pro-all-gh_release"):
             self.assertEqual(sorted(p.name for p in (self.support / env).iterdir()), sorted(c.FLASH_PIECES))
         self.assertFalse((self.support / "gh_release").exists())
+        self.assertFalse((self.support / "x4-goto-dogear-gh_release").exists())
         self.assertEqual(run("verify-dir", self.out, "--support", self.support, "--sums-sha256", self.sums_sha(),
                              "--commit", "b" * 40, "--run-id", "42")[0], 0)
 
@@ -106,7 +263,7 @@ class AssembleTests(Base):
         (self.builds / "build-x4pro-gh_release" / "version.txt").write_text(f"{DISPLAY}-G\n")
         code, _, err = self.assemble()
         self.assertEqual(code, 1)
-        self.assertIn("not 1.6.5-A1.1.1-GP", err)
+        self.assertIn("not 1.6.5-A1.2.0-GP", err)
 
     def test_refuses_a_missing_or_extra_env(self):
         (self.builds / "build-x4pro-onpoint-gh_release").rename(self.builds / "build-x4pro-gh_release_rc")
@@ -172,45 +329,74 @@ class VerifyDirTests(Base):
         self.assertIn("is not the candidate's piece", run("verify-dir", self.out, "--support", self.support)[2])
 
 
+ALL = "x4-g x4-gd x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp x4pro-gpd"
+
+
+def tag_message(run_id=123456, commit="b" * 40, sums="a" * 64, accepted=ALL, acceptance="f" * 64, title="v1.2.0"):
+    return (f"{title}\n\ncandidate-run: {run_id}\ncandidate-commit: {commit}\ncandidate-sums-sha256: {sums}\n"
+            f"physically-accepted: {accepted}\nacceptance-sha256: {acceptance}\n")
+
+
 class TagTests(unittest.TestCase):
-    GOOD = ("v1.1.1\n\ncandidate-run: 123456\ncandidate-sums-sha256: " + "a" * 64 +
-            "\nphysically-accepted: x4-g x4pro-g x4pro-p x4pro-gp\n")
+    GOOD = tag_message()
 
     def test_reads_the_fields(self):
         f = c.parse_tag_message(self.GOOD)
-        self.assertEqual((f["candidate-run"], f["candidate-sums-sha256"]), ("123456", "a" * 64))
+        self.assertEqual((f["candidate-run"], f["candidate-commit"], f["candidate-sums-sha256"], f["acceptance-sha256"]),
+                         ("123456", "b" * 40, "a" * 64, "f" * 64))
 
-    def test_every_package_must_be_physically_accepted(self):
-        for accepted in ("x4-g x4pro-gp", "x4-g x4pro-g x4pro-p", "x4-g x4pro-g x4pro-p x4pro-gp x4pro-gpd",
-                         "x4-g x4pro-g x4pro-p x4pro-gp x4pro-gp", ""):
-            text = self.GOOD.replace("x4-g x4pro-g x4pro-p x4pro-gp", accepted)
+    def test_every_package_must_be_physically_accepted_in_order(self):
+        for accepted in ("x4-g x4pro-gp", "x4-g x4pro-g x4pro-p x4pro-gp", ALL.replace(" x4pro-pd", ""),
+                         ALL + " x4pro-d", ALL + " x4pro-gp", "x4-gd x4-g x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp x4pro-gpd",
+                         ALL.replace("x4pro-gpd", "x4pro-dgp"), ""):
             with self.assertRaises(c.Problem, msg=accepted):
+                c.parse_tag_message(tag_message(accepted=accepted))
+
+    def test_missing_repeated_unknown_or_malformed_fields_fail(self):
+        for text in (self.GOOD.replace("candidate-run: 123456\n", ""),
+                     self.GOOD.replace("candidate-commit: " + "b" * 40 + "\n", ""),
+                     self.GOOD.replace("acceptance-sha256: " + "f" * 64 + "\n", ""),
+                     self.GOOD + "candidate-run: 7\n",
+                     self.GOOD + "acceptance-sha256: " + "f" * 64 + "\n",
+                     self.GOOD + "physically-tested: x4-g\n",
+                     self.GOOD + "notes: also fine\n",
+                     tag_message(run_id="12ab"),
+                     tag_message(commit="B" * 40), tag_message(commit="b" * 39), tag_message(commit="b" * 64),
+                     tag_message(sums="A" * 64), tag_message(sums="a" * 63),
+                     tag_message(acceptance="F" * 64), tag_message(acceptance="f" * 63), tag_message(acceptance="")):
+            with self.assertRaises(c.Problem, msg=text):
                 c.parse_tag_message(text)
 
-    def test_missing_repeated_or_malformed_fields_fail(self):
-        for text in (self.GOOD.replace("candidate-run: 123456\n", ""),
-                     self.GOOD + "candidate-run: 7\n",
-                     self.GOOD.replace("123456", "12ab"),
-                     self.GOOD.replace("a" * 64, "A" * 64),
-                     self.GOOD.replace("a" * 64, "a" * 63)):
-            with self.assertRaises(c.Problem):
-                c.parse_tag_message(text)
+    def test_free_text_lines_are_not_fields(self):
+        c.parse_tag_message(tag_message(title="CrossPoint Apps 1.2.0, physically accepted 2026-10-21."))
+
+    def test_parse_tag_requires_the_candidate_commit_to_be_the_tagged_commit(self):
+        with tempfile.TemporaryDirectory() as d:
+            msg = Path(d) / "m.txt"
+            msg.write_text(self.GOOD)
+            code, out, err = run("parse-tag", msg, "--commit", "b" * 40)
+            self.assertEqual(code, 0, err)
+            self.assertIn("candidate_commit=" + "b" * 40, out)
+            self.assertIn("acceptance_sha256=" + "f" * 64, out)
+            code, _, err = run("parse-tag", msg, "--commit", "c" * 40)
+            self.assertEqual(code, 1)
+            self.assertIn("points at", err)
 
 
 RUN = {
     "id": 9, "run_attempt": 1, "path": ".github/workflows/release_candidate.yml", "workflow_id": 77,
     "repository": {"full_name": "o/r"}, "head_repository": {"full_name": "o/r"}, "event": "workflow_dispatch",
-    "status": "completed", "conclusion": "success", "head_branch": "release/v1.1.1-clean", "head_sha": "b" * 40,
+    "status": "completed", "conclusion": "success", "head_branch": "release/v1.2.0-dogear", "head_sha": "b" * 40,
 }
 
 
 class RunTests(unittest.TestCase):
     def check(self, run_json):
-        c.check_run_json(run_json, repository="o/r", workflow_id=77, commit="b" * 40, branch_prefix="release/v1.1.1")
+        c.check_run_json(run_json, repository="o/r", workflow_id=77, commit="b" * 40, branch_prefix="release/v1.2.0")
 
     def test_the_candidate_run_passes_with_or_without_a_ref_suffix(self):
         self.check(RUN)
-        self.check(dict(RUN, path=".github/workflows/release_candidate.yml@refs/heads/release/v1.1.1-clean"))
+        self.check(dict(RUN, path=".github/workflows/release_candidate.yml@refs/heads/release/v1.2.0-dogear"))
 
     def test_anything_else_fails(self):
         for change in ({"path": ".github/workflows/release.yml"},
@@ -221,7 +407,7 @@ class RunTests(unittest.TestCase):
                        {"head_repository": {"full_name": "x/r"}},
                        {"event": "push"}, {"event": "pull_request"},
                        {"conclusion": "failure"}, {"status": "in_progress", "conclusion": None},
-                       {"head_branch": "develop"}, {"head_branch": "release/v1.1.0-clean"},
+                       {"head_branch": "develop"}, {"head_branch": "release/v1.1.1-clean"},
                        {"head_sha": "c" * 40}):
             with self.assertRaises(c.Problem, msg=str(change)):
                 self.check(dict(RUN, **change))
@@ -233,13 +419,13 @@ class ReleaseTests(Base):
         self.assertEqual(self.assemble()[0], 0)
         self.sums = (self.out / c.SUMS).read_bytes()
         self.release = {
-            "tag_name": "v1.1.1", "draft": True, "prerelease": False, "immutable": False,
+            "tag_name": "v1.2.0", "draft": True, "prerelease": False, "immutable": False,
             "assets": [{"name": n, "state": "uploaded", "digest": "sha256:" + hashlib.sha256(
                 (self.out / n).read_bytes()).hexdigest()} for n in c.release_files() + [c.SUMS]],
         }
 
     def check(self, release, state="draft", immutable=False):
-        c.check_release_json(release, self.sums, tag="v1.1.1", state=state, require_immutable=immutable)
+        c.check_release_json(release, self.sums, tag="v1.2.0", state=state, require_immutable=immutable)
 
     def test_the_accepted_assets_pass(self):
         self.check(self.release)
@@ -272,7 +458,7 @@ class ReleaseTests(Base):
     def test_state_tag_prerelease_and_immutability_are_checked(self):
         for release, state, immutable in ((self.release, "published", False),
                                           (dict(self.release, draft=False), "draft", False),
-                                          (dict(self.release, tag_name="v1.1.0"), "draft", False),
+                                          (dict(self.release, tag_name="v1.1.1"), "draft", False),
                                           (dict(self.release, prerelease=True), "draft", False),
                                           (dict(self.release, draft=False), "published", True)):
             with self.assertRaises(c.Problem):
@@ -280,7 +466,7 @@ class ReleaseTests(Base):
 
     def test_a_different_sums_file_fails(self):
         with self.assertRaises(c.Problem):
-            c.check_release_json(self.release, self.sums + b"\n", tag="v1.1.1", state="draft", require_immutable=False)
+            c.check_release_json(self.release, self.sums + b"\n", tag="v1.2.0", state="draft", require_immutable=False)
 
 
 class FakeGitHub:
@@ -322,7 +508,7 @@ class FakeGitHub:
 
 
 class PublishBase(Base):
-    TAG, COMMIT, RUN_ID = "v1.1.1", "b" * 40, 42
+    TAG, COMMIT, RUN_ID = "v1.2.0", "b" * 40, 42
 
     def setUp(self):
         super().setUp()
@@ -331,11 +517,14 @@ class PublishBase(Base):
         draft = {"id": 7, "tag_name": self.TAG, "draft": True, "prerelease": False, "immutable": False,
                  "assets": [{"name": n, "state": "uploaded", "digest": "sha256:" + hashlib.sha256(
                      (self.out / n).read_bytes()).hexdigest()} for n in c.release_files() + [c.SUMS]]}
-        message = (f"{self.TAG}\n\ncandidate-run: {self.RUN_ID}\ncandidate-sums-sha256: {sums}\n"
-                   "physically-accepted: x4-g x4pro-g x4pro-p x4pro-gp\n")
+        self.acceptance = self.root / "ACCEPTANCE.json"
+        self.acceptance.write_text(json.dumps(acceptance_record(self.out), indent=2))
+        self.acceptance_sha = c.acceptance_digest(self.acceptance, self.out)
+        message = tag_message(run_id=self.RUN_ID, commit=self.COMMIT, sums=sums, acceptance=self.acceptance_sha,
+                              title=self.TAG)
         self.gets = {
             "repos/o/r/immutable-releases": {"enabled": True, "enforced_by_owner": False},
-            "repos/o/r/releases?per_page=100": [draft, {"id": 6, "tag_name": "v1.1.0", "draft": False}],
+            "repos/o/r/releases?per_page=100": [draft, {"id": 6, "tag_name": "v1.1.1", "draft": False}],
             f"repos/o/r/git/ref/tags/{self.TAG}": {"object": {"type": "tag", "sha": "t" * 40}},
             f"repos/o/r/git/tags/{'t' * 40}": {"object": {"type": "commit", "sha": self.COMMIT}, "message": message},
             "repos/o/r/actions/workflows/release_candidate.yml": {"id": 77},
@@ -344,7 +533,8 @@ class PublishBase(Base):
 
     def publish(self, gh, publish=True, **override):
         args = dict(repository="o/r", tag=self.TAG, commit=self.COMMIT, run_id=str(self.RUN_ID),
-                    candidate=str(self.out), sums_sha256=self.sums_sha(), publish=publish)
+                    candidate=str(self.out), sums_sha256=self.sums_sha(), acceptance=str(self.acceptance),
+                    publish=publish)
         args.update(override)
         out = io.StringIO()
         with redirect_stdout(out):
@@ -369,7 +559,7 @@ class PublishBase(Base):
         try:
             code, _, err = run("publish", "--repository", "o/r", "--tag", self.TAG, "--commit", self.COMMIT,
                                "--run-id", self.RUN_ID, "--candidate", self.out, "--sums-sha256", self.sums_sha(),
-                               "--publish")
+                               "--acceptance", self.acceptance, "--publish")
         except BaseException as escaped:  # noqa: BLE001 -- an escape is itself the failure under test
             return -1, f"escaped main(): {type(escaped).__name__}"
         finally:
@@ -393,7 +583,7 @@ class PublishTests(PublishBase):
         gh = FakeGitHub(self.gets)
         out = self.publish(gh)
         self.assertEqual(gh.patches, [("o/r", 7)])
-        self.assertIn("published v1.1.1 as latest: immutable", out)
+        self.assertIn("published v1.2.0 as latest: immutable", out)
 
     def test_a_dry_run_changes_nothing(self):
         gh = FakeGitHub(self.gets)
@@ -428,9 +618,12 @@ class PublishTests(PublishBase):
             (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace("run: 42", "run: 43"))),
             (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace(" x4pro-p", ""))),
             (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace(self.sums_sha(), "e" * 64))),
+            (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace(self.acceptance_sha, "e" * 64))),
+            (tag_obj, dict(self.gets[tag_obj], message=self.gets[tag_obj]["message"].replace(
+                "candidate-commit: " + self.COMMIT, "candidate-commit: " + "c" * 40))),
             (run, dict(self.gets[run], head_sha="c" * 40)),
             (run, dict(self.gets[run], path=".github/workflows/release.yml")),
-            (run, dict(self.gets[run], head_branch="release/v1.1.0-clean")),
+            (run, dict(self.gets[run], head_branch="release/v1.1.1-clean")),
             (run, dict(self.gets[run], conclusion="failure")),
         ]
         for path, value in cases:
@@ -446,6 +639,22 @@ class PublishTests(PublishBase):
         p = self.out / "firmware-x4pro-gp.bin"
         p.write_bytes(p.read_bytes() + b"\0")
         self.refused()
+
+    def test_an_edited_missing_or_unbound_acceptance_record_refuses(self):
+        record = json.loads(self.acceptance.read_text())
+        record["packages"][7]["checks"]["dogear-v3-q2-pages"] = "FAIL"
+        self.acceptance.write_text(json.dumps(record))
+        self.assertIn("not PASS", self.refused())
+        record["packages"][7]["checks"]["dogear-v3-q2-pages"] = "PASS"
+        record["approvedOn"] = "2026-10-22"  # valid, but not the record the tag names
+        self.acceptance.write_text(json.dumps(record))
+        self.assertIn("different acceptance record", self.refused())
+        self.acceptance.unlink()
+        gh = FakeGitHub(self.gets)
+        with self.assertRaises(FileNotFoundError):
+            self.publish(gh)
+        self.assertEqual(gh.patches, [])
+        self.assert_not_published(FakeGitHub(self.gets), 1)  # the command exits 1, before any request
 
     def test_an_already_published_missing_or_duplicated_release_refuses(self):
         self.draft()["draft"] = False
@@ -474,7 +683,7 @@ class PublishTests(PublishBase):
 
         def publish_but_not_latest(repository, release_id):
             real(repository, release_id)
-            gh.gets["repos/o/r/releases/latest"] = {"id": 6, "tag_name": "v1.1.0"}
+            gh.gets["repos/o/r/releases/latest"] = {"id": 6, "tag_name": "v1.1.1"}
         gh.publish_latest = publish_but_not_latest
         with self.assertRaises(c.PostPublishProblem):
             self.publish(gh)
@@ -494,7 +703,7 @@ class PublishTests(PublishBase):
     def test_post_publication_malformed_responses_exit_2(self):
         for path, value in (("repos/o/r/releases/7", ["not", "a", "release"]),   # AttributeError
                             ("repos/o/r/releases/7", "text"),                     # AttributeError
-                            ("repos/o/r/releases/7", {"tag_name": "v1.1.1", "draft": False, "prerelease": False,
+                            ("repos/o/r/releases/7", {"tag_name": "v1.2.0", "draft": False, "prerelease": False,
                                                       "immutable": True, "assets": [{"name": None}]}),
                             ("repos/o/r/releases/latest", None),                   # AttributeError
                             ("repos/o/r/releases/latest", ValueError("Expecting value: line 1 column 1")),

@@ -4,10 +4,10 @@
 # release/v1.1.1-clean for `apps_version = 1.1.1`. Each release env is built
 # cold with the same pinned tooling as before, and the `release-candidate`
 # artifact holds:
-#   the 9 release files      firmware-x4-g.bin, firmware-x4pro-{g,p,gp}.bin and
-#                            their .factory.bin, plus the legacy firmware.bin and
-#                            firmware-x4pro.bin copies for devices on 1.0.1
-#   SHA256SUMS.txt           over those 9 files
+#   the 16 release files     firmware-x4-{g,gd}.bin, firmware-x4pro-{g,gd,p,pd,gp,gpd}.bin
+#                            and their .factory.bin, plus the legacy firmware.bin
+#                            and firmware-x4pro.bin copies for devices on 1.0.1
+#   SHA256SUMS.txt           over those 16 files
 #   provenance.json          commit, ref, run id/attempt, workflow ref, digests
 # and `x4pro-flash-support` (never published) holds the X4 Pro USB pieces
 # (bootloader.bin, partitions.bin, boot_app0.bin) of each X4 Pro build. The run
@@ -43,6 +43,14 @@ jobs:
             *) echo "::error::Branch ${GITHUB_REF_NAME} is not release/v${apps}[-...]"; exit 1 ;;
           esac
           echo "display=${base}-A${apps}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.15'
+      - name: Release and package-letter tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/release
+          python3 -m unittest scripts/test_git_branch.py
 
   build:
     name: Build ${{ matrix.env }}
@@ -54,14 +62,25 @@ jobs:
         include:
           - env: gh_release
             package: G
+          - env: x4-goto-dogear-gh_release
+            package: GD
           - env: x4pro-goto-gh_release
             package: G
+            factory: true
+          - env: x4pro-goto-dogear-gh_release
+            package: GD
             factory: true
           - env: x4pro-onpoint-gh_release
             package: P
             factory: true
+          - env: x4pro-onpoint-dogear-gh_release
+            package: PD
+            factory: true
           - env: x4pro-gh_release
             package: GP
+            factory: true
+          - env: x4pro-all-gh_release
+            package: GPD
             factory: true
     steps:
       - uses: actions/checkout@v6

@@ -187,14 +187,40 @@ jobs:
           path: build/test/_deps/googletest-src
           key: ${{ runner.os }}-googletest-${{ hashFiles('test/CMakeLists.txt') }}
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install the DOGEAR TLS test certificate generator (hash-pinned)
+        run: |
+          python3 -m venv /tmp/dogear-certs
+          /tmp/dogear-certs/bin/pip install --require-hashes -r test/dogear_tls/requirements.txt
+
       - name: Configure
-        run: cmake -S test -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release
+        # The DOGEAR TLS tests must run here: a missing dependency fails the configure step.
+        run: >-
+          cmake -S test -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DDOGEAR_REQUIRE_TLS_TESTS=ON -DDOGEAR_CERTS_PYTHON=/tmp/dogear-certs/bin/python
 
       - name: Build
         run: cmake --build build/test
 
       - name: Run tests
         run: ctest --test-dir build/test --output-on-failure -j
+
+  script-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Release tooling and package-letter tests
+        run: |
+          python3 -m unittest discover -s scripts/release
+          python3 -m unittest scripts/test_git_branch.py
 
   # This job is used as the PR required actions check, allows for changes to other steps in the future without breaking
   # PR requirements.
@@ -205,6 +231,7 @@ jobs:
       - clang-format
       - cppcheck
       - unit-tests
+      - script-tests
     if: always()
     runs-on: ubuntu-latest
     steps:
