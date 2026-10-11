@@ -101,4 +101,49 @@ inline TapRect backTapRect(int margin, int labelWidth, int ruleTop, int screenHe
   return TapRect{0, ruleTop, margin + labelWidth + pad, screenHeight - ruleTop};
 }
 
+// Which DOGEAR view is showing: a status screen (no readable issue), the QR
+// view, or the paged issue (its footer shows a page number, never BACK).
+enum class BackView { Status, Qr, Paged };
+enum class BackAction { None, CloseQr, Exit };
+
+// The « BACK tap target, tagged with the view whose footer drew it. The render
+// task installs it; the loop task routes taps against it. A tap counts only
+// while the view that drew the target is the view showing, so a target left
+// over from a screen that has gone (or drawn late by a render already under
+// way when the screen changed) can never act on the next one.
+struct BackTarget {
+  bool valid = false;
+  BackView drawnFor = BackView::Paged;
+  TapRect rect{0, 0, 0, 0};
+
+  void install(BackView view, TapRect r) {
+    rect = r;
+    drawnFor = view;
+    valid = view != BackView::Paged;
+  }
+  void clear() { valid = false; }
+
+  bool hits(BackView showing, int x, int y) const {
+    return valid && drawnFor == showing && showing != BackView::Paged && x >= rect.x && x < rect.x + rect.w &&
+           y >= rect.y && y < rect.y + rect.h;
+  }
+};
+
+// One input frame's Back decision. On the QR view, Back, a tap or (on touch
+// boards) a side key closes it, and the target is cleared here, synchronously,
+// before the caller requests the redraw: until the destination screen draws its
+// own footer, no tap can reach DOGEAR's Back. Elsewhere, the Back key (or the
+// back swipe, folded into it) exits, and so does a tap on the « BACK that the
+// showing screen drew.
+inline BackAction routeBack(BackView showing, bool backKey, bool tapped, int x, int y, BackTarget& target,
+                            bool otherQrClose = false) {
+  if (showing == BackView::Qr) {
+    if (!(backKey || tapped || otherQrClose)) return BackAction::None;
+    target.clear();
+    return BackAction::CloseQr;
+  }
+  if (backKey || (tapped && target.hits(showing, x, y))) return BackAction::Exit;
+  return BackAction::None;
+}
+
 }  // namespace dogear_pages

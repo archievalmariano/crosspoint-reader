@@ -43,6 +43,7 @@ class DogearActivity final : public Activity {
   bool firstRender = true;
   dogear_pages::PressGate backGate;
   dogear_pages::PressGate confirmGate;
+  dogear_pages::BackTarget backTarget;  // the footer's « BACK, tagged with its view
   // The footer action's touch target, valid while a screen with one is drawn.
   bool actionTapValid = false;
   int actionX = 0;

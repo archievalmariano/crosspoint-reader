@@ -88,6 +88,86 @@ TEST(DogearPages, BackTapRectCoversTheLabelToTheBottomEdge) {
   EXPECT_EQ(r.y + r.h, 800);           // to the bottom edge
 }
 
+namespace {
+using dogear_pages::BackAction;
+using dogear_pages::BackTarget;
+using dogear_pages::BackView;
+using dogear_pages::routeBack;
+// A footer « BACK on an 800-high screen: rule at 740, label 60 wide.
+const dogear_pages::TapRect kBackRect = dogear_pages::backTapRect(24, 60, 740, 800);
+constexpr int kInX = 30, kInY = 770;     // inside the « BACK target
+constexpr int kOutX = 300, kOutY = 400;  // elsewhere on the screen
+}  // namespace
+
+TEST(DogearBackTarget, QrBackCloseThenASecondTapBeforeTheRedrawCannotExit) {
+  BackTarget target;
+  // 1. The QR view is showing and its footer drew « BACK.
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_TRUE(target.hits(BackView::Qr, kInX, kInY));
+  // 2. A tap on it closes the QR view, and the target is cleared at once.
+  EXPECT_EQ(routeBack(BackView::Qr, false, true, kInX, kInY, target), BackAction::CloseQr);
+  EXPECT_FALSE(target.valid);
+  // 3. Before the page redraws, a second tap on the same spot: the paged view is
+  //    now showing, and it does not route to DOGEAR's Back (no exit).
+  EXPECT_EQ(routeBack(BackView::Paged, false, true, kInX, kInY, target), BackAction::None);
+  // ... even if a QR render already under way finishes after the close and
+  // installs its target again.
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Paged, false, true, kInX, kInY, target), BackAction::None);
+  // 4. The page's own footer then draws (a page number: no Back target).
+  target.clear();
+  EXPECT_EQ(routeBack(BackView::Paged, false, true, kInX, kInY, target), BackAction::None);
+}
+
+TEST(DogearBackTarget, BackKeyAndSideKeysStillCloseTheQrView) {
+  BackTarget target;
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Qr, true, false, 0, 0, target), BackAction::CloseQr);  // Back key or swipe
+  EXPECT_FALSE(target.valid);
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Qr, false, false, 0, 0, target, true), BackAction::CloseQr);  // side key (touch)
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Qr, false, true, kOutX, kOutY, target), BackAction::CloseQr);  // a tap anywhere
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Qr, false, false, 0, 0, target), BackAction::None);  // no input
+  EXPECT_TRUE(target.valid);
+}
+
+TEST(DogearBackTarget, StatusScreensExitOnTheirBackTapOnly) {
+  BackTarget target;
+  EXPECT_EQ(routeBack(BackView::Status, false, true, kInX, kInY, target), BackAction::None);  // not drawn yet
+  target.install(BackView::Status, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Status, false, true, kInX, kInY, target), BackAction::Exit);
+  EXPECT_EQ(routeBack(BackView::Status, false, true, kOutX, kOutY, target), BackAction::None);  // elsewhere
+  EXPECT_EQ(routeBack(BackView::Status, true, false, 0, 0, target), BackAction::Exit);          // Back key or swipe
+}
+
+TEST(DogearBackTarget, PagedIssueHasNoTapBackButKeepsTheBackKey) {
+  BackTarget target;
+  target.install(BackView::Paged, kBackRect);  // a page-number footer installs nothing
+  EXPECT_FALSE(target.valid);
+  EXPECT_EQ(routeBack(BackView::Paged, false, true, kInX, kInY, target), BackAction::None);
+  EXPECT_EQ(routeBack(BackView::Paged, true, false, 0, 0, target), BackAction::Exit);  // Back key or swipe
+}
+
+TEST(DogearBackTarget, NoStaleTargetSurvivesATransition) {
+  BackTarget target;
+  // A status screen's target is not the paged issue's (an issue loads over it).
+  target.install(BackView::Status, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Paged, false, true, kInX, kInY, target), BackAction::None);
+  // Nor the QR view's: drawn for Status, it does not count while QR is showing
+  // (any tap closes the QR view instead of exiting).
+  EXPECT_EQ(routeBack(BackView::Qr, false, true, kInX, kInY, target), BackAction::CloseQr);
+  // A QR target never counts for a status screen.
+  target.install(BackView::Qr, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Status, false, true, kInX, kInY, target), BackAction::None);
+  // The destination's own draw decides: status installs, a page number clears.
+  target.install(BackView::Status, kBackRect);
+  EXPECT_EQ(routeBack(BackView::Status, false, true, kInX, kInY, target), BackAction::Exit);
+  target.clear();
+  EXPECT_EQ(routeBack(BackView::Status, false, true, kInX, kInY, target), BackAction::None);
+}
+
 TEST(DogearLimits, IssueIdsAreDatedAndPathSafe) {
   EXPECT_TRUE(dogear_limits::isSafeIssueId("dogear-2026-11-23"));
   EXPECT_TRUE(dogear_limits::isSafeIssueId("dogear-2026-12-28"));

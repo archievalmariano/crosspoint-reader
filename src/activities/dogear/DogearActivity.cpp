@@ -21,7 +21,6 @@
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/reader/ReaderUtils.h"
-#include "components/HeaderBackTapTarget.h"
 #include "fontIds.h"
 #include "util/QrUtils.h"
 #include "util/QrVersionSelect.h"
@@ -209,24 +208,29 @@ void DogearActivity::loop() {
     return;
   }
 
-  // The reading view closes before the RenderLock gate so Back stays
-  // responsive during its slow full refresh: Back (X4), a tap or back swipe, or
-  // a side key on touch boards, which have no front Back button.
-  if (showingQr) {
-    int tx = 0;
-    int ty = 0;
-    const bool close = backReleased || mappedInput.wasScreenTapped(tx, ty) ||
-                       (mappedInput.hasTouch() &&
-                        (mappedInput.wasPressed(Button::NavNext) || mappedInput.wasPressed(Button::NavPrevious)));
-    if (close) {
-      showingQr = false;
-      cleanRefresh = true;
-      requestUpdate();
-    }
+  // Back is routed before the RenderLock gate so it stays responsive during a
+  // slow full refresh. The reading view closes on Back (X4), a tap or back swipe,
+  // or a side key on touch boards, which have no front Back button; closing
+  // clears the « BACK target at once, so a second tap before the redraw cannot
+  // exit. Elsewhere Back, the back swipe, or a tap on the « BACK the showing
+  // screen drew, exits.
+  const auto view = showingQr                     ? dogear_pages::BackView::Qr
+                    : (loaded && screenCount > 0) ? dogear_pages::BackView::Paged
+                                                  : dogear_pages::BackView::Status;
+  int tapX = 0;
+  int tapY = 0;
+  const bool tapped = mappedInput.wasScreenTapped(tapX, tapY);
+  const bool sideKey = mappedInput.hasTouch() &&
+                       (mappedInput.wasPressed(Button::NavNext) || mappedInput.wasPressed(Button::NavPrevious));
+  const auto back = dogear_pages::routeBack(view, backReleased, tapped, tapX, tapY, backTarget, sideKey);
+  if (back == dogear_pages::BackAction::CloseQr) {
+    showingQr = false;
+    cleanRefresh = true;
+    requestUpdate();
     return;
   }
-
-  if (backReleased) {
+  if (showingQr) return;
+  if (back == dogear_pages::BackAction::Exit) {
     activityManager.goToApps(AppId::Dogear);
     return;
   }
@@ -354,11 +358,11 @@ void DogearActivity::drawRunningHead() const {
 }
 
 // Footer: rule, the page number (or « BACK) on the left, an action on the
-// right. Records the action's touch target, and « BACK's: touch boards have no
-// front Back button, so the label is recorded where MappedInputManager folds a
-// tap into Button::Back (HeaderBackTapTarget, as CrossPoint's own headers do)
-// and the existing Back handling acts on it. A cached issue's marker follows
-// the page number ("2 / 8 · CACHED"), so it never meets the action.
+// right. Records the action's touch target, and « BACK's (touch boards have no
+// front Back button): tagged with the view drawing it, so loop() routes a tap
+// to Back only while that view is still the one showing (dogear_pages::routeBack).
+// A cached issue's marker follows the page number ("2 / 8 · CACHED"), so it
+// never meets the action.
 void DogearActivity::drawFooter(const char* left, bool leftIsBack, const char* right) {
   const int screenRight = renderer.getScreenWidth() - kMargin;
   const int y = pagerTop();
@@ -378,11 +382,11 @@ void DogearActivity::drawFooter(const char* left, bool leftIsBack, const char* r
   }
   renderer.drawText(kMeta, kMargin, y, leftText, true, leftStyle);
   if (leftIsBack) {
-    const dogear_pages::TapRect r = dogear_pages::backTapRect(
-        kMargin, renderer.getTextWidth(kMeta, leftText, leftStyle), y - kRulePagerGap, renderer.getScreenHeight());
-    HeaderBackTapTarget::set(r.x, r.y, r.w, r.h);
+    backTarget.install(showingQr ? dogear_pages::BackView::Qr : dogear_pages::BackView::Status,
+                       dogear_pages::backTapRect(kMargin, renderer.getTextWidth(kMeta, leftText, leftStyle),
+                                                 y - kRulePagerGap, renderer.getScreenHeight()));
   } else {
-    HeaderBackTapTarget::clear();  // a page number is not Back
+    backTarget.clear();  // a page number is not Back
   }
   if (right) {
     renderer.drawText(kMeta, rightX, y, right, true, EpdFontFamily::BOLD);
