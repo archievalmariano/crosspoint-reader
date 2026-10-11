@@ -70,7 +70,7 @@ class DogearActivity final : public Activity {
 
   // Screens.
   void drawRunningHead() const;
-  void drawFooter(const char* left, bool leftBold, const char* right);
+  void drawFooter(const char* left, bool leftIsBack, const char* right);
   void drawCover();
   void drawQuietContents(int y);  // a quiet week's cover below the dateline (Quiet A)
   void drawItem(const dogear_pages::Screen& s);

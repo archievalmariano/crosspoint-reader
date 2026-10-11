@@ -79,6 +79,15 @@ TEST(DogearPages, PressGateIgnoresAReleaseItDidNotSeePressed) {
   EXPECT_TRUE(gate.update(true, true));  // touch back gesture: one frame
 }
 
+TEST(DogearPages, BackTapRectCoversTheLabelToTheBottomEdge) {
+  // margin 24, label 60 wide, footer rule at 740 on an 800-high screen
+  const dogear_pages::TapRect r = dogear_pages::backTapRect(24, 60, 740, 800);
+  EXPECT_EQ(r.x, 0);
+  EXPECT_EQ(r.y, 740);
+  EXPECT_EQ(r.x + r.w, 24 + 60 + 24);  // past the label's end, by a fingertip
+  EXPECT_EQ(r.y + r.h, 800);           // to the bottom edge
+}
+
 TEST(DogearLimits, IssueIdsAreDatedAndPathSafe) {
   EXPECT_TRUE(dogear_limits::isSafeIssueId("dogear-2026-11-23"));
   EXPECT_TRUE(dogear_limits::isSafeIssueId("dogear-2026-12-28"));

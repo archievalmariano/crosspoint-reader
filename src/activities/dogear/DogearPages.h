@@ -85,4 +85,20 @@ struct PressGate {
   }
 };
 
+// The touch target of the footer's « BACK label: from the screen's left edge to
+// past the label's end, and from the footer rule to the bottom edge, so a
+// fingertip anywhere on it counts. It never reaches the footer's action (BACK
+// screens carry none). Touch boards have no front Back button; this is their Back.
+struct TapRect {
+  int x;
+  int y;
+  int w;
+  int h;
+};
+
+inline TapRect backTapRect(int margin, int labelWidth, int ruleTop, int screenHeight) {
+  const int pad = 24;
+  return TapRect{0, ruleTop, margin + labelWidth + pad, screenHeight - ruleTop};
+}
+
 }  // namespace dogear_pages

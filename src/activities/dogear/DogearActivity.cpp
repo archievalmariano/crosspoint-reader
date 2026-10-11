@@ -21,6 +21,7 @@
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/reader/ReaderUtils.h"
+#include "components/HeaderBackTapTarget.h"
 #include "fontIds.h"
 #include "util/QrUtils.h"
 #include "util/QrVersionSelect.h"
@@ -353,14 +354,17 @@ void DogearActivity::drawRunningHead() const {
 }
 
 // Footer: rule, the page number (or « BACK) on the left, an action on the
-// right. Records the action's touch target. A cached issue's marker follows
+// right. Records the action's touch target, and « BACK's: touch boards have no
+// front Back button, so the label is recorded where MappedInputManager folds a
+// tap into Button::Back (HeaderBackTapTarget, as CrossPoint's own headers do)
+// and the existing Back handling acts on it. A cached issue's marker follows
 // the page number ("2 / 8 · CACHED"), so it never meets the action.
-void DogearActivity::drawFooter(const char* left, bool leftBold, const char* right) {
+void DogearActivity::drawFooter(const char* left, bool leftIsBack, const char* right) {
   const int screenRight = renderer.getScreenWidth() - kMargin;
   const int y = pagerTop();
   fillRule(renderer, y - kRulePagerGap, 1, kMargin, screenRight);
   const char* marker = !showingQr && origin == DogearOrigin::CacheStale ? "CACHED" : nullptr;
-  const EpdFontFamily::Style leftStyle = leftBold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+  const EpdFontFamily::Style leftStyle = leftIsBack ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
   const int rightX = right ? screenRight - renderer.getTextWidth(kMeta, right, EpdFontFamily::BOLD) : screenRight;
   char leftText[48];
   snprintf(leftText, sizeof(leftText), "%s", left);
@@ -373,6 +377,13 @@ void DogearActivity::drawFooter(const char* left, bool leftBold, const char* rig
     }
   }
   renderer.drawText(kMeta, kMargin, y, leftText, true, leftStyle);
+  if (leftIsBack) {
+    const dogear_pages::TapRect r = dogear_pages::backTapRect(
+        kMargin, renderer.getTextWidth(kMeta, leftText, leftStyle), y - kRulePagerGap, renderer.getScreenHeight());
+    HeaderBackTapTarget::set(r.x, r.y, r.w, r.h);
+  } else {
+    HeaderBackTapTarget::clear();  // a page number is not Back
+  }
   if (right) {
     renderer.drawText(kMeta, rightX, y, right, true, EpdFontFamily::BOLD);
     actionX = rightX - 12;
