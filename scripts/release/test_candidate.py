@@ -283,6 +283,17 @@ class E3HostEvidenceTests(Base):
     """Physical E3 is not a release gate; host E3 coverage is mandatory, on the
     exact candidate, and every reader fails closed without it."""
 
+    def replace_evidence(self, data: bytes) -> None:
+        """Put `data` in the assembled candidate as its evidence, with SHA256SUMS.txt
+        and provenance rewritten to match: only the evidence rule can refuse it."""
+        (self.out / c.E3_EVIDENCE).write_bytes(data)
+        files = {p.name: p.read_bytes() for p in self.out.iterdir() if p.name not in (c.SUMS, c.PROVENANCE)}
+        sums = c.write_sums(files, self.out / c.SUMS)
+        prov = json.loads((self.out / c.PROVENANCE).read_text())
+        prov["files"] = {n: {"sha256": c.sha256(d), "size": len(d)} for n, d in sorted(files.items())}
+        prov["sumsSha256"] = c.sha256(sums)
+        (self.out / c.PROVENANCE).write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n")
+
     def schema_file(self, mutate) -> Path:
         schema = json.loads(c.ACCEPTANCE_SCHEMA.read_text())
         mutate(schema)
@@ -301,9 +312,10 @@ class E3HostEvidenceTests(Base):
 
     def test_a_missing_failed_skipped_or_repeated_test_has_no_evidence(self):
         t = "DogearState.StatusCopyIsExactlyTheApprovedCopy"
-        for case in ({t: "missing"}, {t: "fail"}, {t: "skip"}, {"DogearTls.ExpiredCertificateIsRefused": "skip"},
-                     {"DogearBootstrap.OnlyStatus503": "fail"}):
-            with self.subTest(case=case), self.assertRaises(c.Problem):
+        for case, why in (({t: "missing"}, "missing"), ({t: "fail"}, "failed"), ({t: "skip"}, "skipped"),
+                          ({"DogearTls.ExpiredCertificateIsRefused": "skip"}, "skipped"),
+                          ({"DogearBootstrap.OnlyStatus503": "fail"}, "failed")):
+            with self.subTest(case=case), self.assertRaisesRegex(c.Problem, why):
                 evidence(report=junit(case))
         repeated = junit(extra=f'<testcase name="{t}" classname="{t}" status="run"/>')
         with self.assertRaises(c.Problem):
@@ -356,6 +368,17 @@ class E3HostEvidenceTests(Base):
 
     def test_verify_dir_refuses_a_candidate_without_its_evidence(self):
         self.assertEqual(self.assemble()[0], 0)
+        self.assertEqual(run("verify-dir", self.out)[0], 0)
+        good = (self.out / c.E3_EVIDENCE).read_bytes()
+        failing = c.canonical(dict(json.loads(good), tests=dict(json.loads(good)["tests"],
+                                                                **{c.E3_HOST_TESTS[1]: "FAIL"})))
+        for name, data in (("a failed test, sums rewritten", failing), ("another run's", evidence(run=43)),
+                           ("another commit's", evidence(commit="c" * 40))):
+            with self.subTest(case=name):
+                self.replace_evidence(data)
+                self.assertNotEqual(run("verify-dir", self.out)[0], 0)
+        self.replace_evidence(good)
+        self.assertEqual(run("verify-dir", self.out)[0], 0)
         (self.out / c.E3_EVIDENCE).unlink()
         self.assertNotEqual(run("verify-dir", self.out)[0], 0)
 
@@ -401,6 +424,25 @@ class E3HostEvidenceTests(Base):
         refused(lambda r: r["hostCovered"][e3].update(definitionSha256="0" * 64))
         # Consistent evidence for another run, not the candidate's file: refused by its digest.
         refused(lambda r: r.update(candidateRun=43) or r["hostCovered"][e3].update(candidateRun=43))
+        # The candidate's own file is bad (its SUMS rewritten to list it): a record
+        # carrying that same bad evidence is refused by the evidence rule itself...
+        good = (self.out / c.E3_EVIDENCE).read_bytes()
+        failing = c.canonical(dict(json.loads(good), tests=dict(json.loads(good)["tests"],
+                                                                **{c.E3_HOST_TESTS[2]: "FAIL"})))
+        self.replace_evidence(failing)
+        bad = acceptance_record(self.out)
+        self.assertEqual(bad["hostCovered"][e3]["tests"][c.E3_HOST_TESTS[2]], "FAIL")
+        path.write_text(json.dumps(bad))
+        with self.assertRaisesRegex(c.Problem, "not PASS"):
+            c.acceptance_digest(path, self.out)
+        # ... and a record carrying valid evidence is refused because it is not that file.
+        valid = acceptance_record(self.out)
+        valid["hostCovered"][e3] = json.loads(good)
+        path.write_text(json.dumps(valid))
+        with self.assertRaisesRegex(c.Problem, "is not the candidate's"):
+            c.acceptance_digest(path, self.out)
+        self.replace_evidence(good)
+        record = acceptance_record(self.out)
         # Physical E3 substituted for the host evidence: refused both ways.
         refused(lambda r: r.pop("hostCovered") and r["packages"][1]["checks"].update({e3: "PASS"}))
         refused(lambda r: r["packages"][7]["checks"].update({e3: "PASS"}))
