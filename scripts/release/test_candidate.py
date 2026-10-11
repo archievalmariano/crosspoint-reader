@@ -65,12 +65,39 @@ def make_builds(root: Path) -> Path:
     return builds
 
 
+def junit(statuses: dict = None, extra: str = "") -> bytes:
+    """A ctest JUnit report: every required E3 test passed, unless `statuses`
+    says otherwise ({name: "fail" | "skip" | "missing"})."""
+    statuses = statuses or {}
+    cases = []
+    for name in c.E3_HOST_TESTS + ("DogearPages.NavigationIsCircular",):
+        state = statuses.get(name, "pass")
+        if state == "missing":
+            continue
+        if state == "fail":
+            cases.append(f'<testcase name="{name}" classname="{name}" time="0.01" status="fail">'
+                         '<failure message="Failed"/></testcase>')
+        elif state == "skip":
+            cases.append(f'<testcase name="{name}" classname="{name}" time="0" status="notrun"><skipped/></testcase>')
+        else:
+            cases.append(f'<testcase name="{name}" classname="{name}" time="0.01" status="run"/>')
+    return (f'<?xml version="1.0"?><testsuite name="Linux" tests="{len(cases)}">' + "".join(cases) + extra
+            + "</testsuite>").encode()
+
+
+def evidence(commit="b" * 40, run=42, repository="o/r", report=None) -> bytes:
+    return c.e3_evidence_from_junit(report or junit(), c.load_acceptance_schema(), repository=repository,
+                                    commit=commit, run=run)
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.builds = make_builds(self.root)
         self.out, self.support = self.root / "candidate", self.root / "support"
+        self.e3 = self.root / "e3-host-evidence.json"
+        self.e3.write_bytes(evidence())
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -79,7 +106,7 @@ class Base(unittest.TestCase):
         return run("assemble", "--builds", builds or self.builds, "--out", self.out, "--support", self.support,
                    "--display", DISPLAY, "--commit", "b" * 40, "--ref", "release/v1.2.0-dogear", "--run-id", "42",
                    "--run-attempt", "1", "--workflow-ref", "o/r/.github/workflows/release_candidate.yml@refs/x",
-                   "--repository", "o/r")
+                   "--repository", "o/r", "--e3-evidence", self.e3)
 
     def sums_sha(self):
         return hashlib.sha256((self.out / c.SUMS).read_bytes()).hexdigest()
@@ -112,7 +139,9 @@ def acceptance_record(candidate: Path) -> dict:
         entries.append(entry)
     return {"schema": "crosspoint-acceptance/1", "repository": prov["repository"], "tag": "v1.2.0",
             "commit": prov["commit"], "candidateRun": prov["runId"], "sumsSha256": prov["sumsSha256"],
-            "fixtures": copy.deepcopy(FIXTURES), "packages": entries, "approvedBy": "owner", "approvedOn": "2026-10-21"}
+            "fixtures": copy.deepcopy(FIXTURES), "packages": entries,
+            "hostCovered": {c.E3_CHECK: json.loads((candidate / c.E3_EVIDENCE).read_bytes())},
+            "approvedBy": "owner", "approvedOn": "2026-10-21"}
 
 
 class AcceptanceTests(Base):
@@ -159,8 +188,8 @@ class AcceptanceTests(Base):
 
     def test_exactly_the_required_checks_each_pass(self):
         flagship = lambda r: r["packages"][7]["checks"]  # noqa: E731 -- x4pro-gpd
-        for check in ("dogear-e3-cant-load", "dogear-v3-q1-cover", "dogear-v3-q2-navigation", "dogear-v2-cache-503",
-                      "settings-kept", "install-bytes"):
+        for check in ("dogear-e1-no-issue-yet", "dogear-e2-no-issue-on-device", "dogear-v3-q1-cover",
+                      "dogear-v3-q2-navigation", "dogear-v2-cache-503", "settings-kept", "install-bytes"):
             self.refused(lambda r, k=check: flagship(r).pop(k))                  # missing
             self.refused(lambda r, k=check: flagship(r).update({k: "FAIL"}))     # failed
             self.refused(lambda r, k=check: flagship(r).update({k: "pass"}))     # not exactly PASS
@@ -168,7 +197,9 @@ class AcceptanceTests(Base):
         self.refused(lambda r: r["packages"][2]["checks"].update({"dogear-opens": "PASS"}))  # x4pro-g has no DOGEAR
         self.refused(lambda r: r["packages"][0]["checks"].update({"extra": "PASS"}))
         self.refused(lambda r: r["packages"][1]["checks"].pop("dogear-v3-q2-cover"))         # x4-gd: Q2 mandatory
-        self.refused(lambda r: r["packages"][1]["checks"].pop("dogear-e3-cant-load"))
+        # Physical E3 is not a check: recording it is refused, on either flagship.
+        self.refused(lambda r: r["packages"][1]["checks"].update({c.E3_CHECK: "PASS"}))
+        self.refused(lambda r: r["packages"][7]["checks"].update({c.E3_CHECK: "PASS"}))
         self.refused(lambda r: r["packages"][3].update(checks=["install-bytes"]))
 
     def test_each_package_is_bound_to_its_candidate_file_and_pieces(self):
@@ -230,12 +261,149 @@ class AcceptanceTests(Base):
         for name in schema["dogearFlagships"]:
             checks = set(schema["packages"][name]["checks"])
             for required in schema["quietChecks"] + schema["regularCacheChecks"] + [
-                    "dogear-e1-no-issue-yet", "dogear-e2-no-issue-on-device", "dogear-e3-cant-load"]:
+                    "dogear-e1-no-issue-yet", "dogear-e2-no-issue-on-device"]:
                 self.assertIn(required, checks, name)
+            self.assertNotIn(c.E3_CHECK, checks, name)  # host-covered, never physical
+        definition = schema["hostCovered"][c.E3_CHECK]
+        self.assertEqual(definition["policy"], "Physical E3 is not a release gate. Host E3 coverage is mandatory.")
+        self.assertEqual(definition["tests"], list(c.E3_HOST_TESTS))
+        self.assertEqual(definition["evidence"], c.E3_EVIDENCE)
+        for required in ("DogearState.TheCasesThatMatter", "DogearState.EveryCombinationFollowsTheThreeRules",
+                         "DogearState.StatusCopyIsExactlyTheApprovedCopy", "DogearTls.SelfSignedCertificateIsRefused",
+                         "DogearTlsRead.AReadFailureAfterTheExactBodyIsNotNothingPublished",
+                         "DogearBootstrap.OnlyExplicitFramingCounts"):
+            self.assertIn(required, definition["tests"])
         for name in ("x4pro-g", "x4pro-gd", "x4pro-p", "x4pro-pd"):
             self.assertEqual(schema["packages"][name]["level"], "boot")
         for name in ("x4-g", "x4pro-gp"):
             self.assertEqual(schema["packages"][name]["level"], "full")
+
+
+class E3HostEvidenceTests(Base):
+    """Physical E3 is not a release gate; host E3 coverage is mandatory, on the
+    exact candidate, and every reader fails closed without it."""
+
+    def schema_file(self, mutate) -> Path:
+        schema = json.loads(c.ACCEPTANCE_SCHEMA.read_text())
+        mutate(schema)
+        path = self.root / "acceptance-v1.json"
+        path.write_text(json.dumps(schema))
+        return path
+
+    def test_the_evidence_is_every_required_test_pass_and_deterministic(self):
+        data = evidence()
+        self.assertEqual(data, evidence())  # no times, no ordering: the same run gives the same bytes
+        ev = json.loads(data)
+        self.assertEqual(ev["tests"], {t: "PASS" for t in c.E3_HOST_TESTS})
+        self.assertEqual((ev["skipped"], ev["commit"], ev["candidateRun"]), ([], "b" * 40, 42))
+        self.assertEqual(ev["definitionSha256"], c.e3_definition_sha256(c.load_acceptance_schema()))
+        self.assertEqual(len(c.E3_HOST_TESTS), 28)
+
+    def test_a_missing_failed_skipped_or_repeated_test_has_no_evidence(self):
+        t = "DogearState.StatusCopyIsExactlyTheApprovedCopy"
+        for case in ({t: "missing"}, {t: "fail"}, {t: "skip"}, {"DogearTls.ExpiredCertificateIsRefused": "skip"},
+                     {"DogearBootstrap.OnlyStatus503": "fail"}):
+            with self.subTest(case=case), self.assertRaises(c.Problem):
+                evidence(report=junit(case))
+        repeated = junit(extra=f'<testcase name="{t}" classname="{t}" status="run"/>')
+        with self.assertRaises(c.Problem):
+            evidence(report=repeated)
+        with self.assertRaises(c.Problem):
+            evidence(report=b"not xml")
+        # An unrequired test skipped elsewhere does not matter (DogearTlsLive is network-only).
+        self.assertTrue(evidence(report=junit(extra='<testcase name="DogearTlsLive.X" status="notrun"><skipped/>'
+                                                    '</testcase>')))
+
+    def test_the_cli_writes_it_and_never_overwrites(self):
+        report = self.root / "ctest-junit.xml"
+        report.write_bytes(junit())
+        out = self.root / "e3" / c.E3_EVIDENCE
+        out.parent.mkdir()
+        args = ("e3-evidence", "--junit", report, "--repository", "o/r", "--commit", "b" * 40, "--run-id", "42",
+                "--out", out)
+        self.assertEqual(run(*args)[0], 0)
+        self.assertEqual(out.read_bytes(), evidence())
+        self.assertNotEqual(run(*args)[0], 0)  # exists already
+        report.write_bytes(junit({"DogearTlsRead.ReadResultWaitsOnlyWhileTheTransportIsOpen": "skip"}))
+        out.unlink()
+        self.assertNotEqual(run(*args)[0], 0)
+        self.assertFalse(out.exists())
+
+    def test_assemble_refuses_evidence_from_another_commit_run_or_definition(self):
+        cases = {
+            "another commit": evidence(commit="c" * 40),
+            "another run": evidence(run=43),
+            "another repository": evidence(repository="x/r"),
+            "not canonical": json.dumps(json.loads(evidence()), indent=2).encode(),
+            "a test not PASS": c.canonical(dict(json.loads(evidence()), tests=dict(
+                json.loads(evidence())["tests"], **{c.E3_HOST_TESTS[0]: "FAIL"}))),
+            "a skipped test recorded": c.canonical(dict(json.loads(evidence()), skipped=[c.E3_HOST_TESTS[0]])),
+            "another definition": c.canonical(dict(json.loads(evidence()), definitionSha256="0" * 64)),
+            "a test missing": c.canonical(dict(json.loads(evidence()), tests={
+                k: v for k, v in json.loads(evidence())["tests"].items() if k != c.E3_HOST_TESTS[-1]})),
+        }
+        for name, data in cases.items():
+            with self.subTest(case=name):
+                if self.out.exists():
+                    shutil.rmtree(self.out)
+                    shutil.rmtree(self.support)
+                self.e3.write_bytes(data)
+                self.assertNotEqual(self.assemble()[0], 0)
+                self.assertFalse(self.out.exists())
+        self.e3.unlink()  # no evidence at all
+        self.assertNotEqual(self.assemble()[0], 0)
+        self.assertFalse(self.out.exists())
+
+    def test_verify_dir_refuses_a_candidate_without_its_evidence(self):
+        self.assertEqual(self.assemble()[0], 0)
+        (self.out / c.E3_EVIDENCE).unlink()
+        self.assertNotEqual(run("verify-dir", self.out)[0], 0)
+
+    def test_the_schema_requires_hostCovered_exactly(self):
+        e3 = c.E3_CHECK
+        mutations = {
+            "hostCovered deleted": lambda s: s.pop("hostCovered"),
+            "E3 entry deleted": lambda s: s["hostCovered"].pop(e3),
+            "a required test removed": lambda s: s["hostCovered"][e3]["tests"].pop(),
+            "a test added": lambda s: s["hostCovered"][e3]["tests"].append("DogearPages.NavigationIsCircular"),
+            "tests reordered": lambda s: s["hostCovered"][e3]["tests"].reverse(),
+            "the policy reworded": lambda s: s["hostCovered"][e3].update(policy="Host E3 coverage is optional."),
+            "another evidence file": lambda s: s["hostCovered"][e3].update(evidence="e3.json"),
+            "physical E3 back on a flagship": lambda s: (s["checks"].update({e3: "physical"}),
+                                                          s["packages"]["x4-gd"]["checks"].append(e3)),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(case=name), self.assertRaises(c.Problem):
+                c.load_acceptance_schema(self.schema_file(mutate))
+
+    def test_the_record_requires_the_candidates_own_evidence(self):
+        self.assertEqual(self.assemble()[0], 0)
+        record = acceptance_record(self.out)
+        path = self.root / "ACCEPTANCE.json"
+
+        def refused(mutate):
+            r = copy.deepcopy(record)
+            mutate(r)
+            path.write_text(json.dumps(r))
+            with self.assertRaises(c.Problem):
+                c.acceptance_digest(path, self.out)
+
+        path.write_text(json.dumps(record))
+        self.assertTrue(c.acceptance_digest(path, self.out))  # the complete record passes
+        e3 = c.E3_CHECK
+        refused(lambda r: r.pop("hostCovered"))                                       # deleted
+        refused(lambda r: r.update(hostCovered={}))
+        refused(lambda r: r["hostCovered"][e3]["tests"].update({c.E3_HOST_TESTS[3]: "FAIL"}))
+        refused(lambda r: r["hostCovered"][e3]["tests"].pop(c.E3_HOST_TESTS[3]))     # a test missing
+        refused(lambda r: r["hostCovered"][e3].update(skipped=[c.E3_HOST_TESTS[3]]))
+        refused(lambda r: r["hostCovered"][e3].update(commit="c" * 40))            # another commit
+        refused(lambda r: r["hostCovered"][e3].update(candidateRun=43))             # another run
+        refused(lambda r: r["hostCovered"][e3].update(definitionSha256="0" * 64))
+        # Consistent evidence for another run, not the candidate's file: refused by its digest.
+        refused(lambda r: r.update(candidateRun=43) or r["hostCovered"][e3].update(candidateRun=43))
+        # Physical E3 substituted for the host evidence: refused both ways.
+        refused(lambda r: r.pop("hostCovered") and r["packages"][1]["checks"].update({e3: "PASS"}))
+        refused(lambda r: r["packages"][7]["checks"].update({e3: "PASS"}))
 
 
 class AssembleTests(Base):
@@ -243,7 +411,8 @@ class AssembleTests(Base):
         code, out, err = self.assemble()
         self.assertEqual(code, 0, err)
         self.assertEqual(sorted(p.name for p in self.out.iterdir()), sorted(c.release_files() + [c.SUMS, c.PROVENANCE]))
-        self.assertEqual(len(c.release_files()), 16)
+        self.assertEqual(len(c.release_files()), 17)  # 16 firmware files + e3-host-evidence.json
+        self.assertEqual((self.out / c.E3_EVIDENCE).read_bytes(), self.e3.read_bytes())
         self.assertEqual(c.packages(), ["x4-g", "x4-gd", "x4pro-g", "x4pro-gd", "x4pro-p", "x4pro-pd", "x4pro-gp",
                                         "x4pro-gpd"])
         self.assertEqual((self.out / "firmware.bin").read_bytes(), (self.out / "firmware-x4-g.bin").read_bytes())

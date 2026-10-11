@@ -4,14 +4,21 @@
 # release/v1.1.1-clean for `apps_version = 1.1.1`. Each release env is built
 # cold with the same pinned tooling as before, and the `release-candidate`
 # artifact holds:
-#   the 16 release files     firmware-x4-{g,gd}.bin, firmware-x4pro-{g,gd,p,pd,gp,gpd}.bin
+#   the 17 release files     firmware-x4-{g,gd}.bin, firmware-x4pro-{g,gd,p,pd,gp,gpd}.bin
 #                            and their .factory.bin, plus the legacy firmware.bin
-#                            and firmware-x4pro.bin copies for devices on 1.0.1
-#   SHA256SUMS.txt           over those 16 files
+#                            and firmware-x4pro.bin copies for devices on 1.0.1,
+#                            and e3-host-evidence.json (below)
+#   SHA256SUMS.txt           over those 17 files
 #   provenance.json          commit, ref, run id/attempt, workflow ref, digests
 # and `x4pro-flash-support` (never published) holds the X4 Pro USB pieces
 # (bootloader.bin, partitions.bin, boot_app0.bin) of each X4 Pro build. The run
 # fails unless every build passes and every .factory.bin is exactly its pieces.
+#
+# Physical E3 is not a release gate. Host E3 coverage is mandatory: the
+# e3-host-tests job runs every host test on this run's own commit, and
+# e3-host-evidence.json records that each required E3 test (acceptance-v1.json
+# hostCovered) ran and passed, none skipped. assemble refuses a candidate
+# without it, and the acceptance record must carry the same evidence.
 #
 # These bytes are what gets installed and physically accepted; release.yml
 # later publishes this same artifact, never a rebuild (builds embed their build
@@ -126,9 +133,54 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  e3-host-tests:
+    # The required E3 host tests, on exactly this run's commit (never another
+    # run, ref or trigger): every host test must pass, and e3-evidence fails
+    # unless each required E3 test ran once and passed, none skipped.
+    name: E3 host tests (this commit)
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.15'
+      - name: Install the DOGEAR TLS test certificate generator (hash-pinned)
+        run: |
+          python3 -m venv /tmp/dogear-certs
+          /tmp/dogear-certs/bin/pip install --require-hashes -r test/dogear_tls/requirements.txt
+      - name: Configure
+        # The DOGEAR TLS tests must run here: a missing dependency fails the configure step.
+        run: >-
+          cmake -S test -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DDOGEAR_REQUIRE_TLS_TESTS=ON -DDOGEAR_CERTS_PYTHON=/tmp/dogear-certs/bin/python
+      - name: Build
+        run: cmake --build build/test
+      - name: Run every host test, with a JUnit report
+        run: ctest --test-dir build/test --output-on-failure -j --output-junit "${GITHUB_WORKSPACE}/ctest-junit.xml"
+      - name: E3 host evidence
+        run: |
+          set -euo pipefail
+          mkdir e3
+          python3 scripts/release/candidate.py e3-evidence --junit ctest-junit.xml \
+            --repository "${GITHUB_REPOSITORY}" --commit "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" \
+            --out e3/e3-host-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e3-host-evidence
+          path: e3/
+          if-no-files-found: error
+          retention-days: 90
+
   assemble:
     name: Assemble release candidate
-    needs: [version, build]
+    needs: [version, build, e3-host-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -139,19 +191,25 @@ jobs:
         with:
           pattern: build-*
           path: builds
+      - uses: actions/download-artifact@v4
+        with:
+          name: e3-host-evidence
+          path: e3
       - name: Assemble and verify
         run: |
           set -euo pipefail
           python3 scripts/release/candidate.py assemble --builds builds --out candidate --support support \
             --display "${{ needs.version.outputs.display }}" --commit "${GITHUB_SHA}" --ref "${GITHUB_REF_NAME}" \
             --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
-            --workflow-ref "${GITHUB_WORKFLOW_REF}" --repository "${GITHUB_REPOSITORY}"
+            --workflow-ref "${GITHUB_WORKFLOW_REF}" --repository "${GITHUB_REPOSITORY}" \
+            --e3-evidence e3/e3-host-evidence.json
           python3 scripts/release/candidate.py verify-dir candidate --support support \
             --commit "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}"
           {
             echo "### Release candidate ${{ needs.version.outputs.display }}"
             echo "commit \`${GITHUB_SHA}\`, run ${GITHUB_RUN_ID} attempt ${GITHUB_RUN_ATTEMPT}"
             echo "SHA256SUMS.txt sha256: \`$(sha256sum candidate/SHA256SUMS.txt | cut -d' ' -f1)\`"
+            echo "E3 host evidence (every required E3 host test PASS, none skipped): \`$(sha256sum candidate/e3-host-evidence.json | cut -d' ' -f1)\`"
             echo '```'
             cat candidate/SHA256SUMS.txt
             echo '```'

@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir publish
-          cp candidate/*.bin candidate/SHA256SUMS.txt publish/
+          cp candidate/*.bin candidate/SHA256SUMS.txt candidate/e3-host-evidence.json publish/
           cat > notes.md <<EOF
           Firmware ${DISPLAY_VERSION} (CrossPoint base + APPS ${GITHUB_REF_NAME#v}), in app packages.
           Every package opens its apps from Home > Apps.
@@ -115,6 +115,9 @@ jobs:
             to one, install that package once by hand (as above); later updates keep it.
           - **X4 (microSD):** copy the file to the card and use Settings > System > SD Card Firmware Update.
           - \`firmware.bin\` and \`firmware-x4pro.bin\` are for devices updating from 1.0.1.
+
+          \`e3-host-evidence.json\` records that this build's commit passed every required E3 host test
+          (DOGEAR's CAN'T LOAD AN ISSUE screen), none skipped.
 
           Checksums are in \`SHA256SUMS.txt\`. These are the files built by release-candidate run
           ${RUN_ID} from ${GITHUB_SHA} and accepted on device before publication.

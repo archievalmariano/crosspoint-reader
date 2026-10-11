@@ -29,7 +29,10 @@ Scripts: `scripts/release/candidate.py`, with the acceptance schema
 2. Dispatch **Compile Release Candidate** (`release_candidate.yml`) on that branch.
    It builds the release envs cold and fails unless:
    - every build reports `CrossPoint build version: <version>-<PACKAGE>`;
-   - the release is exactly the 16 files below;
+   - the release is exactly the 16 firmware files below plus `e3-host-evidence.json`;
+   - every host test passes on the run's own commit, and each required E3 host
+     test (`hostCovered` in `acceptance-v1.json`) ran and passed, none skipped
+     (the `e3-host-tests` job; its `e3-host-evidence.json` is a release file);
    - the legacy copies are byte copies;
    - each `.factory.bin` is exactly bootloader, partition table, `boot_app0` and app,
      with `0xFF` everywhere else, NVS included.
@@ -82,25 +85,36 @@ never installed from microSD.
 | Package | Level | Checks |
 |---|---|---|
 | `x4-g` | full | `install-bytes boots version-string apps-exact goto-edition tools-open book-reads update-check` |
-| `x4-gd` | full + DOGEAR | the `x4-g` checks + the 13 DOGEAR checks |
+| `x4-gd` | full + DOGEAR | the `x4-g` checks + the 12 DOGEAR checks |
 | `x4pro-g` | boot | `install-bytes boots version-string apps-exact goto-opens` |
 | `x4pro-gd` | boot | the `x4pro-g` checks + `dogear-opens` |
 | `x4pro-p` | boot | `install-bytes boots version-string apps-exact onpoint-opens` |
 | `x4pro-pd` | boot | the `x4pro-p` checks + `dogear-opens` |
 | `x4pro-gp` | full | `install-bytes boots version-string apps-exact goto-edition onpoint-opens tools-open book-reads settings-kept update-check` |
-| `x4pro-gpd` | full + DOGEAR | the `x4pro-gp` checks + the 13 DOGEAR checks |
+| `x4pro-gpd` | full + DOGEAR | the `x4pro-gp` checks + the 12 DOGEAR checks |
 
-The 13 DOGEAR checks, on both flagship DOGEAR builds:
+The 12 DOGEAR checks, on both flagship DOGEAR builds:
 - `dogear-opens`;
 - the status screens, with `/dogear` renamed aside: `dogear-e1-no-issue-yet`
-  (online against production while it has published nothing),
-  `dogear-e2-no-issue-on-device` (Wi-Fi off) and `dogear-e3-cant-load` (a Wi-Fi
-  network without internet);
+  (online against production while it has published nothing) and
+  `dogear-e2-no-issue-on-device` (Wi-Fi off);
 - a schema-2 regular issue (fixture R) as the only SD generation:
   `dogear-v2-cache-offline` and `dogear-v2-cache-503`;
 - schema-3 quiet issues (fixtures Q1 and Q2), Wi-Fi off:
   `dogear-v3-q1-cover`, `-pages`, `-navigation` and the same three for Q2;
 - `dogear-no-writes`.
+
+**E3 (`CAN’T LOAD AN ISSUE`, a Wi-Fi network without internet). Physical E3 is
+not a release gate. Host E3 coverage is mandatory.** It is not a physical check
+on any package, and a record that lists it as one is refused. Instead the
+candidate run's `e3-host-tests` job runs the exact host tests listed in
+`acceptance-v1.json` under `hostCovered` (the state rules for a failed manifest,
+every combination, the approved status copy, the TLS refusals, cut and
+interrupted reads, bootstrap classification) on the run's own commit, and
+`candidate.py e3-evidence` writes `e3-host-evidence.json` only if each one ran
+and passed, none skipped. That file names the commit, the run and the digest of
+the test definition; it is in `SHA256SUMS.txt`, and the acceptance record
+carries it under `hostCovered`. A dev build's test run is never this evidence.
 
 The fixtures are temporary, hash-verified SD generations
 (`/dogear/issues/<id>.<sha16>.json` and `/dogear/active.txt`), generated from the
@@ -113,7 +127,9 @@ deleted.
 run and `SHA256SUMS.txt` digest; the fixtures (generator commit, issue ids,
 hashes, shape); one entry per package, in canonical order, with its env, file
 and digest, the X4 Pro pieces' digests, the install method, the date and exactly
-its required checks, each `PASS`; the owner's approval. No free text. Then:
+its required checks, each `PASS`; under `hostCovered`, the candidate's own
+`e3-host-evidence.json` content, unchanged (its canonical bytes must be the file
+in `SHA256SUMS.txt`); the owner's approval. No free text. Then:
 ```bash
 python3 scripts/release/candidate.py acceptance --record ACCEPTANCE.json \
   --candidate-dir release-candidate --flash-support x4pro-flash-support
@@ -161,7 +177,7 @@ record; it is not attached to the release.
    0. The local `release-candidate` folder is the accepted one: its files match its `SHA256SUMS.txt`, whose sha256 is the accepted digest, and its provenance names the commit and run. The acceptance record validates against it (as `candidate.py acceptance` does).
    1. `GET /repos/<owner>/<repo>/immutable-releases` reports `enabled: true`.
    2. Exactly one release carries the tag. It is still a **draft** (an already published release is refused, never republished) and not a prerelease. The tag is annotated, points directly at the commit, and its message names the same run, commit and digest, every package as physically accepted, and exactly this acceptance record's `acceptance-sha256`.
-   3. The run is this repository's `release_candidate.yml`, dispatched on `release/<tag>*`, successful, at the commit. The draft's assets are exactly the accepted files plus `SHA256SUMS.txt`, with GitHub digests equal to the accepted ones.
+   3. The run is this repository's `release_candidate.yml`, dispatched on `release/<tag>*`, successful, at the commit. The draft's assets are exactly the accepted files (`e3-host-evidence.json` among them) plus `SHA256SUMS.txt`, with GitHub digests equal to the accepted ones.
    4. Only then, one `PATCH` sets `draft: false` and `make_latest: true`.
    5. It re-fetches and requires all of these:
       - published, not a prerelease, `immutable: true`;
