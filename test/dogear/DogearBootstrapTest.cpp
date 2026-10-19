@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "activities/dogear/DogearHttpParser.h"
+#include "activities/dogear/DogearState.h"
 
 namespace {
 using dogear_http::classify;
@@ -276,6 +277,45 @@ TEST(DogearBootstrap, BytesReadOneAtATimeClassifyTheSame) {
     EXPECT_EQ(run(response(503, kRight, f), true, kReadFailed, 1), Outcome::NothingPublished);
   }
   EXPECT_EQ(run(response(503, kRight, Framing::Close), true, kReadClosed, 1), Outcome::Error);
+}
+
+// Post-launch host evidence for acceptance check dogear-e1-no-issue-yet
+// (acceptance-maintenance-v1.json): production can no longer answer "nothing
+// published", so the physical check is replaced by this chain on the issue
+// server's own "empty" answer: classified as nothing published, then, with no
+// readable generation, NO ISSUE YET with its own heading and note.
+enum class E1Copy {
+  None,
+  STR_DOGEAR_NO_ISSUE_YET,
+  STR_DOGEAR_NO_ISSUE_YET_NOTE,
+  STR_DOGEAR_NO_ISSUE_ON_DEVICE,
+  STR_DOGEAR_NO_ISSUE_ON_DEVICE_NOTE,
+  STR_DOGEAR_CANT_LOAD,
+  STR_DOGEAR_CANT_LOAD_NOTE
+};
+
+TEST(DogearPostLaunch, NothingPublishedWithNoReadableIssueIsNoIssueYet) {
+  using dogear_state::Manifest;
+  using dogear_state::Screen;
+  const Vector* empty = nullptr;
+  for (const Vector& v : kVectors) {
+    if (std::string(v.store) == "empty") empty = &v;
+  }
+  ASSERT_NE(empty, nullptr);
+  for (const Framing f : kExplicit) {
+    const Outcome outcome = run(response(empty->status, empty->body, f, empty->headers));
+    ASSERT_EQ(outcome, Outcome::NothingPublished) << static_cast<int>(f);
+    // DogearSource: a NothingPublished manifest answer, no network issue, no readable generation.
+    const Screen screen = dogear_state::choose(true, Manifest::NothingPublished, false, false);
+    EXPECT_EQ(screen, Screen::NoIssueYet);
+    E1Copy heading = E1Copy::None, note = E1Copy::None;
+    ASSERT_TRUE(dogear_state::statusCopy(screen, heading, note));
+    EXPECT_EQ(heading, E1Copy::STR_DOGEAR_NO_ISSUE_YET);
+    EXPECT_EQ(note, E1Copy::STR_DOGEAR_NO_ISSUE_YET_NOTE);
+  }
+  // Without explicit framing the same bytes are no answer at all: never NO ISSUE YET.
+  EXPECT_EQ(run(response(empty->status, empty->body, Framing::Close, empty->headers)), Outcome::Error);
+  EXPECT_EQ(dogear_state::choose(true, Manifest::Failed, false, false), Screen::CantLoad);
 }
 
 }  // namespace

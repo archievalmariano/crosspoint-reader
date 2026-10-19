@@ -1,10 +1,14 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <map>
 #include <set>
+#include <string>
 
 #include "TestSha256.h"
 #include "activities/dogear/DogearCache.h"
+#include "activities/dogear/DogearHttpParser.h"
+#include "activities/dogear/DogearState.h"
 
 namespace {
 using dogear_cache::Cache;
@@ -339,6 +343,55 @@ TEST(DogearCache, OlderFirmwarePassesOverAnIssueSchemaItCannotRead) {
   Fixture fresh;
   ASSERT_TRUE(fresh.commit("dogear-2026-11-16", quiet));
   EXPECT_EQ(dogear_cache::loadNewestReadable(fresh.cache, g, readsTwo), nullptr);
+}
+
+// Post-launch host evidence for acceptance check dogear-v2-cache-503
+// (acceptance-maintenance-v1.json): production can no longer answer "nothing
+// published", so the physical check is replaced by this chain: the server's
+// explicitly framed 503 "nothing published" classifies as such, the card's
+// hash-verified schema-2 generation is the issue loaded, and the screen is
+// CACHED (never NO ISSUE YET). Without that generation it would be NO ISSUE YET.
+TEST(DogearPostLaunch, CachedRegularIssueWithNothingPublishedIsCachedNeverNoIssueYet) {
+  using dogear_state::Manifest;
+  using dogear_state::Screen;
+  const std::string answer =
+      "HTTP/1.1 503 Service Unavailable\r\nCache-Control: no-store\r\nContent-Type: text/plain; charset=utf-8\r\n"
+      "Content-Length: 18\r\n\r\nnothing published\n";
+  dogear_http::ResponseParser parser(4096);
+  size_t at = 0;
+  const dogear_http::StreamEnd end = dogear_http::readResponse(
+      parser,
+      [&](char* buf, size_t len) {
+        if (at >= answer.size()) return dogear_http::kReadClosed;
+        const size_t n = std::min(len, answer.size() - at);
+        answer.copy(buf, n, at);
+        at += n;
+        return static_cast<int>(n);
+      },
+      [] { return false; });
+  ASSERT_EQ(dogear_http::classify(parser, end, true), dogear_http::Outcome::NothingPublished);
+
+  Fixture f;
+  const std::string regular = issue("dogear-2026-11-23", "R");  // schema 2, as fixture R
+  ASSERT_TRUE(f.commit("dogear-2026-11-23", regular));
+  const auto readsTwo = [](const Generation& gen) {
+    return gen.bytes.find("\"schemaVersion\":2") != std::string::npos;
+  };
+  Generation g;
+  const char* loaded = dogear_cache::loadNewestReadable(f.cache, g, readsTwo);
+  ASSERT_NE(loaded, nullptr);
+  EXPECT_STREQ(loaded, dogear_cache::kActive);
+  EXPECT_EQ(g.issueId, "dogear-2026-11-23");
+  EXPECT_EQ(g.bytes, regular);
+
+  const Screen screen = dogear_state::choose(true, Manifest::NothingPublished, false, loaded != nullptr);
+  EXPECT_EQ(screen, Screen::Cached);
+  EXPECT_NE(screen, Screen::NoIssueYet);
+  EXPECT_FALSE(dogear_state::isStatus(screen));
+  // The same answer with no readable generation is the only way to NO ISSUE YET.
+  Fixture empty;
+  EXPECT_EQ(dogear_cache::loadNewestReadable(empty.cache, g, readsTwo), nullptr);
+  EXPECT_EQ(dogear_state::choose(true, Manifest::NothingPublished, false, false), Screen::NoIssueYet);
 }
 
 }  // namespace
