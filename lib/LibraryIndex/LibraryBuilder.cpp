@@ -10,6 +10,7 @@
 #include <Utf8.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstring>
 
@@ -194,6 +195,19 @@ bool isBookName(const std::string& name) {
 // these (FileBrowserActivity isMacOSMetadataEntry); the shelf must agree, or a
 // card written on a Mac shows every book twice.
 bool isHiddenOrSidecar(const char* name) { return name[0] == '.'; }
+
+// DOGEAR's offline cache (/dogear: active.txt, previous.txt, issues/) is app data,
+// not books; its .txt manifests would otherwise shelve as text books. Only the
+// card-root folder is skipped (case-insensitively, as FAT matches it); a folder
+// of that name anywhere else is a user's and is scanned.
+bool isAppDataDirectory(const std::string& parent, const std::string& name) {
+  static constexpr char kDogear[] = "dogear";
+  if (parent != "/" || name.size() != sizeof(kDogear) - 1) return false;
+  for (size_t i = 0; i < name.size(); ++i) {
+    if (std::tolower(static_cast<unsigned char>(name[i])) != kDogear[i]) return false;
+  }
+  return true;
+}
 
 std::string stemOf(const std::string& name) {
   const size_t dot = name.find_last_of('.');
@@ -473,6 +487,7 @@ void walk(WalkState& st, const std::string& path, const int depth) {
     const std::string name(st.nameBuf);
 
     if (isDir) {
+      if (isAppDataDirectory(path, name)) continue;
       const size_t resumePosition = dir.position();
       dir.close();
       walk(st, joinLibraryPath(path, name), depth + 1);

@@ -209,6 +209,31 @@ TEST_F(LibraryBuilderTest, EqualBasenamesInDifferentFoldersReconcileIndependentl
   EXPECT_EQ(stats.metadataReused, 3);
 }
 
+TEST_F(LibraryBuilderTest, DogearCacheAtTheCardRootIsNotShelvedButSameNamedBooksAre) {
+  fake::add("/dogear/active.txt", "v1 dogear-2026-10-19 3e24");
+  fake::add("/dogear/previous.txt", "v1 dogear-2026-10-12 58be");
+  fake::add("/dogear/issues/dogear-2026-10-19.3e242da4171f302e.json", "{}");
+  fake::add("/books/dogear/novel.txt");  // a user's folder of that name, not at the root
+  fake::add("/dogear.txt");              // a book named like it
+  initial();
+
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  std::vector<std::string> shelved;
+  for (uint16_t row = 0; row < index.bookCount(); ++row) shelved.push_back(pathAt(index, SortOrder::RecentAsc, row));
+  std::sort(shelved.begin(), shelved.end());
+  EXPECT_EQ(shelved, (std::vector<std::string>{"/a.epub", "/b.epub", "/books/dogear/novel.txt", "/dogear.txt"}));
+}
+
+TEST_F(LibraryBuilderTest, DogearCacheIsMatchedCaseInsensitivelyLikeFat) {
+  fake::add("/DogEar/active.txt");
+  initial();
+
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  EXPECT_EQ(index.bookCount(), 2);
+}
+
 TEST_F(LibraryBuilderTest, ArrivalOrderFollowsModificationTimeOverDiscoveryOrder) {
   // a and b exist with the default time; c lands with an older timestamp and d
   // with the newest, so file times, not walk or firstSeen order, decide.
