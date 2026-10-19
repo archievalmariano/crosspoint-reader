@@ -29,7 +29,8 @@ Scripts: `scripts/release/candidate.py`, with the acceptance schema
 2. Dispatch **Compile Release Candidate** (`release_candidate.yml`) on that branch.
    It builds the release envs cold and fails unless:
    - every build reports `CrossPoint build version: <version>-<PACKAGE>`;
-   - the release is exactly the 16 firmware files below plus `e3-host-evidence.json`;
+   - the release is exactly the 16 firmware files below plus `e3-host-evidence.json` and
+     `post-launch-host-evidence.json` (§2a);
    - every host test passes on the run's own commit, and each required E3 host
      test (`hostCovered` in `acceptance-v1.json`) ran and passed, none skipped
      (the `e3-host-tests` job; its `e3-host-evidence.json` is a release file);
@@ -141,6 +142,37 @@ keys. It prints `acceptance-sha256`, the sha256 of the record's canonical JSON
 record. The full record later becomes public in DOGEAR's firmware-contract sync
 record; it is not attached to the release.
 
+## 2a. Post-launch maintenance acceptance (a fixed alternative to §2)
+
+After DOGEAR's launch, production never again answers 503 `nothing published`,
+and a candidate build cannot be pointed at another host. So two §2 checks,
+`dogear-e1-no-issue-yet` and `dogear-v2-cache-503`, can no longer pass on any
+candidate. For a maintenance release the owner may instead authorize this one
+fixed policy, `post-launch-maintenance` (`scripts/release/acceptance-maintenance-v1.json`,
+schema `crosspoint-acceptance-maintenance/1`). §2 itself is unchanged and still
+applies to any release that uses it.
+
+| Package | Under `post-launch-maintenance` |
+|---|---|
+| `x4-gd`, `x4pro-gpd` (the DOGEAR flagships) | **physically accepted**, with exactly their §2 checks, except: the two production-503 checks are host-covered (below), and `dogear-no-writes` becomes `dogear-no-writes-offline` (after the Wi-Fi-off fixture checks only, since an online run may rightly write the published issue) |
+| `x4-g`, `x4pro-g`, `x4pro-gd`, `x4pro-p`, `x4pro-pd`, `x4pro-gp` | **CI-verified only**: the candidate run built them, checked their version strings, sums and factory images. They are recorded as `"verification": "ci"` with no checks, install or date, and are never described as physically accepted |
+
+- **Host evidence, for every candidate:** the `e3-host-tests` job also writes `post-launch-host-evidence.json` from the same JUnit report. It covers the host tests that replace the two production-503 checks (`hostCovered` in the maintenance schema). Two of them, `DogearPostLaunch.*`, chain the server's exact answer through classification, the SD cache and the screen rule. It fails closed exactly like E3's evidence: missing, failed, skipped or repeated tests mean no evidence, and therefore no candidate.
+- **The record** (`schema: crosspoint-acceptance-maintenance/1`) has the fixed `policy` and `authorization` wording, and all 8 packages in canonical order.
+  - Each entry is bound to its file digest (and, on the X4 Pro, its pieces).
+  - The flagships carry their checks, each `PASS`. A CI-only entry that claims any physical field is refused. So is a flagship that claims a host-covered or replaced check.
+  - `hostCovered` carries both the candidate's E3 evidence and its post-launch evidence, unchanged.
+  - The fixtures, owner approval and candidate binding are exactly as in §2.
+
+  `candidate.py acceptance` validates it under the policy its schema names, and prints `acceptance-policy` and `acceptance-sha256`.
+- **The tag** adds exactly two fields to §3's five:
+  ```
+  acceptance-policy: post-launch-maintenance
+  physically-accepted: x4-gd x4pro-gpd
+  ci-verified: x4-g x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp
+  ```
+  `parse-tag` refuses any other lists, and `publish` refuses a tag whose policy is not its record's. The draft's notes name the physically accepted and the CI-verified packages.
+
 ## 3. Tag, draft, publish
 
 1. Only after every package passes and the owner has approved the record, create an
@@ -160,7 +192,7 @@ record; it is not attached to the release.
    - the run is this repository's `release_candidate.yml` (by workflow id, and by path
      with any `@ref` suffix removed);
    - the run was dispatched on `release/v<apps_version>*` at exactly the tagged commit, and succeeded;
-   - every package was physically accepted, in canonical order;
+   - every package was physically accepted, in canonical order (or, under §2a, exactly the two flagships, with the other six CI-verified);
    - the run's artifact matches the accepted digest.
 
    It then creates a **draft** from those files, never marked latest, and checks the
@@ -177,7 +209,7 @@ record; it is not attached to the release.
    0. The local `release-candidate` folder is the accepted one: its files match its `SHA256SUMS.txt`, whose sha256 is the accepted digest, and its provenance names the commit and run. The acceptance record validates against it (as `candidate.py acceptance` does).
    1. `GET /repos/<owner>/<repo>/immutable-releases` reports `enabled: true`.
    2. Exactly one release carries the tag. It is still a **draft** (an already published release is refused, never republished) and not a prerelease. The tag is annotated, points directly at the commit, and its message names the same run, commit and digest, every package as physically accepted, and exactly this acceptance record's `acceptance-sha256`.
-   3. The run is this repository's `release_candidate.yml`, dispatched on `release/<tag>*`, successful, at the commit. The draft's assets are exactly the accepted files (`e3-host-evidence.json` among them) plus `SHA256SUMS.txt`, with GitHub digests equal to the accepted ones.
+   3. The run is this repository's `release_candidate.yml`, dispatched on `release/<tag>*`, successful, at the commit. The draft's assets are exactly the accepted files (`e3-host-evidence.json` and `post-launch-host-evidence.json` among them) plus `SHA256SUMS.txt`, with GitHub digests equal to the accepted ones.
    4. Only then, one `PATCH` sets `draft: false` and `make_latest: true`.
    5. It re-fetches and requires all of these:
       - published, not a prerelease, `immutable: true`;

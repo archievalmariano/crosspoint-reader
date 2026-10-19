@@ -9,10 +9,18 @@
 #   candidate-sums-sha256: <sha256 of that run's SHA256SUMS.txt>
 #   physically-accepted: x4-g x4-gd x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp x4pro-gpd
 #   acceptance-sha256: <sha256 of the owner-approved acceptance record, canonical JSON>
+# A post-launch maintenance release (docs/RELEASING.md 2a) instead carries
+# exactly these seven fields:
+#   acceptance-policy: post-launch-maintenance
+#   physically-accepted: x4-gd x4pro-gpd
+#   ci-verified: x4-g x4pro-g x4pro-gd x4pro-p x4pro-pd x4pro-gp
+#   (and the four candidate/acceptance fields above)
 # The job stops, creating nothing, unless the tag matches apps_version, the run
 # is this repository's release_candidate.yml dispatched on release/v{apps_version}
-# at exactly the tagged commit and succeeded, every package was physically
-# accepted, and the downloaded artifact matches the accepted digest. The record
+# at exactly the tagged commit and succeeded, the tag's acceptance policy holds
+# (every package physically accepted; or, under post-launch maintenance, exactly
+# the two flagships, the other six CI-verified only), and the downloaded
+# artifact matches the accepted digest. The record
 # itself is checked against the tag by `candidate.py publish --acceptance`, and
 # again when DOGEAR's firmware contract is synced from this release. The draft
 # is then checked asset by asset against GitHub's own digests. Publishing it
@@ -93,10 +101,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DISPLAY_VERSION: ${{ steps.check.outputs.display }}
           RUN_ID: ${{ steps.check.outputs.candidate_run }}
+          ACCEPTANCE_POLICY: ${{ steps.check.outputs.acceptance_policy }}
+          CI_VERIFIED: ${{ steps.check.outputs.ci_verified }}
         run: |
           set -euo pipefail
           mkdir publish
-          cp candidate/*.bin candidate/SHA256SUMS.txt candidate/e3-host-evidence.json publish/
+          cp candidate/*.bin candidate/SHA256SUMS.txt candidate/e3-host-evidence.json \
+            candidate/post-launch-host-evidence.json publish/
+          case "${ACCEPTANCE_POLICY}" in
+            full) ACCEPTED="accepted on device before publication, every package." ;;
+            post-launch-maintenance)
+              ACCEPTED="accepted on device before publication: x4-gd and x4pro-gpd only. Verified in CI only, not installed on a device: ${CI_VERIFIED}. \`post-launch-host-evidence.json\` records that this build's commit passed the host tests that stand in for DOGEAR's two nothing-published checks, none skipped." ;;
+            *) echo "::error::unknown acceptance policy ${ACCEPTANCE_POLICY}"; exit 1 ;;
+          esac
           cat > notes.md <<EOF
           Firmware ${DISPLAY_VERSION} (CrossPoint base + APPS ${GITHUB_REF_NAME#v}), in app packages.
           Every package opens its apps from Home > Apps.
@@ -120,7 +137,7 @@ jobs:
           (DOGEAR's CAN'T LOAD AN ISSUE screen), none skipped.
 
           Checksums are in \`SHA256SUMS.txt\`. These are the files built by release-candidate run
-          ${RUN_ID} from ${GITHUB_SHA} and accepted on device before publication.
+          ${RUN_ID} from ${GITHUB_SHA}, ${ACCEPTED}
           EOF
           gh release create "${GITHUB_REF_NAME}" publish/* \
             --repo "${GITHUB_REPOSITORY}" \

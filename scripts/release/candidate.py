@@ -11,7 +11,9 @@ Standard library only; every subcommand exits non-zero on the first problem.
 
     assemble        build outputs -> candidate dir + X4 Pro flash pieces
     verify-dir      check a candidate dir (files, sums, legacy copies, provenance)
-    acceptance      validate the physical-acceptance record; print its canonical sha256
+    e3-evidence     the candidate run's E3 host-test evidence, from ctest's JUnit report
+    post-launch-evidence  its post-launch (production-503) host-test evidence, likewise
+    acceptance      validate the acceptance record (full or post-launch maintenance); print its sha256
     parse-tag       read an annotated release tag's acceptance fields
     check-run       prove a workflow run is this repo's release_candidate.yml at a commit
     verify-release  compare a GitHub release's asset digests with accepted sums
@@ -104,6 +106,56 @@ E3_HOST_TESTS = (
     "DogearTlsRead.ReadResultWaitsOnlyWhileTheTransportIsOpen",
 )
 
+# Post-launch maintenance acceptance (docs/RELEASING.md 2a): one fixed
+# alternative to crosspoint-acceptance/1, which stays exactly as it is. The two
+# DOGEAR flagships are physically accepted; the other six packages are
+# CI-verified only and claim no physical check. Production can no longer answer
+# 503 "nothing published" (DOGEAR has launched) and a candidate build cannot be
+# pointed elsewhere, so the two v1 checks that needed it are host-covered by the
+# candidate run's own post-launch-host-evidence.json (a release file in
+# SHA256SUMS.txt, built like e3-host-evidence.json), and dogear-no-writes, which
+# ran after one of them, becomes dogear-no-writes-offline.
+MAINTENANCE_SCHEMA = ROOT / "scripts" / "release" / "acceptance-maintenance-v1.json"
+MAINTENANCE = "crosspoint-acceptance-maintenance/1"
+MAINTENANCE_POLICY = "post-launch-maintenance"
+FULL_POLICY = "full"  # crosspoint-acceptance/1: every package physically accepted
+MAINTENANCE_AUTHORIZATION = (
+    "The owner authorizes post-launch maintenance acceptance for this release: x4-gd and x4pro-gpd are physically "
+    "accepted; x4-g, x4pro-g, x4pro-gd, x4pro-p, x4pro-pd and x4pro-gp are CI-verified only and not physically "
+    "accepted.")
+FLAGSHIPS = ("x4-gd", "x4pro-gpd")
+REPLACED_503 = ("dogear-e1-no-issue-yet", "dogear-v2-cache-503")
+NO_WRITES, NO_WRITES_OFFLINE = "dogear-no-writes", "dogear-no-writes-offline"
+POST_LAUNCH = "dogear-post-launch-503"  # the maintenance record's hostCovered key for the evidence below
+POST_LAUNCH_EVIDENCE = "post-launch-host-evidence.json"
+POST_LAUNCH_EVIDENCE_SCHEMA = "crosspoint-post-launch-host-evidence/1"
+POST_LAUNCH_POLICY = ("Post-launch, production never again answers 503 'nothing published', and a candidate build "
+                      "cannot be pointed at another host. This check is host-covered: physical acceptance cannot "
+                      "reproduce it.")
+POST_LAUNCH_EVIDENCE_KEYS = ("schema", "checks", "repository", "commit", "candidateRun", "definitionSha256", "tests",
+                             "skipped")
+POST_LAUNCH_HOST_TESTS = {
+    "dogear-e1-no-issue-yet": (
+        "DogearBootstrap.OnlyExplicitFramingCounts",
+        "DogearBootstrap.OnlyStatus503",
+        "DogearBootstrap.OnlyTheExactBodyCounts",
+        "DogearBootstrap.RouterVectorsClassifyExactlyAsTheServerMeansThem",
+        "DogearPostLaunch.NothingPublishedWithNoReadableIssueIsNoIssueYet",
+        "DogearState.EachStatusScreenHasItsOwnHeadingAndNote",
+        "DogearState.StatusCopyIsExactlyTheApprovedCopy",
+        "DogearState.TheCasesThatMatter",
+    ),
+    "dogear-v2-cache-503": (
+        "DogearBootstrap.RouterVectorsClassifyExactlyAsTheServerMeansThem",
+        "DogearCache.CommitsAndLoads",
+        "DogearCache.RefusesBytesThatDoNotMatchTheirHash",
+        "DogearPostLaunch.CachedRegularIssueWithNothingPublishedIsCachedNeverNoIssueYet",
+        "DogearState.EveryCombinationFollowsTheThreeRules",
+        "DogearState.TheCasesThatMatter",
+    ),
+}
+POST_LAUNCH_TESTS = tuple(sorted({t for tests in POST_LAUNCH_HOST_TESTS.values() for t in tests}))
+
 
 class Problem(Exception):
     pass
@@ -123,7 +175,7 @@ def package_name(stem: str) -> str:
 
 
 def release_files() -> list[str]:
-    names = [E3_EVIDENCE]
+    names = [E3_EVIDENCE, POST_LAUNCH_EVIDENCE]
     for _env, _pkg, stem, factory, legacy in RELEASE:
         names.append(f"{stem}.bin")
         if factory:
@@ -230,6 +282,10 @@ def assemble(args) -> None:
     check_e3_evidence_bytes(evidence, load_acceptance_schema(), repository=args.repository, commit=args.commit,
                             run=int(args.run_id))
     files[E3_EVIDENCE] = evidence
+    post_launch = Path(args.post_launch_evidence).read_bytes()
+    check_post_launch_evidence_bytes(post_launch, load_maintenance_schema(), repository=args.repository,
+                                     commit=args.commit, run=int(args.run_id))
+    files[POST_LAUNCH_EVIDENCE] = post_launch
     require(sorted(files) == release_files(), "assembled files are not exactly the release files")
     out.mkdir(parents=True)
     for name, data in support_files.items():
@@ -277,6 +333,9 @@ def verify_dir(args) -> None:
     require(prov.get("packages") == packages(), "provenance packages differ from the release")
     check_e3_evidence_bytes((d / E3_EVIDENCE).read_bytes(), load_acceptance_schema(),
                             repository=prov.get("repository"), commit=prov.get("commit"), run=prov.get("runId"))
+    check_post_launch_evidence_bytes((d / POST_LAUNCH_EVIDENCE).read_bytes(), load_maintenance_schema(),
+                                     repository=prov.get("repository"), commit=prov.get("commit"),
+                                     run=prov.get("runId"))
     if args.sums_sha256:
         require(sha256(sums_bytes) == args.sums_sha256, f"{SUMS} sha256 is not the accepted {args.sums_sha256}")
     if args.commit:
@@ -417,9 +476,9 @@ def check_e3_evidence_bytes(data: bytes, schema: dict, *, repository, commit, ru
     return evidence
 
 
-def e3_evidence_from_junit(junit: bytes, schema: dict, *, repository: str, commit: str, run: int) -> bytes:
-    """Canonical evidence from ctest's JUnit report; fails closed unless every
-    required test ran once and passed (none missing, failed, skipped or repeated)."""
+def require_junit_pass(junit: bytes, tests, label: str) -> None:
+    """Fails closed unless each of `tests` ran exactly once in ctest's JUnit
+    report and passed (none missing, failed, skipped or repeated)."""
     try:
         root = ET.fromstring(junit)
     except ET.ParseError as err:
@@ -429,14 +488,20 @@ def e3_evidence_from_junit(junit: bytes, schema: dict, *, repository: str, commi
         name = case.get("name")
         require(name not in cases, f"the JUnit report names {name} twice")
         cases[name] = case
-    missing = [t for t in E3_HOST_TESTS if t not in cases]
-    require(not missing, f"E3 host tests missing from the run: {missing}")
-    skipped = [t for t in E3_HOST_TESTS if cases[t].find("skipped") is not None or cases[t].get("status") in
+    missing = [t for t in tests if t not in cases]
+    require(not missing, f"{label} host tests missing from the run: {missing}")
+    skipped = [t for t in tests if cases[t].find("skipped") is not None or cases[t].get("status") in
                ("notrun", "disabled")]
-    require(not skipped, f"E3 host tests skipped: {skipped}")
-    failed = [t for t in E3_HOST_TESTS if cases[t].get("status") != "run" or
+    require(not skipped, f"{label} host tests skipped: {skipped}")
+    failed = [t for t in tests if cases[t].get("status") != "run" or
               cases[t].find("failure") is not None or cases[t].find("error") is not None]
-    require(not failed, f"E3 host tests failed: {failed}")
+    require(not failed, f"{label} host tests failed: {failed}")
+
+
+def e3_evidence_from_junit(junit: bytes, schema: dict, *, repository: str, commit: str, run: int) -> bytes:
+    """Canonical evidence from ctest's JUnit report; fails closed unless every
+    required test ran once and passed (none missing, failed, skipped or repeated)."""
+    require_junit_pass(junit, E3_HOST_TESTS, "E3")
     evidence = {"schema": E3_EVIDENCE_SCHEMA, "check": E3_CHECK, "repository": repository, "commit": commit,
                 "candidateRun": run, "definitionSha256": e3_definition_sha256(schema),
                 "tests": {t: "PASS" for t in E3_HOST_TESTS}, "skipped": []}
@@ -451,6 +516,110 @@ def e3_evidence(args) -> None:
     require(not out.exists(), f"{out} already exists")
     out.write_bytes(data)
     print(f"E3 host evidence: {len(E3_HOST_TESTS)} tests PASS, none skipped; {E3_EVIDENCE} sha256 {sha256(data)}")
+
+
+def maintenance_checks(v1_checks: list) -> list:
+    """A flagship's physical maintenance checks: its acceptance-v1 checks, in
+    order, without the two production-503 checks, with dogear-no-writes renamed."""
+    return [NO_WRITES_OFFLINE if c == NO_WRITES else c for c in v1_checks if c not in REPLACED_503]
+
+
+def load_maintenance_schema(path: Path = MAINTENANCE_SCHEMA, v1: dict = None) -> dict:
+    """acceptance-maintenance-v1.json, required to be exactly the fixed policy:
+    every part is derived from acceptance-v1.json or pinned here, so the file
+    cannot loosen it (another package, check, test or wording fails)."""
+    v1 = v1 or load_acceptance_schema()
+    m = strict_json(path.read_bytes())
+    exact_keys(m, ("schema", "policy", "comment", "authorization", "packageOrder", "packages", "checks", "fixtures",
+                   "replaced", "hostCovered"), "maintenance schema")
+    require(m["schema"] == MAINTENANCE, f"maintenance schema is not {MAINTENANCE}")
+    require(m["policy"] == MAINTENANCE_POLICY, f"maintenance policy is not {MAINTENANCE_POLICY}")
+    require(m["authorization"] == MAINTENANCE_AUTHORIZATION, "maintenance authorization is not the fixed wording")
+    require(m["packageOrder"] == packages(), "maintenance packageOrder differs from the release")
+    exact_keys(m["packages"], packages(), "maintenance packages")
+    used = []
+    for name in packages():
+        spec, base = m["packages"][name], v1["packages"][name]
+        if name in FLAGSHIPS:
+            exact_keys(spec, ("board", "verification", "install", "checks"), f"maintenance {name}")
+            require(spec["verification"] == "physical", f"{name} must be physically accepted")
+            require(spec["install"] == base["install"], f"{name}: install must be {base['install']!r}")
+            require(spec["checks"] == maintenance_checks(base["checks"]),
+                    f"{name}: checks are not its acceptance-v1 checks without the production-503 ones")
+            used += [c for c in spec["checks"] if c not in used]
+        else:
+            exact_keys(spec, ("board", "verification"), f"maintenance {name}")
+            require(spec["verification"] == "ci", f"{name} must be CI-verified only")
+        require(spec["board"] == base["board"], f"{name}: board must be {base['board']!r}")
+    exact_keys(m["checks"], used, "maintenance checks")
+    for check, text in m["checks"].items():
+        if check != NO_WRITES_OFFLINE:
+            require(text == v1["checks"][check], f"{check} must keep its acceptance-v1 definition")
+    require(m["fixtures"] == v1["fixtures"], "maintenance fixtures differ from acceptance-v1's")
+    require(m["replaced"] == {REPLACED_503[0]: "hostCovered", REPLACED_503[1]: "hostCovered",
+                              NO_WRITES: NO_WRITES_OFFLINE}, "maintenance replaced is not the fixed replacement")
+    host = m["hostCovered"]
+    exact_keys(host, (E3_CHECK, *REPLACED_503), "maintenance hostCovered")
+    require(host[E3_CHECK] == v1["hostCovered"][E3_CHECK], "maintenance E3 must be acceptance-v1's E3 exactly")
+    for check in REPLACED_503:
+        definition = host[check]
+        exact_keys(definition, E3_DEFINITION_KEYS, f"maintenance hostCovered.{check}")
+        require(definition["policy"] == POST_LAUNCH_POLICY, f"hostCovered.{check}: not the post-launch policy")
+        require(definition["evidence"] == POST_LAUNCH_EVIDENCE, f"hostCovered.{check}: evidence must be "
+                                                                f"{POST_LAUNCH_EVIDENCE}")
+        require(definition["tests"] == list(POST_LAUNCH_HOST_TESTS[check]),
+                f"hostCovered.{check}: tests are not exactly its post-launch host tests")
+    return m
+
+
+def post_launch_definition_sha256(m: dict) -> str:
+    return sha256(canonical({check: m["hostCovered"][check] for check in REPLACED_503}))
+
+
+def check_post_launch_evidence(evidence, m: dict, *, repository, commit, run) -> None:
+    """The candidate run's post-launch host-test PASS: this commit and run, this
+    definition, exactly the required tests, each exactly PASS, none skipped."""
+    exact_keys(evidence, POST_LAUNCH_EVIDENCE_KEYS, "post-launch host evidence")
+    require(evidence["schema"] == POST_LAUNCH_EVIDENCE_SCHEMA,
+            f"post-launch host evidence schema is not {POST_LAUNCH_EVIDENCE_SCHEMA}")
+    require(evidence["checks"] == list(REPLACED_503), f"post-launch host evidence is not for {list(REPLACED_503)}")
+    require(evidence["repository"] == repository, "post-launch host evidence names another repository")
+    require(isinstance(evidence["commit"], str) and evidence["commit"] == commit,
+            "post-launch host evidence belongs to another commit")
+    require(is_int(evidence["candidateRun"]) and evidence["candidateRun"] == run,
+            "post-launch host evidence belongs to another candidate run")
+    require(evidence["definitionSha256"] == post_launch_definition_sha256(m),
+            "post-launch host evidence is for another host-test definition")
+    exact_keys(evidence["tests"], POST_LAUNCH_TESTS, "post-launch host evidence tests")
+    failed = sorted(t for t, result in evidence["tests"].items() if result != "PASS")
+    require(not failed, f"post-launch host tests not PASS: {failed}")
+    require(evidence["skipped"] == [], "post-launch host evidence records skipped tests")
+
+
+def check_post_launch_evidence_bytes(data: bytes, m: dict, *, repository, commit, run) -> dict:
+    evidence = strict_json(data)
+    check_post_launch_evidence(evidence, m, repository=repository, commit=commit, run=run)
+    require(data == canonical(evidence), f"{POST_LAUNCH_EVIDENCE} is not in canonical form")
+    return evidence
+
+
+def post_launch_evidence_from_junit(junit: bytes, m: dict, *, repository: str, commit: str, run: int) -> bytes:
+    require_junit_pass(junit, POST_LAUNCH_TESTS, "post-launch")
+    evidence = {"schema": POST_LAUNCH_EVIDENCE_SCHEMA, "checks": list(REPLACED_503), "repository": repository,
+                "commit": commit, "candidateRun": run, "definitionSha256": post_launch_definition_sha256(m),
+                "tests": {t: "PASS" for t in POST_LAUNCH_TESTS}, "skipped": []}
+    return canonical(evidence)
+
+
+def post_launch_evidence(args) -> None:
+    require(HEX40.fullmatch(args.commit or "") is not None, "--commit is not a 40-hex commit")
+    data = post_launch_evidence_from_junit(Path(args.junit).read_bytes(), load_maintenance_schema(),
+                                           repository=args.repository, commit=args.commit, run=int(args.run_id))
+    out = Path(args.out)
+    require(not out.exists(), f"{out} already exists")
+    out.write_bytes(data)
+    print(f"post-launch host evidence: {len(POST_LAUNCH_TESTS)} tests PASS, none skipped; "
+          f"{POST_LAUNCH_EVIDENCE} sha256 {sha256(data)}")
 
 
 def check_fixtures(fixtures, schema: dict) -> None:
@@ -527,20 +696,119 @@ def check_acceptance(record, schema: dict, sums_bytes: bytes, prov: dict) -> Non
     check_date(record["approvedOn"], "approvedOn")
 
 
-def acceptance_digest(record_path, candidate_dir) -> str:
-    """Validate the record against the candidate on disk; return its canonical sha256."""
+MAINTENANCE_RECORD_KEYS = ("schema", "policy", "authorization", "repository", "tag", "commit", "candidateRun",
+                           "sumsSha256", "fixtures", "packages", "hostCovered", "approvedBy", "approvedOn")
+PHYSICAL_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification", "install", "date", "checks")
+CI_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification")
+
+
+def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, prov: dict) -> None:
+    """A crosspoint-acceptance-maintenance/1 record: bound to the candidate like a
+    v1 record; the flagships physically accepted with exactly their maintenance
+    checks, each PASS; the other six CI-verified only, claiming no physical check;
+    and the candidate's own E3 and post-launch host evidence."""
+    exact_keys(record, MAINTENANCE_RECORD_KEYS, "acceptance record")
+    require(record["schema"] == MAINTENANCE, f"record schema is not {MAINTENANCE}")
+    require(record["policy"] == MAINTENANCE_POLICY, f"record policy is not {MAINTENANCE_POLICY}")
+    require(record["authorization"] == MAINTENANCE_AUTHORIZATION, "record authorization is not the fixed wording")
+    require(record["repository"] == prov.get("repository"), "record names another repository")
+    tag = record["tag"]
+    require(isinstance(tag, str) and re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) is not None
+            and str(prov.get("version", "")).endswith(f"-A{tag[1:]}"), f"record tag {tag!r} is not this candidate's")
+    require(isinstance(record["commit"], str) and HEX40.fullmatch(record["commit"]) is not None
+            and record["commit"] == prov.get("commit"), "record commit is not the candidate's")
+    require(is_int(record["candidateRun"]) and record["candidateRun"] == prov.get("runId"),
+            "record candidateRun is not the candidate's run")
+    require(record["sumsSha256"] == sha256(sums_bytes), f"record sumsSha256 is not this {SUMS}")
+    check_fixtures(record["fixtures"], v1)
+    sums = read_sums(sums_bytes)
+    host = record["hostCovered"]
+    require(isinstance(host, dict), "record hostCovered is missing; host evidence is mandatory")
+    exact_keys(host, [E3_CHECK, POST_LAUNCH], "record hostCovered")
+    check_e3_evidence(host[E3_CHECK], v1, repository=record["repository"], commit=record["commit"],
+                      run=record["candidateRun"])
+    require(sha256(canonical(host[E3_CHECK])) == sums[E3_EVIDENCE],
+            f"the record's E3 host evidence is not the candidate's {E3_EVIDENCE}")
+    check_post_launch_evidence(host[POST_LAUNCH], m, repository=record["repository"], commit=record["commit"],
+                               run=record["candidateRun"])
+    require(sha256(canonical(host[POST_LAUNCH])) == sums[POST_LAUNCH_EVIDENCE],
+            f"the record's post-launch host evidence is not the candidate's {POST_LAUNCH_EVIDENCE}")
+    entries = record["packages"]
+    require(isinstance(entries, list) and all(isinstance(e, dict) for e in entries), "packages is not a list of objects")
+    names = [e.get("package") for e in entries]
+    require(len(names) == len(set(names)), "record repeats a package")
+    require(names == packages(), f"record packages {names} are not exactly {packages()} in that order")
+    for (env, _pkg, stem, factory, _legacy), entry in zip(RELEASE, entries):
+        name, spec = entry["package"], m["packages"][entry["package"]]
+        physical = name in FLAGSHIPS
+        require(entry.get("verification") == spec["verification"],
+                f"{name} must be recorded as {spec['verification']!r}" +
+                ("" if physical else ": it is CI-verified only and not physically accepted"))
+        if not physical:
+            claimed = sorted(k for k in ("checks", "install", "date", "level") if k in entry)
+            require(not claimed, f"{name} is CI-verified only: it cannot claim physical {claimed}")
+        exact_keys(entry, (PHYSICAL_ENTRY_KEYS if physical else CI_ENTRY_KEYS) + (("pieces",) if factory else ()), name)
+        require(entry["env"] == env, f"{name} was not built by {env}")
+        require(entry["board"] == spec["board"], f"{name}: board must be {spec['board']!r}")
+        require(entry["file"] == f"{stem}.bin" and entry["sha256"] == sums[f"{stem}.bin"],
+                f"{name}: its file or digest is not the candidate's {stem}.bin")
+        if physical:
+            require(entry["install"] == spec["install"], f"{name}: install must be {spec['install']!r}")
+            check_date(entry["date"], f"{name} date")
+            checks = entry["checks"]
+            substituted = sorted(c for c in (*REPLACED_503, NO_WRITES, E3_CHECK)
+                                 if isinstance(checks, dict) and c in checks)
+            require(not substituted, f"{name}: {substituted} cannot be physical checks under {MAINTENANCE_POLICY} "
+                                     "(host-covered, or replaced by dogear-no-writes-offline)")
+            exact_keys(checks, spec["checks"], f"{name} checks")
+            failed = sorted(c for c, result in checks.items() if result != "PASS")
+            require(not failed, f"{name}: {failed} not PASS")
+        if factory:
+            exact_keys(entry["pieces"], PIECE_KEYS, f"{name} pieces")
+            for piece in PIECE_KEYS:
+                require(entry["pieces"][piece] == prov["flashSupport"][env][f"{piece}.bin"],
+                        f"{name}: {piece} is not the candidate's piece")
+    require(record["approvedBy"] == "owner", "the record must be approved by the owner")
+    check_date(record["approvedOn"], "approvedOn")
+
+
+def record_policy(record) -> str:
+    """The acceptance policy a record was checked under (crosspoint-acceptance/1 is full)."""
+    schema = record.get("schema") if isinstance(record, dict) else None
+    require(schema in ("crosspoint-acceptance/1", MAINTENANCE), f"unknown acceptance record schema {schema!r}")
+    return FULL_POLICY if schema == "crosspoint-acceptance/1" else MAINTENANCE_POLICY
+
+
+def checked_acceptance(record_path, candidate_dir) -> tuple:
+    """Validate the record against the candidate on disk, under the policy its
+    schema names; return (canonical sha256, policy)."""
     candidate = Path(candidate_dir)
     prov = json.loads((candidate / PROVENANCE).read_text(encoding="ascii"))
     record = strict_json(Path(record_path).read_bytes())
-    check_acceptance(record, load_acceptance_schema(), (candidate / SUMS).read_bytes(), prov)
-    return sha256(canonical(record))
+    policy = record_policy(record)
+    v1, sums_bytes = load_acceptance_schema(), (candidate / SUMS).read_bytes()
+    if policy == FULL_POLICY:
+        check_acceptance(record, v1, sums_bytes, prov)
+    else:
+        check_maintenance_acceptance(record, load_maintenance_schema(v1=v1), v1, sums_bytes, prov)
+    return sha256(canonical(record)), policy
+
+
+def acceptance_digest(record_path, candidate_dir) -> str:
+    """Validate the record against the candidate on disk; return its canonical sha256."""
+    return checked_acceptance(record_path, candidate_dir)[0]
 
 
 def acceptance(args) -> None:
     verify_dir(argparse.Namespace(dir=args.candidate_dir, sums_sha256=None, commit=None, run_id=None,
                                   support=args.flash_support))
-    digest = acceptance_digest(args.record, args.candidate_dir)
-    print(f"acceptance OK: {len(packages())} packages, every required check PASS")
+    digest, policy = checked_acceptance(args.record, args.candidate_dir)
+    if policy == FULL_POLICY:
+        print(f"acceptance OK: {len(packages())} packages, every required check PASS")
+    else:
+        print(f"acceptance OK ({MAINTENANCE_POLICY}): physically accepted {' '.join(FLAGSHIPS)}, every required "
+              f"check PASS; CI-verified only {' '.join(p for p in packages() if p not in FLAGSHIPS)}")
+    print(f"acceptance-policy: {policy}")
     print(f"acceptance-sha256: {digest}")
 
 
@@ -548,6 +816,9 @@ def acceptance(args) -> None:
 
 TAG_FIELDS = ("candidate-run", "candidate-commit", "candidate-sums-sha256", "physically-accepted",
               "acceptance-sha256")
+# A post-launch maintenance tag adds exactly these two; a tag without
+# acceptance-policy is a full (crosspoint-acceptance/1) tag, as before.
+MAINTENANCE_TAG_FIELDS = ("acceptance-policy", "ci-verified")
 
 
 def parse_tag_message(text: str) -> dict:
@@ -555,9 +826,11 @@ def parse_tag_message(text: str) -> dict:
     for line in text.splitlines():
         m = re.fullmatch(r"([a-z0-9-]+):\s*(.*?)\s*", line)
         if m:
-            require(m.group(1) in TAG_FIELDS, f"tag message has an unknown field {m.group(1)}")
+            require(m.group(1) in TAG_FIELDS + MAINTENANCE_TAG_FIELDS, f"tag message has an unknown field {m.group(1)}")
             require(m.group(1) not in fields, f"tag message repeats {m.group(1)}")
             fields[m.group(1)] = m.group(2)
+    if "acceptance-policy" in fields or "ci-verified" in fields:
+        return parse_maintenance_tag_fields(fields)
     missing = [k for k in TAG_FIELDS if k not in fields]
     require(not missing, f"tag message lacks {', '.join(missing)}")
     require(re.fullmatch(r"[1-9][0-9]*", fields["candidate-run"]) is not None, "candidate-run is not a run id")
@@ -571,12 +844,41 @@ def parse_tag_message(text: str) -> dict:
     return fields
 
 
+def parse_maintenance_tag_fields(fields: dict) -> dict:
+    """A post-launch maintenance tag: the five fields plus acceptance-policy and
+    ci-verified, each once; the flagships physically accepted and exactly the
+    other six CI-verified, each in canonical order."""
+    expected = TAG_FIELDS + MAINTENANCE_TAG_FIELDS
+    missing = [k for k in expected if k not in fields]
+    require(not missing, f"tag message lacks {', '.join(missing)}")
+    require(fields["acceptance-policy"] == MAINTENANCE_POLICY,
+            f"acceptance-policy must be {MAINTENANCE_POLICY}, not {fields['acceptance-policy']!r}")
+    require(re.fullmatch(r"[1-9][0-9]*", fields["candidate-run"]) is not None, "candidate-run is not a run id")
+    require(HEX40.fullmatch(fields["candidate-commit"]) is not None, "candidate-commit is not a 40-hex commit")
+    require(HEX64.fullmatch(fields["candidate-sums-sha256"]) is not None, "bad candidate-sums-sha256")
+    require(HEX64.fullmatch(fields["acceptance-sha256"]) is not None, "bad acceptance-sha256")
+    accepted, ci = fields["physically-accepted"].split(), fields["ci-verified"].split()
+    require(len(accepted) == len(set(accepted)) and len(ci) == len(set(ci)), "a tag package list repeats a package")
+    require(accepted == list(FLAGSHIPS),
+            f"physically-accepted {accepted} must be exactly {list(FLAGSHIPS)} under {MAINTENANCE_POLICY}")
+    others = [p for p in packages() if p not in FLAGSHIPS]
+    require(ci == others, f"ci-verified {ci} must be exactly {others}, in that order")
+    return fields
+
+
+def tag_policy(fields: dict) -> str:
+    return fields.get("acceptance-policy", FULL_POLICY)
+
+
 def parse_tag(args) -> None:
     fields = parse_tag_message(Path(args.message).read_text(encoding="utf-8"))
     require(fields["candidate-commit"] == args.commit,
             f"tag names candidate commit {fields['candidate-commit']}, but points at {args.commit}")
     for key in TAG_FIELDS:
         print(f"{key.replace('-', '_')}={fields[key]}")
+    print(f"acceptance_policy={tag_policy(fields)}")
+    if tag_policy(fields) == MAINTENANCE_POLICY:
+        print(f"ci_verified={fields['ci-verified']}")
 
 
 def check_run_json(run: dict, *, repository: str, workflow_id: int, commit: str, branch_prefix: str) -> None:
@@ -708,7 +1010,8 @@ class GitHub:
             raise PublishUncertain(f"gh api PATCH exited {proc.returncode}: {(stderr or '').strip()}")
 
 
-def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str, acceptance_sha: str) -> None:
+def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha: str, acceptance_sha: str,
+              policy: str = FULL_POLICY) -> None:
     ref = gh.get(f"repos/{repository}/git/ref/tags/{tag}")
     require((ref.get("object") or {}).get("type") == "tag", f"{tag} is not an annotated tag")
     obj = gh.get(f"repos/{repository}/git/tags/{ref['object']['sha']}")
@@ -719,6 +1022,8 @@ def check_tag(gh, repository: str, tag: str, commit: str, run_id: int, sums_sha:
     require(fields["candidate-commit"] == commit, f"{tag} names candidate commit {fields['candidate-commit']}")
     require(fields["candidate-sums-sha256"] == sums_sha, f"{tag} names a different accepted {SUMS} digest")
     require(fields["acceptance-sha256"] == acceptance_sha, f"{tag} names a different acceptance record")
+    require(tag_policy(fields) == policy, f"{tag} names acceptance policy {tag_policy(fields)!r}, "
+                                          f"but the acceptance record is {policy!r}")
 
 
 def find_release(gh, repository: str, tag: str) -> dict:
@@ -742,7 +1047,7 @@ def publish(args, gh=None) -> None:
     sums_bytes = (candidate / SUMS).read_bytes()
     sums_sha = sha256(sums_bytes)
     # The owner-approved acceptance record of exactly these bytes; the tag must name it (step 2).
-    acceptance_sha = acceptance_digest(args.acceptance, candidate)
+    acceptance_sha, policy = checked_acceptance(args.acceptance, candidate)
     # 1. Release immutability must already be on, or publishing could leave assets replaceable.
     setting = gh.get(f"repos/{repository}/immutable-releases")
     require(setting.get("enabled") is True, "release immutability is not enabled for this repository")
@@ -750,7 +1055,7 @@ def publish(args, gh=None) -> None:
     release = find_release(gh, repository, tag)
     require(release.get("draft") is True, f"{tag} is already published; refusing to republish")
     require(release.get("prerelease") is False, f"{tag} is a prerelease")
-    check_tag(gh, repository, tag, commit, run_id, sums_sha, acceptance_sha)
+    check_tag(gh, repository, tag, commit, run_id, sums_sha, acceptance_sha, policy)
     # 3. The candidate run, and the draft's assets against the accepted bytes.
     workflow_id = gh.get(f"repos/{repository}/actions/workflows/release_candidate.yml")["id"]
     check_run_json(gh.get(f"repos/{repository}/actions/runs/{run_id}"), repository=repository,
@@ -776,7 +1081,7 @@ def publish(args, gh=None) -> None:
         check_release_json(published, sums_bytes, tag=tag, state="published", require_immutable=True)
         latest = gh.get(f"repos/{repository}/releases/latest")
         require(latest.get("id") == release["id"] and latest.get("tag_name") == tag, f"latest is {latest.get('tag_name')}")
-        check_tag(gh, repository, tag, commit, run_id, sums_sha, acceptance_sha)
+        check_tag(gh, repository, tag, commit, run_id, sums_sha, acceptance_sha, policy)
         print(f"published {tag} as latest: immutable, {len(published['assets'])} assets match the accepted bytes")
     except BaseException as err:  # noqa: BLE001 -- includes KeyboardInterrupt
         detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
@@ -814,13 +1119,18 @@ def main(argv=None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("assemble")
     for opt in ("builds", "out", "support", "display", "commit", "ref", "run-id", "run-attempt", "workflow-ref",
-                "repository", "e3-evidence"):
+                "repository", "e3-evidence", "post-launch-evidence"):
         a.add_argument(f"--{opt}", required=True)
     a.set_defaults(func=assemble)
     e = sub.add_parser("e3-evidence", help="the candidate run's E3 host-test PASS, from ctest's JUnit report")
     for opt in ("junit", "repository", "commit", "run-id", "out"):
         e.add_argument(f"--{opt}", required=True)
     e.set_defaults(func=e3_evidence)
+    pl = sub.add_parser("post-launch-evidence",
+                        help="the candidate run's post-launch (production-503) host-test PASS, from ctest's JUnit report")
+    for opt in ("junit", "repository", "commit", "run-id", "out"):
+        pl.add_argument(f"--{opt}", required=True)
+    pl.set_defaults(func=post_launch_evidence)
     v = sub.add_parser("verify-dir")
     v.add_argument("dir")
     v.add_argument("--sums-sha256")

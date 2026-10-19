@@ -4,11 +4,11 @@
 # release/v1.1.1-clean for `apps_version = 1.1.1`. Each release env is built
 # cold with the same pinned tooling as before, and the `release-candidate`
 # artifact holds:
-#   the 17 release files     firmware-x4-{g,gd}.bin, firmware-x4pro-{g,gd,p,pd,gp,gpd}.bin
+#   the 18 release files     firmware-x4-{g,gd}.bin, firmware-x4pro-{g,gd,p,pd,gp,gpd}.bin
 #                            and their .factory.bin, plus the legacy firmware.bin
 #                            and firmware-x4pro.bin copies for devices on 1.0.1,
-#                            and e3-host-evidence.json (below)
-#   SHA256SUMS.txt           over those 17 files
+#                            e3-host-evidence.json and post-launch-host-evidence.json (below)
+#   SHA256SUMS.txt           over those 18 files
 #   provenance.json          commit, ref, run id/attempt, workflow ref, digests
 # and `x4pro-flash-support` (never published) holds the X4 Pro USB pieces
 # (bootloader.bin, partitions.bin, boot_app0.bin) of each X4 Pro build. The run
@@ -18,7 +18,11 @@
 # e3-host-tests job runs every host test on this run's own commit, and
 # e3-host-evidence.json records that each required E3 test (acceptance-v1.json
 # hostCovered) ran and passed, none skipped. assemble refuses a candidate
-# without it, and the acceptance record must carry the same evidence.
+# without it, and the acceptance record must carry the same evidence. From the
+# same report, post-launch-host-evidence.json records the same for the host
+# tests that replace the two production-503 physical checks under post-launch
+# maintenance acceptance (acceptance-maintenance-v1.json hostCovered); every
+# candidate carries it, and only a maintenance record relies on it.
 #
 # These bytes are what gets installed and physically accepted; release.yml
 # later publishes this same artifact, never a rebuild (builds embed their build
@@ -171,6 +175,12 @@ jobs:
           python3 scripts/release/candidate.py e3-evidence --junit ctest-junit.xml \
             --repository "${GITHUB_REPOSITORY}" --commit "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" \
             --out e3/e3-host-evidence.json
+      - name: Post-launch host evidence
+        run: |
+          set -euo pipefail
+          python3 scripts/release/candidate.py post-launch-evidence --junit ctest-junit.xml \
+            --repository "${GITHUB_REPOSITORY}" --commit "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" \
+            --out e3/post-launch-host-evidence.json
       - uses: actions/upload-artifact@v4
         with:
           name: e3-host-evidence
@@ -202,7 +212,7 @@ jobs:
             --display "${{ needs.version.outputs.display }}" --commit "${GITHUB_SHA}" --ref "${GITHUB_REF_NAME}" \
             --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
             --workflow-ref "${GITHUB_WORKFLOW_REF}" --repository "${GITHUB_REPOSITORY}" \
-            --e3-evidence e3/e3-host-evidence.json
+            --e3-evidence e3/e3-host-evidence.json --post-launch-evidence e3/post-launch-host-evidence.json
           python3 scripts/release/candidate.py verify-dir candidate --support support \
             --commit "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}"
           {
@@ -210,6 +220,7 @@ jobs:
             echo "commit \`${GITHUB_SHA}\`, run ${GITHUB_RUN_ID} attempt ${GITHUB_RUN_ATTEMPT}"
             echo "SHA256SUMS.txt sha256: \`$(sha256sum candidate/SHA256SUMS.txt | cut -d' ' -f1)\`"
             echo "E3 host evidence (every required E3 host test PASS, none skipped): \`$(sha256sum candidate/e3-host-evidence.json | cut -d' ' -f1)\`"
+            echo "Post-launch host evidence (every required post-launch host test PASS, none skipped): \`$(sha256sum candidate/post-launch-host-evidence.json | cut -d' ' -f1)\`"
             echo '```'
             cat candidate/SHA256SUMS.txt
             echo '```'

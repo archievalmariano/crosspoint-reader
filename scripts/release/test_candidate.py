@@ -70,7 +70,8 @@ def junit(statuses: dict = None, extra: str = "") -> bytes:
     says otherwise ({name: "fail" | "skip" | "missing"})."""
     statuses = statuses or {}
     cases = []
-    for name in c.E3_HOST_TESTS + ("DogearPages.NavigationIsCircular",):
+    names = dict.fromkeys(c.E3_HOST_TESTS + c.POST_LAUNCH_TESTS + ("DogearPages.NavigationIsCircular",))
+    for name in names:
         state = statuses.get(name, "pass")
         if state == "missing":
             continue
@@ -90,6 +91,11 @@ def evidence(commit="b" * 40, run=42, repository="o/r", report=None) -> bytes:
                                     commit=commit, run=run)
 
 
+def post_launch(commit="b" * 40, run=42, repository="o/r", report=None) -> bytes:
+    return c.post_launch_evidence_from_junit(report or junit(), c.load_maintenance_schema(), repository=repository,
+                                             commit=commit, run=run)
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -98,6 +104,8 @@ class Base(unittest.TestCase):
         self.out, self.support = self.root / "candidate", self.root / "support"
         self.e3 = self.root / "e3-host-evidence.json"
         self.e3.write_bytes(evidence())
+        self.post_launch = self.root / "post-launch-host-evidence.json"
+        self.post_launch.write_bytes(post_launch())
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -106,7 +114,7 @@ class Base(unittest.TestCase):
         return run("assemble", "--builds", builds or self.builds, "--out", self.out, "--support", self.support,
                    "--display", DISPLAY, "--commit", "b" * 40, "--ref", "release/v1.2.0-dogear", "--run-id", "42",
                    "--run-attempt", "1", "--workflow-ref", "o/r/.github/workflows/release_candidate.yml@refs/x",
-                   "--repository", "o/r", "--e3-evidence", self.e3)
+                   "--repository", "o/r", "--e3-evidence", self.e3, "--post-launch-evidence", self.post_launch)
 
     def sums_sha(self):
         return hashlib.sha256((self.out / c.SUMS).read_bytes()).hexdigest()
@@ -453,8 +461,11 @@ class AssembleTests(Base):
         code, out, err = self.assemble()
         self.assertEqual(code, 0, err)
         self.assertEqual(sorted(p.name for p in self.out.iterdir()), sorted(c.release_files() + [c.SUMS, c.PROVENANCE]))
-        self.assertEqual(len(c.release_files()), 17)  # 16 firmware files + e3-host-evidence.json
+        # 16 firmware files + e3-host-evidence.json + post-launch-host-evidence.json
+        self.assertEqual(len(c.release_files()), 18)
+        self.assertEqual(len([n for n in c.release_files() if n.endswith(".bin")]), 16)
         self.assertEqual((self.out / c.E3_EVIDENCE).read_bytes(), self.e3.read_bytes())
+        self.assertEqual((self.out / c.POST_LAUNCH_EVIDENCE).read_bytes(), self.post_launch.read_bytes())
         self.assertEqual(c.packages(), ["x4-g", "x4-gd", "x4pro-g", "x4pro-gd", "x4pro-p", "x4pro-pd", "x4pro-gp",
                                         "x4pro-gpd"])
         self.assertEqual((self.out / "firmware.bin").read_bytes(), (self.out / "firmware-x4-g.bin").read_bytes())
@@ -1187,6 +1198,392 @@ class SliceTests(Base):
         bad = self.root / "bad.factory.bin"
         bad.write_bytes(bytes(image))
         self.assertIn("writes NVS", run("slice-factory", bad, "--out", self.root / "s")[2])
+
+
+
+# ---- post-launch maintenance acceptance (docs/RELEASING.md 2a) ---------------
+
+CI_ONLY = [p for p in c.packages() if p not in c.FLAGSHIPS]
+
+
+def maintenance_record(candidate: Path) -> dict:
+    """A complete, valid crosspoint-acceptance-maintenance/1 record of the candidate."""
+    prov = json.loads((candidate / c.PROVENANCE).read_text())
+    sums = c.read_sums((candidate / c.SUMS).read_bytes())
+    m = c.load_maintenance_schema()
+    entries = []
+    for env, _pkg, stem, has_factory, _legacy in c.RELEASE:
+        name = c.package_name(stem)
+        spec = m["packages"][name]
+        entry = {"package": name, "env": env, "board": spec["board"], "file": f"{stem}.bin",
+                 "sha256": sums[f"{stem}.bin"], "verification": spec["verification"]}
+        if spec["verification"] == "physical":
+            entry.update(install=spec["install"], date="2026-10-22",
+                         checks={check: "PASS" for check in spec["checks"]})
+        if has_factory:
+            entry["pieces"] = {k: prov["flashSupport"][env][f"{k}.bin"] for k in c.PIECE_KEYS}
+        entries.append(entry)
+    return {"schema": c.MAINTENANCE, "policy": c.MAINTENANCE_POLICY, "authorization": c.MAINTENANCE_AUTHORIZATION,
+            "repository": prov["repository"], "tag": "v1.2.0", "commit": prov["commit"],
+            "candidateRun": prov["runId"], "sumsSha256": prov["sumsSha256"], "fixtures": copy.deepcopy(FIXTURES),
+            "packages": entries,
+            "hostCovered": {c.E3_CHECK: json.loads((candidate / c.E3_EVIDENCE).read_bytes()),
+                            c.POST_LAUNCH: json.loads((candidate / c.POST_LAUNCH_EVIDENCE).read_bytes())},
+            "approvedBy": "owner", "approvedOn": "2026-10-22"}
+
+
+def entry(record: dict, name: str) -> dict:
+    return next(e for e in record["packages"] if e["package"] == name)
+
+
+class MaintenanceAcceptanceTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.assertEqual(self.assemble()[0], 0)
+        self.record = maintenance_record(self.out)
+        self.path = self.root / "ACCEPTANCE.json"
+
+    def write(self, record=None, text=None):
+        self.path.write_text(text if text is not None else json.dumps(record or self.record, indent=2))
+        return self.path
+
+    def digest(self, record=None, text=None):
+        return c.acceptance_digest(self.write(record, text), self.out)
+
+    def refused(self, mutate=None, text=None):
+        record = copy.deepcopy(self.record)
+        if mutate:
+            mutate(record)
+        with self.assertRaises(c.Problem):
+            self.digest(record, text)
+
+    def test_the_complete_maintenance_record_passes_and_names_its_policy(self):
+        digest = self.digest()
+        self.assertEqual(digest, hashlib.sha256(c.canonical(self.record)).hexdigest())
+        self.assertEqual(c.checked_acceptance(self.write(), self.out), (digest, c.MAINTENANCE_POLICY))
+        code, out, err = run("acceptance", "--record", self.write(), "--candidate-dir", self.out,
+                             "--flash-support", self.support)
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"physically accepted {' '.join(c.FLAGSHIPS)}", out)
+        self.assertIn(f"CI-verified only {' '.join(CI_ONLY)}", out)
+        self.assertIn(f"acceptance-policy: {c.MAINTENANCE_POLICY}", out)
+        self.assertIn(f"acceptance-sha256: {digest}", out)
+
+    def test_fixtures_duplicate_keys_and_non_json_are_refused(self):
+        self.refused(lambda r: r["fixtures"].pop("Q1"))
+        self.refused(lambda r: r["fixtures"]["R"].update(schemaVersion=3))
+        self.refused(lambda r: r["fixtures"]["Q2"].update(sha256=r["fixtures"]["Q1"]["sha256"]))
+        text = json.dumps(self.record)
+        self.refused(text=text.replace('"approvedBy": "owner"', '"approvedBy": "owner", "approvedBy": "owner"'))
+        self.refused(text=text[:-1])
+        self.refused(text="NaN")
+
+    def test_all_eight_packages_once_each_in_order(self):
+        for drop in c.packages():
+            self.refused(lambda r, d=drop: r["packages"].remove(entry(r, d)))
+        self.refused(lambda r: r["packages"].reverse())
+        self.refused(lambda r: r["packages"].append(copy.deepcopy(r["packages"][0])))
+        self.refused(lambda r: r.update(packages=[e for e in r["packages"] if e["package"] in c.FLAGSHIPS]))
+
+    def test_ci_packages_claim_no_physical_acceptance(self):
+        for name in CI_ONLY:
+            for key, value in (("checks", {"boots": "PASS"}), ("checks", {}), ("install", "microSD"),
+                               ("date", "2026-10-22"), ("level", "boot")):
+                self.refused(lambda r, n=name, k=key, v=value: entry(r, n).update({k: copy.deepcopy(v)}))
+            self.refused(lambda r, n=name: entry(r, n).update(verification="physical"))
+            self.refused(lambda r, n=name: entry(r, n).pop("verification"))
+        with self.assertRaisesRegex(c.Problem, "CI-verified only"):
+            record = copy.deepcopy(self.record)
+            entry(record, "x4-g")["checks"] = {"boots": "PASS"}
+            self.digest(record)
+
+    def test_flagships_need_exactly_their_maintenance_checks_each_pass(self):
+        m = c.load_maintenance_schema()
+        for name in c.FLAGSHIPS:
+            for check in m["packages"][name]["checks"]:
+                self.refused(lambda r, n=name, k=check: entry(r, n)["checks"].pop(k))
+                for bad in ("FAIL", "SKIP", "pass", "", None, True):
+                    self.refused(lambda r, n=name, k=check, b=bad: entry(r, n)["checks"].update({k: b}))
+            self.refused(lambda r, n=name: entry(r, n)["checks"].update({"photo-taken": "PASS"}))
+            self.refused(lambda r, n=name: entry(r, n).update(verification="ci"))
+            self.refused(lambda r, n=name: entry(r, n).pop("date"))
+            self.refused(lambda r, n=name: entry(r, n).update(install="USB 4-region" if n == "x4-gd" else "microSD"))
+        self.assertIn("dogear-no-writes-offline", m["packages"]["x4-gd"]["checks"])
+
+    def test_replaced_and_host_checks_cannot_be_claimed_physically(self):
+        for name in c.FLAGSHIPS:
+            for check in (*c.REPLACED_503, c.NO_WRITES, c.E3_CHECK):
+                with self.assertRaisesRegex(c.Problem, "cannot be physical checks", msg=f"{name} {check}"):
+                    record = copy.deepcopy(self.record)
+                    entry(record, name)["checks"][check] = "PASS"
+                    self.digest(record)
+
+            def substitute(r, n=name):  # the v1 no-writes PASS in place of the offline one
+                checks = entry(r, n)["checks"]
+                checks[c.NO_WRITES] = checks.pop(c.NO_WRITES_OFFLINE)
+            self.refused(substitute)
+
+    def test_the_record_is_bound_to_the_candidate(self):
+        self.refused(lambda r: r.update(commit="c" * 40))
+        self.refused(lambda r: r.update(candidateRun=43))
+        self.refused(lambda r: r.update(candidateRun="42"))
+        self.refused(lambda r: r.update(sumsSha256="0" * 64))
+        self.refused(lambda r: r.update(repository="o/other"))
+        self.refused(lambda r: r.update(tag="v1.2.1"))
+        for name in c.packages():
+            self.refused(lambda r, n=name: entry(r, n).update(sha256="0" * 64))
+            self.refused(lambda r, n=name: entry(r, n).update(env="gh_release" if n != "x4-g" else "x4pro-gh_release"))
+        for name in ("x4pro-g", "x4pro-gpd"):
+            self.refused(lambda r, n=name: entry(r, n)["pieces"].update(bootloader="0" * 64))
+            self.refused(lambda r, n=name: entry(r, n).pop("pieces"))
+
+    def test_policy_authorization_and_approval_are_fixed(self):
+        self.refused(lambda r: r.update(policy="full"))
+        self.refused(lambda r: r.update(policy="post-launch-maintenance-lite"))
+        self.refused(lambda r: r.update(authorization=c.MAINTENANCE_AUTHORIZATION.replace("x4pro-gp ", "")))
+        self.refused(lambda r: r.pop("authorization"))
+        self.refused(lambda r: r.update(approvedBy="claude"))
+        self.refused(lambda r: r.update(approvedOn="2026-13-01"))
+        self.refused(lambda r: r.update(schema="crosspoint-acceptance-maintenance/2"))
+
+    def test_host_evidence_is_the_candidates_own(self):
+        self.refused(lambda r: r["hostCovered"].pop(c.POST_LAUNCH))
+        self.refused(lambda r: r["hostCovered"].pop(c.E3_CHECK))
+        self.refused(lambda r: r["hostCovered"].update({c.POST_LAUNCH: r["hostCovered"][c.E3_CHECK]}))
+        other = json.loads(post_launch(commit="c" * 40))
+        self.refused(lambda r: r["hostCovered"].update({c.POST_LAUNCH: other}))
+        self.refused(lambda r: r["hostCovered"].update({c.POST_LAUNCH: json.loads(post_launch(run=43))}))
+        test = c.POST_LAUNCH_TESTS[0]
+        self.refused(lambda r: r["hostCovered"][c.POST_LAUNCH]["tests"].update({test: "FAIL"}))
+        self.refused(lambda r: r["hostCovered"][c.POST_LAUNCH]["tests"].pop(test))
+        self.refused(lambda r: r["hostCovered"][c.POST_LAUNCH].update(skipped=[test]))
+        self.refused(lambda r: r["hostCovered"][c.POST_LAUNCH].update(definitionSha256="0" * 64))
+        self.refused(lambda r: r["hostCovered"][c.POST_LAUNCH].update(checks=[c.REPLACED_503[0]]))
+        self.refused(lambda r: r["hostCovered"].update({c.REPLACED_503[0]: r["hostCovered"][c.POST_LAUNCH]}))
+
+    def test_a_full_record_is_still_checked_under_crosspoint_acceptance_1(self):
+        full = acceptance_record(self.out)
+        self.assertEqual(c.checked_acceptance(self.write(full), self.out)[1], c.FULL_POLICY)
+        # Under v1, a record of only the flagships, or with CI-only entries, is refused as before.
+        flagships_only = copy.deepcopy(full)
+        flagships_only["packages"] = [e for e in full["packages"] if e["package"] in c.FLAGSHIPS]
+        self.refused(text=json.dumps(flagships_only))
+        mixed = copy.deepcopy(full)
+        mixed["packages"] = copy.deepcopy(self.record["packages"])
+        self.refused(text=json.dumps(mixed))
+        # And a maintenance record cannot wear the v1 schema name, nor an unknown one.
+        self.refused(lambda r: r.update(schema="crosspoint-acceptance/1"))
+        self.refused(lambda r: r.update(schema="crosspoint-acceptance/2"))
+
+
+class PostLaunchEvidenceTests(Base):
+    def replace_post_launch(self, data: bytes) -> None:
+        """As E3HostEvidenceTests.replace_evidence: only the evidence rule can refuse it."""
+        (self.out / c.POST_LAUNCH_EVIDENCE).write_bytes(data)
+        files = {p.name: p.read_bytes() for p in self.out.iterdir() if p.name not in (c.SUMS, c.PROVENANCE)}
+        sums = c.write_sums(files, self.out / c.SUMS)
+        prov = json.loads((self.out / c.PROVENANCE).read_text())
+        prov["files"] = {n: {"sha256": c.sha256(d), "size": len(d)} for n, d in sorted(files.items())}
+        prov["sumsSha256"] = c.sha256(sums)
+        (self.out / c.PROVENANCE).write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n")
+
+    def test_the_rule_itself_refuses_failures_skips_and_other_definitions(self):
+        m, good = c.load_maintenance_schema(), json.loads(post_launch())
+        bind = dict(repository="o/r", commit="b" * 40, run=42)
+        c.check_post_launch_evidence(good, m, **bind)
+        test = c.POST_LAUNCH_TESTS[0]
+        for name, bad in (("skipped", dict(good, skipped=[test])),
+                          ("failed", dict(good, tests=dict(good["tests"], **{test: "FAIL"}))),
+                          ("missing test", dict(good, tests={t: "PASS" for t in c.POST_LAUNCH_TESTS[1:]})),
+                          ("extra test", dict(good, tests=dict(good["tests"], **{"DogearX.Y": "PASS"}))),
+                          ("other definition", dict(good, definitionSha256="0" * 64)),
+                          ("other checks", dict(good, checks=list(reversed(c.REPLACED_503)))),
+                          ("other schema", dict(good, schema=c.E3_EVIDENCE_SCHEMA)),
+                          ("run as a string", dict(good, candidateRun="42"))):
+            with self.subTest(case=name), self.assertRaises(c.Problem):
+                c.check_post_launch_evidence(bad, m, **bind)
+
+    def test_verify_dir_refuses_a_candidate_whose_post_launch_evidence_is_not_its_own(self):
+        self.assertEqual(self.assemble()[0], 0)
+        self.assertEqual(run("verify-dir", self.out)[0], 0)
+        good = (self.out / c.POST_LAUNCH_EVIDENCE).read_bytes()
+        loaded = json.loads(good)
+        for name, data in (("a failed test, sums rewritten",
+                            c.canonical(dict(loaded, tests=dict(loaded["tests"], **{c.POST_LAUNCH_TESTS[1]: "FAIL"})))),
+                           ("a skipped test, sums rewritten", c.canonical(dict(loaded, skipped=[c.POST_LAUNCH_TESTS[1]]))),
+                           ("another run's", post_launch(run=43)), ("another commit's", post_launch(commit="c" * 40))):
+            with self.subTest(case=name):
+                self.replace_post_launch(data)
+                self.assertNotEqual(run("verify-dir", self.out)[0], 0)
+        self.replace_post_launch(good)
+        self.assertEqual(run("verify-dir", self.out)[0], 0)
+
+    def test_the_evidence_is_every_required_test_pass_and_deterministic(self):
+        data = post_launch()
+        self.assertEqual(data, post_launch())
+        ev = json.loads(data)
+        self.assertEqual(ev["checks"], list(c.REPLACED_503))
+        self.assertEqual(sorted(ev["tests"]), list(c.POST_LAUNCH_TESTS))
+        self.assertEqual(set(ev["tests"].values()), {"PASS"})
+        self.assertEqual(ev["skipped"], [])
+        self.assertIn("DogearPostLaunch.NothingPublishedWithNoReadableIssueIsNoIssueYet", ev["tests"])
+        self.assertIn("DogearPostLaunch.CachedRegularIssueWithNothingPublishedIsCachedNeverNoIssueYet", ev["tests"])
+
+    def test_a_missing_failed_skipped_or_repeated_test_has_no_evidence(self):
+        for test in c.POST_LAUNCH_TESTS:
+            for state in ("missing", "fail", "skip"):
+                with self.assertRaises(c.Problem, msg=f"{test} {state}"):
+                    post_launch(report=junit({test: state}))
+        repeated = f'<testcase name="{c.POST_LAUNCH_TESTS[0]}" status="run"/>'
+        with self.assertRaises(c.Problem):
+            post_launch(report=junit(extra=repeated))
+
+    def test_the_cli_writes_it_and_never_overwrites(self):
+        report = self.root / "junit.xml"
+        report.write_bytes(junit())
+        out = self.root / "pl.json"
+        args = ("post-launch-evidence", "--junit", report, "--repository", "o/r", "--commit", "b" * 40,
+                "--run-id", "42", "--out", out)
+        self.assertEqual(run(*args)[0], 0)
+        self.assertEqual(out.read_bytes(), post_launch())
+        self.assertEqual(run(*args)[0], 1)
+        report.write_bytes(junit({c.POST_LAUNCH_TESTS[-1]: "skip"}))
+        out.unlink()
+        self.assertEqual(run(*args)[0], 1)
+        self.assertFalse(out.exists())
+
+    def test_assemble_and_verify_dir_require_the_candidates_own_evidence(self):
+        for bad in (post_launch(commit="c" * 40), post_launch(run=43), post_launch(repository="o/x"),
+                    post_launch() + b"\n", evidence()):
+            self.post_launch.write_bytes(bad)
+            self.assertEqual(self.assemble()[0], 1)
+            self.assertFalse(self.out.exists())
+        self.post_launch.write_bytes(post_launch())
+        self.assertEqual(self.assemble()[0], 0)
+        (self.out / c.POST_LAUNCH_EVIDENCE).unlink()
+        self.assertEqual(run("verify-dir", self.out)[0], 1)
+
+
+class MaintenanceSchemaTests(unittest.TestCase):
+    def loosened(self, mutate):
+        schema = json.loads(c.MAINTENANCE_SCHEMA.read_text())
+        mutate(schema)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "m.json"
+            path.write_text(json.dumps(schema))
+            with self.assertRaises(c.Problem):
+                c.load_maintenance_schema(path)
+
+    def test_the_schema_file_is_exactly_the_fixed_policy(self):
+        m = c.load_maintenance_schema()
+        v1 = c.load_acceptance_schema()
+        self.assertEqual([p for p in m["packageOrder"] if m["packages"][p]["verification"] == "physical"],
+                         list(c.FLAGSHIPS))
+        for name in c.FLAGSHIPS:
+            self.assertEqual(m["packages"][name]["checks"], c.maintenance_checks(v1["packages"][name]["checks"]))
+            self.assertFalse(set(m["packages"][name]["checks"]) & {*c.REPLACED_503, c.NO_WRITES, c.E3_CHECK})
+        self.assertEqual(m["hostCovered"][c.E3_CHECK], v1["hostCovered"][c.E3_CHECK])
+
+    def test_any_loosening_is_refused(self):
+        self.loosened(lambda s: s["packages"]["x4-g"].update(verification="physical"))
+        self.loosened(lambda s: s["packages"]["x4pro-gpd"].update(verification="ci"))
+        self.loosened(lambda s: s["packages"]["x4-gd"]["checks"].remove("book-reads"))
+        self.loosened(lambda s: s["packages"]["x4-gd"]["checks"].append("dogear-e1-no-issue-yet"))
+        self.loosened(lambda s: s["packages"]["x4-g"].update(checks=["boots"]))
+        self.loosened(lambda s: s["checks"].update({"book-reads": "A book exists."}))
+        self.loosened(lambda s: s["checks"].update({"dogear-no-writes-offline": s["checks"]["dogear-no-writes-offline"]})
+                      or s["checks"].pop("goto-edition"))
+        self.loosened(lambda s: s["hostCovered"]["dogear-v2-cache-503"]["tests"].pop())
+        self.loosened(lambda s: s["hostCovered"]["dogear-e1-no-issue-yet"].update(evidence="e3-host-evidence.json"))
+        self.loosened(lambda s: s["hostCovered"][c.E3_CHECK]["tests"].pop())
+        self.loosened(lambda s: s["hostCovered"].pop("dogear-v2-cache-503"))
+        self.loosened(lambda s: s.update(authorization="The owner authorizes it."))
+        self.loosened(lambda s: s.update(policy="full"))
+        self.loosened(lambda s: s["fixtures"].pop("Q2"))
+        self.loosened(lambda s: s["replaced"].pop("dogear-no-writes"))
+        self.loosened(lambda s: s.update(extra=True))
+
+
+MAINTENANCE_TAIL = (f"acceptance-policy: {c.MAINTENANCE_POLICY}\nci-verified: {' '.join(CI_ONLY)}\n")
+
+
+def maintenance_tag(accepted=" ".join(c.FLAGSHIPS), ci=" ".join(CI_ONLY), policy=c.MAINTENANCE_POLICY, **kw):
+    return (tag_message(accepted=accepted, **kw) + f"acceptance-policy: {policy}\nci-verified: {ci}\n")
+
+
+class MaintenanceTagTests(unittest.TestCase):
+    def test_a_maintenance_tag_names_its_policy_and_both_lists(self):
+        f = c.parse_tag_message(maintenance_tag())
+        self.assertEqual(c.tag_policy(f), c.MAINTENANCE_POLICY)
+        self.assertEqual((f["physically-accepted"], f["ci-verified"]), (" ".join(c.FLAGSHIPS), " ".join(CI_ONLY)))
+        self.assertEqual(c.tag_policy(c.parse_tag_message(tag_message())), c.FULL_POLICY)
+
+    def test_the_lists_and_policy_are_exactly_the_fixed_ones(self):
+        for text in (maintenance_tag(accepted=ALL), maintenance_tag(accepted="x4pro-gpd x4-gd"),
+                     maintenance_tag(accepted="x4-gd"), maintenance_tag(accepted="x4-gd x4pro-gpd x4-g"),
+                     maintenance_tag(ci=" ".join(CI_ONLY[:-1])), maintenance_tag(ci=" ".join(reversed(CI_ONLY))),
+                     maintenance_tag(ci=" ".join(CI_ONLY) + " x4-gd"), maintenance_tag(ci=""),
+                     maintenance_tag(policy="full"), maintenance_tag(policy="post-launch-maintenance-lite"),
+                     tag_message() + f"ci-verified: {' '.join(CI_ONLY)}\n",
+                     tag_message() + f"acceptance-policy: {c.MAINTENANCE_POLICY}\n",
+                     maintenance_tag() + f"acceptance-policy: {c.MAINTENANCE_POLICY}\n",
+                     maintenance_tag().replace("candidate-run: 123456\n", ""),
+                     maintenance_tag(acceptance="f" * 63)):
+            with self.assertRaises(c.Problem, msg=text):
+                c.parse_tag_message(text)
+
+    def test_parse_tag_reports_the_policy(self):
+        with tempfile.TemporaryDirectory() as d:
+            msg = Path(d) / "m.txt"
+            msg.write_text(maintenance_tag())
+            code, out, err = run("parse-tag", msg, "--commit", "b" * 40)
+            self.assertEqual(code, 0, err)
+            self.assertIn(f"acceptance_policy={c.MAINTENANCE_POLICY}", out)
+            self.assertIn(f"ci_verified={' '.join(CI_ONLY)}", out)
+            msg.write_text(tag_message())
+            code, out, err = run("parse-tag", msg, "--commit", "b" * 40)
+            self.assertEqual(code, 0, err)
+            self.assertIn(f"acceptance_policy={c.FULL_POLICY}", out)
+            self.assertNotIn("ci_verified=", out)
+
+
+class MaintenancePublishTests(PublishBase):
+    def setUp(self):
+        super().setUp()
+        self.acceptance.write_text(json.dumps(maintenance_record(self.out), indent=2))
+        self.maintenance_sha = c.acceptance_digest(self.acceptance, self.out)
+        self.tag_text(maintenance_tag(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                      acceptance=self.maintenance_sha, title=self.TAG))
+
+    def tag_text(self, message):
+        self.gets[f"repos/o/r/git/tags/{'t' * 40}"]["message"] = message
+
+    def test_a_maintenance_record_and_tag_preflight_and_publish(self):
+        gh = FakeGitHub(self.gets)
+        self.assertIn("dry run", self.publish(gh, publish=False))
+        self.assertEqual(gh.patches, [])
+        gh = FakeGitHub(self.gets)
+        self.assertIn("published v1.2.0 as latest", self.publish(gh))
+        self.assertEqual(len(gh.patches), 1)
+
+    def test_the_tag_policy_must_be_the_records(self):
+        # A full tag naming the maintenance record (all eight claimed physically accepted): refused.
+        self.tag_text(tag_message(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                  acceptance=self.maintenance_sha, title=self.TAG))
+        self.assertIn("acceptance policy", self.refused())
+
+    def test_a_maintenance_tag_cannot_carry_a_full_record(self):
+        self.acceptance.write_text(json.dumps(acceptance_record(self.out), indent=2))
+        full_sha = c.acceptance_digest(self.acceptance, self.out)
+        self.tag_text(maintenance_tag(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                      acceptance=full_sha, title=self.TAG))
+        self.assertIn("acceptance policy", self.refused())
+
+    def test_a_different_maintenance_record_than_the_tag_names_refuses(self):
+        record = maintenance_record(self.out)
+        record["approvedOn"] = "2026-10-23"
+        self.acceptance.write_text(json.dumps(record, indent=2))
+        self.assertIn("different acceptance record", self.refused())
 
 
 if __name__ == "__main__":
