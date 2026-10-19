@@ -126,6 +126,21 @@ MAINTENANCE_AUTHORIZATION = (
 FLAGSHIPS = ("x4-gd", "x4pro-gpd")
 REPLACED_503 = ("dogear-e1-no-issue-yet", "dogear-v2-cache-503")
 NO_WRITES, NO_WRITES_OFFLINE = "dogear-no-writes", "dogear-no-writes-offline"
+ONLINE_CURRENT = "dogear-online-current"
+# The two maintenance-only physical checks, pinned word for word; every other
+# check keeps its acceptance-v1 definition exactly.
+MAINTENANCE_DEFINITIONS = {
+    NO_WRITES_OFFLINE: (
+        "After dogear-v2-cache-offline and the Q1 and Q2 checks (all with Wi-Fi off), the test /dogear files are "
+        "byte-identical to what was placed. (Post-launch, an online DOGEAR run may rightly replace the card's "
+        "generation with the published issue, so only the offline checks can be no-write.)"),
+    ONLINE_CURRENT: (
+        "On the candidate bytes, with the device's own /dogear renamed aside (no /dogear on the card), online against "
+        "real production: DOGEAR downloads the currently published issue and shows it with no CACHED marker; the "
+        "issueId and issueSha256 named by the /dogear/active.txt it writes equal production's /current.json at the "
+        "time and are recorded as this package's onlineIssue; then, with Wi-Fi off, DOGEAR opens that same "
+        "downloaded issue, marked CACHED."),
+}
 POST_LAUNCH = "dogear-post-launch-503"  # the maintenance record's hostCovered key for the evidence below
 POST_LAUNCH_EVIDENCE = "post-launch-host-evidence.json"
 POST_LAUNCH_EVIDENCE_SCHEMA = "crosspoint-post-launch-host-evidence/1"
@@ -520,8 +535,11 @@ def e3_evidence(args) -> None:
 
 def maintenance_checks(v1_checks: list) -> list:
     """A flagship's physical maintenance checks: its acceptance-v1 checks, in
-    order, without the two production-503 checks, with dogear-no-writes renamed."""
-    return [NO_WRITES_OFFLINE if c == NO_WRITES else c for c in v1_checks if c not in REPLACED_503]
+    order, without the two production-503 checks, with dogear-no-writes renamed,
+    and dogear-online-current right after E2 (both start with no /dogear)."""
+    checks = [NO_WRITES_OFFLINE if c == NO_WRITES else c for c in v1_checks if c not in REPLACED_503]
+    at = checks.index("dogear-e2-no-issue-on-device") + 1
+    return checks[:at] + [ONLINE_CURRENT] + checks[at:]
 
 
 def load_maintenance_schema(path: Path = MAINTENANCE_SCHEMA, v1: dict = None) -> dict:
@@ -553,7 +571,9 @@ def load_maintenance_schema(path: Path = MAINTENANCE_SCHEMA, v1: dict = None) ->
         require(spec["board"] == base["board"], f"{name}: board must be {base['board']!r}")
     exact_keys(m["checks"], used, "maintenance checks")
     for check, text in m["checks"].items():
-        if check != NO_WRITES_OFFLINE:
+        if check in MAINTENANCE_DEFINITIONS:
+            require(text == MAINTENANCE_DEFINITIONS[check], f"{check} must keep its approved maintenance definition")
+        else:
             require(text == v1["checks"][check], f"{check} must keep its acceptance-v1 definition")
     require(m["fixtures"] == v1["fixtures"], "maintenance fixtures differ from acceptance-v1's")
     require(m["replaced"] == {REPLACED_503[0]: "hostCovered", REPLACED_503[1]: "hostCovered",
@@ -698,7 +718,8 @@ def check_acceptance(record, schema: dict, sums_bytes: bytes, prov: dict) -> Non
 
 MAINTENANCE_RECORD_KEYS = ("schema", "policy", "authorization", "repository", "tag", "commit", "candidateRun",
                            "sumsSha256", "fixtures", "packages", "hostCovered", "approvedBy", "approvedOn")
-PHYSICAL_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification", "install", "date", "checks")
+PHYSICAL_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification", "install", "date", "checks",
+                       "onlineIssue")
 CI_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification")
 
 
@@ -745,7 +766,7 @@ def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, p
                 f"{name} must be recorded as {spec['verification']!r}" +
                 ("" if physical else ": it is CI-verified only and not physically accepted"))
         if not physical:
-            claimed = sorted(k for k in ("checks", "install", "date", "level") if k in entry)
+            claimed = sorted(k for k in ("checks", "install", "date", "level", "onlineIssue") if k in entry)
             require(not claimed, f"{name} is CI-verified only: it cannot claim physical {claimed}")
         exact_keys(entry, (PHYSICAL_ENTRY_KEYS if physical else CI_ENTRY_KEYS) + (("pieces",) if factory else ()), name)
         require(entry["env"] == env, f"{name} was not built by {env}")
@@ -763,6 +784,13 @@ def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, p
             exact_keys(checks, spec["checks"], f"{name} checks")
             failed = sorted(c for c, result in checks.items() if result != "PASS")
             require(not failed, f"{name}: {failed} not PASS")
+            # What dogear-online-current verified on hardware: the published issue it downloaded.
+            online = entry["onlineIssue"]
+            exact_keys(online, ("issueId", "issueSha256"), f"{name} onlineIssue")
+            require(isinstance(online["issueId"], str) and ISSUE_ID.fullmatch(online["issueId"]) is not None,
+                    f"{name} onlineIssue: bad issueId")
+            require(isinstance(online["issueSha256"], str) and HEX64.fullmatch(online["issueSha256"]) is not None,
+                    f"{name} onlineIssue: bad issueSha256")
         if factory:
             exact_keys(entry["pieces"], PIECE_KEYS, f"{name} pieces")
             for piece in PIECE_KEYS:

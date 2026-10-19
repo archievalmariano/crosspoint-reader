@@ -154,13 +154,20 @@ applies to any release that uses it.
 
 | Package | Under `post-launch-maintenance` |
 |---|---|
-| `x4-gd`, `x4pro-gpd` (the DOGEAR flagships) | **physically accepted**, with exactly their §2 checks, except: the two production-503 checks are host-covered (below), and `dogear-no-writes` becomes `dogear-no-writes-offline` (after the Wi-Fi-off fixture checks only, since an online run may rightly write the published issue) |
+| `x4-gd`, `x4pro-gpd` (the DOGEAR flagships) | **physically accepted**, with exactly their §2 checks, except: the two production-503 checks are host-covered (below); `dogear-no-writes` becomes `dogear-no-writes-offline` (after the Wi-Fi-off fixture checks only, since an online run may rightly write the published issue); and **`dogear-online-current`** is added (below) |
 | `x4-g`, `x4pro-g`, `x4pro-gd`, `x4pro-p`, `x4pro-pd`, `x4pro-gp` | **CI-verified only**: the candidate run built them, checked their version strings, sums and factory images. They are recorded as `"verification": "ci"` with no checks, install or date, and are never described as physically accepted |
 
+- **`dogear-online-current` (physical, each flagship, on the candidate bytes).** It isn't host-coverable, and it's never represented by CI or host evidence.
+  1. With the device's own `/dogear` renamed aside (no `/dogear` on the card, as for E2), and online against real production, DOGEAR downloads the currently published issue.
+  2. It shows that issue with no `CACHED` marker.
+  3. `/dogear/active.txt` (on the card, or in the serial log) must name exactly the `issueId` and `issueSha256` of production's `/current.json` at that moment. They go into the record as that package's `onlineIssue`.
+  4. Then, with Wi-Fi off, DOGEAR opens that same downloaded issue, marked `CACHED`.
+
+  Run it right after E2. Then place the R, Q1 and Q2 fixtures as in §2, and finally restore the device's own `/dogear`.
 - **Host evidence, for every candidate:** the `e3-host-tests` job also writes `post-launch-host-evidence.json` from the same JUnit report. It covers the host tests that replace the two production-503 checks (`hostCovered` in the maintenance schema). Two of them, `DogearPostLaunch.*`, chain the server's exact answer through classification, the SD cache and the screen rule. It fails closed exactly like E3's evidence: missing, failed, skipped or repeated tests mean no evidence, and therefore no candidate.
 - **The record** (`schema: crosspoint-acceptance-maintenance/1`) has the fixed `policy` and `authorization` wording, and all 8 packages in canonical order.
   - Each entry is bound to its file digest (and, on the X4 Pro, its pieces).
-  - The flagships carry their checks, each `PASS`. A CI-only entry that claims any physical field is refused. So is a flagship that claims a host-covered or replaced check.
+  - The flagships carry their checks, each `PASS`, and an `onlineIssue` (`issueId`, `issueSha256`: the published issue `dogear-online-current` verified). A CI-only entry that claims any physical field (checks, install, date, `onlineIssue`) is refused. So is a flagship that claims a host-covered or replaced check.
   - `hostCovered` carries both the candidate's E3 evidence and its post-launch evidence, unchanged.
   - The fixtures, owner approval and candidate binding are exactly as in §2.
 

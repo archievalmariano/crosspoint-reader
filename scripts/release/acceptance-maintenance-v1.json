@@ -1,7 +1,7 @@
 {
   "schema": "crosspoint-acceptance-maintenance/1",
   "policy": "post-launch-maintenance",
-  "comment": "Post-launch maintenance acceptance of a release candidate (docs/RELEASING.md 2a), a fixed alternative to crosspoint-acceptance/1 (acceptance-v1.json, unchanged). The two DOGEAR flagships are physically accepted; the other six packages are CI-verified only and claim no physical check. The two production-503 checks are host-covered with the candidate's own post-launch-host-evidence.json. Read by scripts/release/candidate.py.",
+  "comment": "Post-launch maintenance acceptance of a release candidate (docs/RELEASING.md 2a), a fixed alternative to crosspoint-acceptance/1 (acceptance-v1.json, unchanged). The two DOGEAR flagships are physically accepted, including dogear-online-current (the published issue downloaded from production on the candidate bytes); the other six packages are CI-verified only and claim no physical check. The two production-503 checks are host-covered with the candidate's own post-launch-host-evidence.json. Read by scripts/release/candidate.py.",
   "authorization": "The owner authorizes post-launch maintenance acceptance for this release: x4-gd and x4pro-gpd are physically accepted; x4-g, x4pro-g, x4pro-gd, x4pro-p, x4pro-pd and x4pro-gp are CI-verified only and not physically accepted.",
   "packageOrder": [
     "x4-g",
@@ -33,6 +33,7 @@
         "update-check",
         "dogear-opens",
         "dogear-e2-no-issue-on-device",
+        "dogear-online-current",
         "dogear-v2-cache-offline",
         "dogear-v3-q1-cover",
         "dogear-v3-q1-pages",
@@ -80,6 +81,7 @@
         "update-check",
         "dogear-opens",
         "dogear-e2-no-issue-on-device",
+        "dogear-online-current",
         "dogear-v2-cache-offline",
         "dogear-v3-q1-cover",
         "dogear-v3-q1-pages",
@@ -102,6 +104,7 @@
     "update-check": "Settings > System > Check for updates offers nothing older.",
     "dogear-opens": "DOGEAR opens to a valid screen (an issue, CACHED, or one status screen), with no crash.",
     "dogear-e2-no-issue-on-device": "No /dogear; Wi-Fi off: NO ISSUE ON THIS DEVICE and its note, exact copy.",
+    "dogear-online-current": "On the candidate bytes, with the device's own /dogear renamed aside (no /dogear on the card), online against real production: DOGEAR downloads the currently published issue and shows it with no CACHED marker; the issueId and issueSha256 named by the /dogear/active.txt it writes equal production's /current.json at the time and are recorded as this package's onlineIssue; then, with Wi-Fi off, DOGEAR opens that same downloaded issue, marked CACHED.",
     "dogear-v2-cache-offline": "Fixture R (schema 2) as the only SD generation, Wi-Fi off: the regular cover matches its mock sheet; every page opens; CACHED.",
     "dogear-v3-q1-cover": "Fixture Q1 (schema 3), Wi-Fi off: the Quiet A cover matches its mock sheet: SOME QUIET THIS WEEK with the exact approved note; one featured lead, first; the fixture's supporting rows; no ALSO THIS WEEK head; pager 1 / N; CACHED.",
     "dogear-v3-q1-pages": "Fixture Q1: every item page, 2 to N-1, opens in order and matches the sheet; the final page shows the QR.",

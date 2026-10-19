@@ -1204,6 +1204,7 @@ class SliceTests(Base):
 # ---- post-launch maintenance acceptance (docs/RELEASING.md 2a) ---------------
 
 CI_ONLY = [p for p in c.packages() if p not in c.FLAGSHIPS]
+ONLINE_ISSUE = {"issueId": "dogear-2026-10-26", "issueSha256": "4" * 64}
 
 
 def maintenance_record(candidate: Path) -> dict:
@@ -1219,7 +1220,7 @@ def maintenance_record(candidate: Path) -> dict:
                  "sha256": sums[f"{stem}.bin"], "verification": spec["verification"]}
         if spec["verification"] == "physical":
             entry.update(install=spec["install"], date="2026-10-22",
-                         checks={check: "PASS" for check in spec["checks"]})
+                         checks={check: "PASS" for check in spec["checks"]}, onlineIssue=copy.deepcopy(ONLINE_ISSUE))
         if has_factory:
             entry["pieces"] = {k: prov["flashSupport"][env][f"{k}.bin"] for k in c.PIECE_KEYS}
         entries.append(entry)
@@ -1336,6 +1337,35 @@ class MaintenanceAcceptanceTests(Base):
         for name in ("x4pro-g", "x4pro-gpd"):
             self.refused(lambda r, n=name: entry(r, n)["pieces"].update(bootloader="0" * 64))
             self.refused(lambda r, n=name: entry(r, n).pop("pieces"))
+
+    def test_dogear_online_current_is_a_required_physical_check_on_each_flagship(self):
+        for name in c.FLAGSHIPS:
+            self.assertIn(c.ONLINE_CURRENT, entry(self.record, name)["checks"])
+            # Omitted, renamed or not PASS: refused.
+            self.refused(lambda r, n=name: entry(r, n)["checks"].pop(c.ONLINE_CURRENT))
+
+            def rename(r, n=name, to="dogear-online"):
+                checks = entry(r, n)["checks"]
+                checks[to] = checks.pop(c.ONLINE_CURRENT)
+            for to in ("dogear-online", "dogear-online-current-v2", "dogear-v2-online-current", "DOGEAR-ONLINE-CURRENT"):
+                self.refused(lambda r, n=name, t=to: rename(r, n, t))
+            for bad in ("FAIL", "SKIP", "CI", "host", None):
+                self.refused(lambda r, n=name, b=bad: entry(r, n)["checks"].update({c.ONLINE_CURRENT: b}))
+            # The issue it verified must be recorded, well formed.
+            self.refused(lambda r, n=name: entry(r, n).pop("onlineIssue"))
+            for bad in ({}, {"issueId": "dogear-2026-10-26"}, {"issueSha256": "4" * 64},
+                        dict(ONLINE_ISSUE, issueId="2026-10-26"), dict(ONLINE_ISSUE, issueSha256="4" * 63),
+                        dict(ONLINE_ISSUE, issueSha256="A" * 64), dict(ONLINE_ISSUE, issuePath="issues/x.json"),
+                        "dogear-2026-10-26", None):
+                self.refused(lambda r, n=name, b=bad: entry(r, n).update(onlineIssue=copy.deepcopy(b)))
+        # It cannot be carried by a CI-only package, nor by host evidence.
+        for name in CI_ONLY:
+            for claim in ({"checks": {c.ONLINE_CURRENT: "PASS"}}, {"onlineIssue": copy.deepcopy(ONLINE_ISSUE)}):
+                record = copy.deepcopy(self.record)
+                entry(record, name).update(copy.deepcopy(claim))
+                with self.assertRaisesRegex(c.Problem, "is CI-verified only: it cannot claim physical", msg=name):
+                    self.digest(record)
+        self.refused(lambda r: r["hostCovered"].update({c.ONLINE_CURRENT: r["hostCovered"][c.POST_LAUNCH]}))
 
     def test_policy_authorization_and_approval_are_fixed(self):
         self.refused(lambda r: r.update(policy="full"))
@@ -1483,6 +1513,40 @@ class MaintenanceSchemaTests(unittest.TestCase):
             self.assertEqual(m["packages"][name]["checks"], c.maintenance_checks(v1["packages"][name]["checks"]))
             self.assertFalse(set(m["packages"][name]["checks"]) & {*c.REPLACED_503, c.NO_WRITES, c.E3_CHECK})
         self.assertEqual(m["hostCovered"][c.E3_CHECK], v1["hostCovered"][c.E3_CHECK])
+        for name in c.FLAGSHIPS:
+            checks = m["packages"][name]["checks"]
+            self.assertEqual(checks[checks.index("dogear-e2-no-issue-on-device") + 1], c.ONLINE_CURRENT)
+        self.assertEqual({k: m["checks"][k] for k in c.MAINTENANCE_DEFINITIONS}, c.MAINTENANCE_DEFINITIONS)
+
+    def test_only_the_offline_no_writes_wording_changed_is_refused(self):
+        def reword(s):
+            text = s["checks"]["dogear-no-writes-offline"]
+            self.assertIn(" (all with Wi-Fi off)", text)
+            s["checks"]["dogear-no-writes-offline"] = text.replace(" (all with Wi-Fi off)", "")
+        self.loosened(reword)
+        self.loosened(lambda s: s["checks"].update({"dogear-no-writes-offline": s["checks"]["dogear-no-writes-offline"] + " "}))
+
+    def test_only_the_online_current_wording_changed_is_refused(self):
+        self.loosened(lambda s: s["checks"].update(
+            {c.ONLINE_CURRENT: s["checks"][c.ONLINE_CURRENT].replace("with no CACHED marker", "")}))
+
+    def test_online_current_cannot_be_dropped_renamed_moved_or_made_host_covered(self):
+        for name in c.FLAGSHIPS:
+            self.loosened(lambda s, n=name: s["packages"][n]["checks"].remove(c.ONLINE_CURRENT))
+
+            def rename(s, n=name):
+                checks = s["packages"][n]["checks"]
+                checks[checks.index(c.ONLINE_CURRENT)] = "dogear-online"
+            self.loosened(rename)
+
+            def move(s, n=name):
+                checks = s["packages"][n]["checks"]
+                checks.remove(c.ONLINE_CURRENT)
+                checks.append(c.ONLINE_CURRENT)
+            self.loosened(move)
+        self.loosened(lambda s: s["checks"].pop(c.ONLINE_CURRENT))
+        self.loosened(lambda s: s["packages"]["x4-g"].update(checks=[c.ONLINE_CURRENT]))
+        self.loosened(lambda s: s["hostCovered"].update({c.ONLINE_CURRENT: s["hostCovered"]["dogear-v2-cache-503"]}))
 
     def test_any_loosening_is_refused(self):
         self.loosened(lambda s: s["packages"]["x4-g"].update(verification="physical"))
