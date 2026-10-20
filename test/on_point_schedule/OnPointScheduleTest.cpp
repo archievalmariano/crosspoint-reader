@@ -189,13 +189,17 @@ TEST(OnPointScheduleData, BalagtasHolidaysUseTheWeekendTimetable) {
   EXPECT_EQ(tuesday.next.local.minute, 30);
 }
 
-// The holiday dates moved into the shared marked-date list; ON POINT must keep
-// exactly the 21 dates it used before (2026 non-working days + NCR ASEAN days).
-TEST(OnPointScheduleData, HolidayOverridesMatchThe2026NonWorkingDays) {
+// The holiday dates come from the shared marked-date list: the 21 2026
+// non-working days (incl. the NCR ASEAN Summit days) followed by the 18 for
+// 2027. ON POINT must carry exactly these, in order, for both directions.
+TEST(OnPointScheduleData, HolidayOverridesMatchTheNonWorkingDays) {
   constexpr on_point::CivilDate EXPECTED[] = {
-      {2026, 1, 1},   {2026, 2, 17},  {2026, 4, 2},  {2026, 4, 3},   {2026, 4, 4},   {2026, 4, 9},   {2026, 5, 1},
-      {2026, 6, 12},  {2026, 8, 21},  {2026, 8, 31}, {2026, 11, 1},  {2026, 11, 2},  {2026, 11, 16}, {2026, 11, 17},
-      {2026, 11, 18}, {2026, 11, 30}, {2026, 12, 8}, {2026, 12, 24}, {2026, 12, 25}, {2026, 12, 30}, {2026, 12, 31},
+      {2026, 1, 1},   {2026, 2, 17},  {2026, 4, 2},   {2026, 4, 3},   {2026, 4, 4},   {2026, 4, 9},   {2026, 5, 1},
+      {2026, 6, 12},  {2026, 8, 21},  {2026, 8, 31},  {2026, 11, 1},  {2026, 11, 2},  {2026, 11, 16}, {2026, 11, 17},
+      {2026, 11, 18}, {2026, 11, 30}, {2026, 12, 8},  {2026, 12, 24}, {2026, 12, 25}, {2026, 12, 30}, {2026, 12, 31},
+      {2027, 1, 1},   {2027, 2, 6},   {2027, 3, 25},  {2027, 3, 26},  {2027, 3, 27},  {2027, 4, 9},   {2027, 5, 1},
+      {2027, 6, 12},  {2027, 8, 21},  {2027, 8, 30},  {2027, 11, 1},  {2027, 11, 2},  {2027, 11, 30}, {2027, 12, 8},
+      {2027, 12, 24}, {2027, 12, 25}, {2027, 12, 30}, {2027, 12, 31},
   };
   for (const bool reversed : {false, true}) {
     const on_point::Schedule& schedule = on_point::scheduleForRoute(0, reversed);
@@ -215,6 +219,60 @@ TEST(OnPointScheduleData, SpecialWorkingDayKeepsTheWeekdayTimetable) {
       on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 2, 25, 4, 0));
   EXPECT_EQ(edsa.next.local.hour, 4);
   EXPECT_EQ(edsa.next.local.minute, 30);
+}
+
+// 2027 non-working holidays take the weekend/holiday timetable even on a weekday.
+TEST(OnPointScheduleData, Holidays2027UseTheWeekendTimetable) {
+  // Feast of the Immaculate Conception (Wednesday) starts outbound at 5:00.
+  const DepartureState immaculate =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2027, 12, 8, 4, 0));
+  EXPECT_EQ(immaculate.next.local.hour, 5);
+  EXPECT_EQ(immaculate.next.local.minute, 0);
+
+  // Rizal Day (Thursday) return runs the 6:30 weekend first trip, not 6:00.
+  const DepartureState rizalReturn =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, true), manilaTime(2027, 12, 30, 5, 50));
+  EXPECT_EQ(rizalReturn.next.local.hour, 6);
+  EXPECT_EQ(rizalReturn.next.local.minute, 30);
+
+  // An ordinary 2027 weekday (not a holiday) keeps the 4:30 weekday first trip.
+  const DepartureState ordinary =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2027, 12, 7, 4, 0));
+  EXPECT_EQ(ordinary.next.local.hour, 4);
+  EXPECT_EQ(ordinary.next.local.minute, 30);
+}
+
+// EDSA 2027 (Thursday) is a special working day: weekday timetable, no override.
+TEST(OnPointScheduleData, SpecialWorkingDay2027KeepsTheWeekdayTimetable) {
+  const DepartureState edsa =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2027, 2, 25, 4, 0));
+  EXPECT_EQ(edsa.next.local.hour, 4);
+  EXPECT_EQ(edsa.next.local.minute, 30);
+}
+
+// The 2026/2027 boundary: holidays on each side resolve to their own year's
+// override, and an early-January weekday still runs the weekday timetable.
+TEST(OnPointScheduleData, HolidayScheduleAcrossTheYearBoundary) {
+  const DepartureState lastDay2026 =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 12, 31, 4, 0));
+  EXPECT_EQ(lastDay2026.next.local.hour, 5);
+  EXPECT_EQ(lastDay2026.next.local.minute, 0);
+
+  // New Year's Day 2027, 04:00 PHT = 2026-12-31 20:00 UTC (built directly to
+  // avoid the manilaTime helper's month-boundary rollback).
+  const CivilDateTime newYearUtc{static_cast<int16_t>(2026), static_cast<uint8_t>(12), static_cast<uint8_t>(31),
+                                 static_cast<uint8_t>(20),   static_cast<uint8_t>(0),  static_cast<uint8_t>(0)};
+  const DepartureState newYear = on_point::getDepartureState(on_point::scheduleForRoute(0, false), newYearUtc);
+  EXPECT_EQ(newYear.next.local.year, 2027);
+  EXPECT_EQ(newYear.next.local.month, 1);
+  EXPECT_EQ(newYear.next.local.day, 1);
+  EXPECT_EQ(newYear.next.local.hour, 5);
+  EXPECT_EQ(newYear.next.local.minute, 0);
+
+  const DepartureState earlyJanWeekday =
+      on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2027, 1, 4, 4, 0));
+  EXPECT_EQ(earlyJanWeekday.next.local.hour, 4);
+  EXPECT_EQ(earlyJanWeekday.next.local.minute, 30);
 }
 
 TEST(OnPointScheduleData, NewOperatorTimetables) {
