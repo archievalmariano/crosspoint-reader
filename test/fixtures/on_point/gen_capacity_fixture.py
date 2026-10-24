@@ -174,7 +174,7 @@ def expected(pairs):
         "operator": {operator_label(s) for s in range(SCHEDULES)},
         "note": {note(s) for s in range(SCHEDULES)},
         "area": {p[a] for p in pairs for a in ("originArea", "destinationArea")},
-        "id": {p["id"] for p in pairs} | {p["schedules"][1]["id"] for p in pairs},
+        "id": {p["id"] for p in pairs} | {p["schedules"][1]["id"] for p in pairs} | {cid for cid, _, _ in collections()},
     }
     departures_total = SCHEDULES * sum(c for _, _, c in RULES)
     return {
