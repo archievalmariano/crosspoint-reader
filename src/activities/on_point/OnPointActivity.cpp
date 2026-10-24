@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <I18n.h>
+#include <Logging.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -30,13 +31,13 @@ constexpr int ROUTE_DESTINATION_Y = 145;
 constexpr int ROUTE_TOUCH_TOP = 58;
 constexpr int ROUTE_TOUCH_HEIGHT = 132;
 constexpr int MAIN_ROUTE_LABEL_Y = 76;
-constexpr int MAIN_ROUTE_TOP = 102;
-constexpr int MAIN_ROUTE_HEIGHT = 150;
+constexpr int MAIN_ROUTE_TOP = on_point::list_geometry::MAIN_ROUTE_TOP;
+constexpr int MAIN_ROUTE_HEIGHT = on_point::list_geometry::MAIN_ROUTE_HEIGHT;
 constexpr int ALL_ROUTES_LABEL_Y = 282;
-constexpr int ROUTE_LIST_ROW_TOP = 316;
-constexpr int ROUTE_LIST_ROW_HEIGHT = 104;
-constexpr int ROUTE_LIST_ROW_GAP = 22;
-constexpr size_t ROUTE_LIST_VISIBLE_ROWS = 3;
+constexpr int ROUTE_LIST_ROW_TOP = on_point::list_geometry::ROW_TOP;
+constexpr int ROUTE_LIST_ROW_HEIGHT = on_point::list_geometry::ROW_HEIGHT;
+constexpr int ROUTE_LIST_ROW_GAP = on_point::list_geometry::ROW_GAP;
+constexpr size_t ROUTE_LIST_VISIBLE_ROWS = on_point::ROUTE_LIST_VISIBLE_ROWS;
 constexpr unsigned long SET_MAIN_HOLD_MS = 700;
 constexpr int COUNTDOWN_LABEL_Y = 204;
 constexpr int COUNTDOWN_Y = 252;
@@ -83,7 +84,8 @@ bool sameDate(const on_point::CivilDateTime& a, const on_point::CivilDateTime& b
 void OnPointActivity::onEnter() {
   Activity::onEnter();
   view = View::RouteList;
-  routeIndex = mainRouteIndex();
+  resolveMainRoute();
+  routeIndex = routeList.pinnedRoute();
   reversed = false;
   cleanRefresh = true;
   fastRefreshCount = 0;
@@ -95,58 +97,23 @@ const on_point::Schedule& OnPointActivity::selectedSchedule() const {
   return on_point::scheduleForRoute(routeIndex, reversed);
 }
 
-size_t OnPointActivity::mainRouteIndex() const { return on_point::routeIndexForId(SETTINGS.onPointMainRouteId); }
-
-size_t OnPointActivity::displayRouteIndex(const size_t displayIndex) const {
-  const size_t mainIndex = mainRouteIndex();
-  if (displayIndex == 0 || displayIndex >= on_point::routeCount()) return mainIndex;
-
-  size_t visiblePosition = 1;
-  for (size_t position = 0; position < on_point::routeCount(); ++position) {
-    const size_t index = on_point::routeIndexInAlphabeticalOrder(position);
-    if (index == mainIndex) continue;
-    if (visiblePosition == displayIndex) return index;
-    ++visiblePosition;
+void OnPointActivity::resolveMainRoute() {
+  const on_point::RouteResolution resolution = on_point::resolveSavedRoute(
+      SETTINGS.onPointMainRouteId, sizeof(SETTINGS.onPointMainRouteId), on_point::productionAliases());
+  routeList.build(resolution);
+  if (!routeList.hasMainRoute()) {
+    // The stored value is kept as-is; only holding a route replaces it.
+    LOG_INF("ONPT", "No main route (state %d, saved length %u)", static_cast<int>(resolution.state),
+            static_cast<unsigned>(strnlen(SETTINGS.onPointMainRouteId, sizeof(SETTINGS.onPointMainRouteId))));
   }
-  return mainIndex;
 }
 
-size_t OnPointActivity::selectedDisplayIndex() const {
-  for (size_t displayIndex = 0; displayIndex < on_point::routeCount(); ++displayIndex) {
-    if (displayRouteIndex(displayIndex) == routeIndex) return displayIndex;
-  }
-  return 0;
-}
+size_t OnPointActivity::selectedDisplayIndex() const { return routeList.positionOfRoute(routeIndex); }
 
-size_t OnPointActivity::routeListFirstPosition() const {
-  const size_t displayIndex = selectedDisplayIndex();
-  if (displayIndex == 0) return 0;
-  return (displayIndex - 1) / ROUTE_LIST_VISIBLE_ROWS * ROUTE_LIST_VISIBLE_ROWS;
-}
-
-size_t OnPointActivity::routeListVisibleCount() const {
-  const size_t otherRouteCount = on_point::routeCount() > 0 ? on_point::routeCount() - 1 : 0;
-  return std::min(ROUTE_LIST_VISIBLE_ROWS, otherRouteCount - routeListFirstPosition());
-}
-
-bool OnPointActivity::routeAtPoint(const int x, const int y, size_t& index) const {
-  if (x < 0 || x >= renderer.getScreenWidth()) return false;
-  if (y >= MAIN_ROUTE_TOP && y < MAIN_ROUTE_TOP + MAIN_ROUTE_HEIGHT) {
-    index = mainRouteIndex();
-    return true;
-  }
-  if (y < ROUTE_LIST_ROW_TOP) return false;
-  const int rowStep = ROUTE_LIST_ROW_HEIGHT + ROUTE_LIST_ROW_GAP;
-  const int row = (y - ROUTE_LIST_ROW_TOP) / rowStep;
-  if (row < 0 || row >= static_cast<int>(routeListVisibleCount()) ||
-      (y - ROUTE_LIST_ROW_TOP) % rowStep >= ROUTE_LIST_ROW_HEIGHT)
-    return false;
-  index = displayRouteIndex(1 + routeListFirstPosition() + static_cast<size_t>(row));
-  return true;
-}
+size_t OnPointActivity::routeListFirstPosition() const { return routeList.pageStart(selectedDisplayIndex()); }
 
 void OnPointActivity::selectDisplayIndex(const size_t displayIndex) {
-  routeIndex = displayRouteIndex(displayIndex);
+  routeIndex = routeList.routeAtPosition(displayIndex);
   reversed = false;
   cleanRefresh = true;
   updateState();
@@ -154,11 +121,12 @@ void OnPointActivity::selectDisplayIndex(const size_t displayIndex) {
 }
 
 void OnPointActivity::setSelectedAsMainRoute() {
-  if (routeIndex == mainRouteIndex()) return;
+  if (routeList.isMainRoute(routeIndex)) return;
   const char* routeId = on_point::routeAt(routeIndex).routeId;
   strncpy(SETTINGS.onPointMainRouteId, routeId, sizeof(SETTINGS.onPointMainRouteId) - 1);
   SETTINGS.onPointMainRouteId[sizeof(SETTINGS.onPointMainRouteId) - 1] = '\0';
   SETTINGS.saveToFile();
+  resolveMainRoute();
   cleanRefresh = true;
   requestUpdate();
 }
@@ -227,18 +195,13 @@ void OnPointActivity::loop() {
       return;
     }
     if (mappedInput.wasPressed(Button::NavNext)) {
-      const size_t routeCount = on_point::routeCount();
-      if (routeCount <= 1) return;
-      const size_t selected = selectedDisplayIndex();
-      const size_t next = selected == 0 || selected + 1 >= routeCount ? 1 : selected + 1;
-      selectDisplayIndex(next);
+      if (routeList.count() <= 1) return;
+      selectDisplayIndex(routeList.nextPosition(selectedDisplayIndex()));
       return;
     }
     if (mappedInput.wasPressed(Button::NavPrevious)) {
-      const size_t routeCount = on_point::routeCount();
-      if (routeCount <= 1) return;
-      const size_t selected = selectedDisplayIndex();
-      selectDisplayIndex(selected <= 1 ? routeCount - 1 : selected - 1);
+      if (routeList.count() <= 1) return;
+      selectDisplayIndex(routeList.previousPosition(selectedDisplayIndex()));
       return;
     }
     if (mappedInput.wasReleased(Button::Confirm)) {
@@ -249,13 +212,17 @@ void OnPointActivity::loop() {
     int touchX = 0;
     int touchY = 0;
     size_t touchedRoute = 0;
-    if (mappedInput.wasScreenLongPress(touchX, touchY) && routeAtPoint(touchX, touchY, touchedRoute)) {
+    const int screenWidth = renderer.getScreenWidth();
+    const size_t selected = selectedDisplayIndex();
+    if (mappedInput.wasScreenLongPress(touchX, touchY) &&
+        routeList.routeAtPoint(touchX, touchY, screenWidth, selected, touchedRoute)) {
       routeIndex = touchedRoute;
       reversed = false;
       setSelectedAsMainRoute();
       return;
     }
-    if (mappedInput.wasScreenTouchDown(touchX, touchY) && routeAtPoint(touchX, touchY, touchedRoute)) {
+    if (mappedInput.wasScreenTouchDown(touchX, touchY) &&
+        routeList.routeAtPoint(touchX, touchY, screenWidth, selected, touchedRoute)) {
       if (routeIndex != touchedRoute) {
         routeIndex = touchedRoute;
         reversed = false;
@@ -263,7 +230,8 @@ void OnPointActivity::loop() {
       }
       return;
     }
-    if (mappedInput.wasScreenTapped(touchX, touchY) && routeAtPoint(touchX, touchY, touchedRoute)) {
+    if (mappedInput.wasScreenTapped(touchX, touchY) &&
+        routeList.routeAtPoint(touchX, touchY, screenWidth, selected, touchedRoute)) {
       routeIndex = touchedRoute;
       reversed = false;
       openSelectedRoute();
@@ -272,15 +240,9 @@ void OnPointActivity::loop() {
 
     const auto swipe = mappedInput.wasSwipe();
     if (swipe == MappedInputManager::SwipeDir::Up || swipe == MappedInputManager::SwipeDir::Down) {
-      const size_t first = routeListFirstPosition();
-      const size_t otherRouteCount = on_point::routeCount() - 1;
-      if (swipe == MappedInputManager::SwipeDir::Up && first + ROUTE_LIST_VISIBLE_ROWS < otherRouteCount) {
-        routeIndex = displayRouteIndex(1 + first + ROUTE_LIST_VISIBLE_ROWS);
-      } else if (swipe == MappedInputManager::SwipeDir::Down && first >= ROUTE_LIST_VISIBLE_ROWS) {
-        routeIndex = displayRouteIndex(1 + first - ROUTE_LIST_VISIBLE_ROWS);
-      } else {
-        return;
-      }
+      size_t target = 0;
+      if (!routeList.swipeTarget(selected, swipe == MappedInputManager::SwipeDir::Up, target)) return;
+      routeIndex = routeList.routeAtPosition(target);
       reversed = false;
       cleanRefresh = true;
       updateState();
@@ -419,17 +381,20 @@ void OnPointActivity::drawReverseAffordance() const {
 void OnPointActivity::drawRouteList() const {
   const int width = renderer.getScreenWidth();
   const char* timetableLabel = tr(STR_ON_POINT_P2P_TIMETABLE);
-  const size_t mainIndex = mainRouteIndex();
+  const size_t pinnedIndex = routeList.pinnedRoute();
+  const char* pinnedLabel = on_point::pinnedHeading(routeList.resolution().state) == on_point::PinnedHeading::MainRoute
+                                ? tr(STR_ON_POINT_MAIN_ROUTE)
+                                : tr(STR_ON_POINT_NO_MAIN_ROUTE);
 
   renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), HEADER_META_Y,
                     timetableLabel, true, EpdFontFamily::BOLD);
   renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
-  renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, tr(STR_ON_POINT_MAIN_ROUTE), true, EpdFontFamily::BOLD);
-  drawMainRoute(on_point::scheduleForRoute(mainIndex, false), routeIndex == mainIndex);
+  renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, pinnedLabel, true, EpdFontFamily::BOLD);
+  drawMainRoute(on_point::scheduleForRoute(pinnedIndex, false), routeIndex == pinnedIndex);
 
   renderer.drawText(LABEL_FONT, MARGIN, ALL_ROUTES_LABEL_Y, tr(STR_ON_POINT_ALL_ROUTES), true, EpdFontFamily::BOLD);
-  const size_t otherRouteCount = on_point::routeCount() - 1;
+  const size_t otherRouteCount = routeList.count() - 1;
   const size_t pageCount = (otherRouteCount + ROUTE_LIST_VISIBLE_ROWS - 1) / ROUTE_LIST_VISIBLE_ROWS;
   if (pageCount > 1) {
     char page[12];
@@ -441,16 +406,16 @@ void OnPointActivity::drawRouteList() const {
   }
 
   const size_t first = routeListFirstPosition();
-  const size_t visibleCount = routeListVisibleCount();
+  const size_t visibleCount = routeList.visibleRows(first);
   for (size_t row = 0; row < visibleCount; ++row) {
-    const size_t index = displayRouteIndex(1 + first + row);
+    const size_t index = routeList.routeAtPosition(1 + first + row);
     const on_point::Schedule& route = on_point::scheduleForRoute(index, false);
     const int y = ROUTE_LIST_ROW_TOP + static_cast<int>(row) * (ROUTE_LIST_ROW_HEIGHT + ROUTE_LIST_ROW_GAP);
     drawRouteListRow(route, index == routeIndex, y);
   }
 
   drawFooter(on_point::scheduleForRoute(routeIndex, false),
-             routeIndex == mainIndex ? tr(STR_ON_POINT_MAIN_ROUTE) : tr(STR_ON_POINT_HOLD_SET_MAIN));
+             routeList.isMainRoute(routeIndex) ? tr(STR_ON_POINT_MAIN_ROUTE) : tr(STR_ON_POINT_HOLD_SET_MAIN));
 }
 
 void OnPointActivity::drawMainRoute(const on_point::Schedule& route, const bool selected) const {

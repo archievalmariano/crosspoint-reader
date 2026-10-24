@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "OnPointClock.h"
+#include "OnPointRouteList.h"
 #include "OnPointSchedule.h"
 #include "activities/Activity.h"
 
@@ -12,6 +13,7 @@ class OnPointActivity final : public Activity {
 
   on_point::HalClockSource clock;
   on_point::DepartureState state;
+  on_point::RouteListModel routeList;  // sorted once per entry; re-resolved after a main-route change
   View view = View::RouteList;
   size_t routeIndex = 0;
   unsigned long nextRefreshAtMs = 0;
@@ -21,12 +23,9 @@ class OnPointActivity final : public Activity {
   bool cleanRefresh = true;
 
   const on_point::Schedule& selectedSchedule() const;
-  size_t mainRouteIndex() const;
-  size_t displayRouteIndex(size_t displayIndex) const;
+  void resolveMainRoute();
   size_t selectedDisplayIndex() const;
   size_t routeListFirstPosition() const;
-  size_t routeListVisibleCount() const;
-  bool routeAtPoint(int x, int y, size_t& index) const;
   void selectDisplayIndex(size_t displayIndex);
   void setSelectedAsMainRoute();
   void openSelectedRoute();
