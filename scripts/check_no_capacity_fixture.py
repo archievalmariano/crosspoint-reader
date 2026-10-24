@@ -6,8 +6,8 @@ Two checks, each failing (exit 1) on any finding:
   --config platformio.ini [--workflow release_candidate.yml]
       Only `x4pro-all-capacity*` envs may name the fixture or bench macros,
       the fixture sources, or the capacity build script, and no other env may
-      extend a capacity env. No capacity env may appear in the release
-      candidate workflow's build matrix.
+      extend a capacity env. Every capacity env must refuse uploads. No
+      capacity env may appear in the release candidate workflow's build matrix.
 
   --scan FILE...
       A built image (.bin / .elf) must not contain the fixture's markers
@@ -26,6 +26,16 @@ CONFIG_MARKERS = ("ON_POINT_CAPACITY_FIXTURE", "ON_POINT_BENCH", "ON_POINT_COUNT
 ARTIFACT_MARKERS = (b"fixture-", b"FIXTURE", b"-CAPACITY", b"ON_POINT_CAPACITY")
 
 
+def resolve(parser, section, key, depth=0):
+    """A key's value, following `extends` (PlatformIO inheritance)."""
+    if parser.has_option(section, key):
+        return parser.get(section, key)
+    parent = parser.get(section, "extends", fallback="").strip()
+    if parent and depth < 10 and parser.has_section(parent):
+        return resolve(parser, parent, key, depth + 1)
+    return ""
+
+
 def check_config(path, workflow):
     parser = configparser.ConfigParser(interpolation=None, strict=False, inline_comment_prefixes=(";",))
     parser.optionxform = str
@@ -35,6 +45,11 @@ def check_config(path, workflow):
     envs = {s[len("env:"):]: s for s in parser.sections() if s.startswith("env:")}
     if not any(CAPACITY_ENV.match(e) for e in envs):
         problems.append("no x4pro-all-capacity env found (the guard would be vacuous)")
+    for env_name in envs:
+        if CAPACITY_ENV.match(env_name):
+            command = resolve(parser, f"env:{env_name}", "upload_command")
+            if "exit 1" not in command:
+                problems.append(f"[env:{env_name}] must refuse uploads (upload_command ... exit 1)")
     for name, section in parser.items():
         capacity = name.startswith("env:") and CAPACITY_ENV.match(name[len("env:"):])
         for key, value in parser.items(name) if name != "DEFAULT" else []:

@@ -18,6 +18,8 @@ build_flags = ${base.build_flags}
 [env:x4pro-all-capacity]
 extends = env:x4pro-all-gh_release
 build_src_filter = +<*> -<activities/on_point/OnPointScheduleData.cpp>
+upload_protocol = custom
+upload_command = echo "never flashed" && exit 1
 build_flags = ${env:x4pro-all-gh_release.build_flags}
   -DON_POINT_CAPACITY_FIXTURE=1
 extra_scripts = pre:scripts/on_point_capacity_fixture.py
@@ -70,6 +72,11 @@ class ConfigGuard(unittest.TestCase):
     def test_capacity_env_in_the_candidate_matrix_fails(self):
         wf = WORKFLOW_OK + "    - env: x4pro-all-capacity\n      package: GPD\n"
         self.assertTrue(any("release candidate matrix" in p for p in run(GOOD, wf)))
+
+    def test_capacity_env_that_can_upload_fails(self):
+        bad = GOOD.replace('upload_command = echo "never flashed" && exit 1\n', "")
+        problems = run(bad)
+        self.assertTrue(any("must refuse uploads" in p for p in problems), problems)
 
     def test_missing_capacity_env_is_reported(self):
         stripped = GOOD.split("[env:x4pro-all-capacity]")[0]

@@ -20,6 +20,13 @@ if not re.match(r"^x4pro-all-capacity(-bench)?$", ENV_NAME):
     sys.stderr.write(f"on_point_capacity_fixture.py: refusing env {ENV_NAME!r}\n")
     env.Exit(1)  # noqa: F821
 
+# Never flashable: refuse any upload target outright (the envs' upload_command
+# also always fails, in case a target slips past this check).
+UPLOAD_TARGETS = {"upload", "uploadfs", "uploadfsota", "program", "upload-monitor"}
+if UPLOAD_TARGETS & set(map(str, COMMAND_LINE_TARGETS)):  # noqa: F821
+    sys.stderr.write(f"on_point_capacity_fixture.py: {ENV_NAME} images are never flashed\n")
+    env.Exit(1)  # noqa: F821
+
 PROJECT = env["PROJECT_DIR"]  # noqa: F821
 FIXTURES = os.path.join(PROJECT, "test", "fixtures", "on_point")
 GEN_DIR = os.path.join(env.subst("$BUILD_DIR"), "on_point_capacity_gen")  # noqa: F821

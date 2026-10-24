@@ -107,6 +107,13 @@ TEST(OnPointRouteResolution, AliasResolvesToItsTarget) {
   EXPECT_EQ(resolve("OLD-AIRPORT-LINK", SETTINGS_BUFFER, table).state, RouteResolutionState::Unknown);
 }
 
+TEST(OnPointRouteResolution, NullAliasEntriesWithACountAreIgnored) {
+  const AliasTable broken{nullptr, 3};
+  EXPECT_EQ(resolve("old-airport-link", SETTINGS_BUFFER, broken).state, RouteResolutionState::Unknown);
+  EXPECT_EQ(resolve("p2p-naia-pitx", SETTINGS_BUFFER, broken).state, RouteResolutionState::Canonical);
+  EXPECT_EQ(resolve("", SETTINGS_BUFFER, broken).state, RouteResolutionState::Unset);
+}
+
 TEST(OnPointRouteResolution, ResolverNeverWritesTheSavedValue) {
   char buffer[SETTINGS_BUFFER] = "not-a-route";
   char before[SETTINGS_BUFFER];

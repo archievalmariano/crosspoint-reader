@@ -39,7 +39,9 @@ RouteResolution resolveSavedRoute(const char* saved, const size_t bufSize, const
     return result;
   }
 
-  for (size_t i = 0; i < aliases.count; ++i) {
+  // A table with no entries pointer is treated as empty, whatever its count.
+  const size_t aliasCount = aliases.entries != nullptr ? aliases.count : 0;
+  for (size_t i = 0; i < aliasCount; ++i) {
     const RouteAlias& alias = aliases.entries[i];
     if (alias.from == nullptr || alias.to == nullptr || strcmp(alias.from, saved) != 0) continue;
     const size_t target = findRoute(alias.to);

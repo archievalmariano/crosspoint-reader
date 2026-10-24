@@ -132,7 +132,7 @@ void OnPointActivity::selectDisplayIndex(const size_t displayIndex) {
 }
 
 void OnPointActivity::setSelectedAsMainRoute() {
-  if (routeList.isMainRoute(routeIndex)) return;
+  if (routeList.count() == 0 || routeList.isMainRoute(routeIndex)) return;
   const char* routeId = on_point::routeAt(routeIndex).routeId;
   strncpy(SETTINGS.onPointMainRouteId, routeId, sizeof(SETTINGS.onPointMainRouteId) - 1);
   SETTINGS.onPointMainRouteId[sizeof(SETTINGS.onPointMainRouteId) - 1] = '\0';
@@ -143,6 +143,7 @@ void OnPointActivity::setSelectedAsMainRoute() {
 }
 
 void OnPointActivity::openSelectedRoute() {
+  if (routeList.count() == 0) return;
   view = View::Departure;
   cleanRefresh = true;
   updateState();
@@ -159,7 +160,8 @@ void OnPointActivity::reverseDirection() {
 void OnPointActivity::updateState() {
   on_point::CivilDateTime nowUtc;
   clockReady = clock.nowUtc(nowUtc);
-  state = clockReady ? on_point::getDepartureState(selectedSchedule(), nowUtc) : on_point::DepartureState{};
+  state = clockReady && routeList.count() > 0 ? on_point::getDepartureState(selectedSchedule(), nowUtc)
+                                              : on_point::DepartureState{};
   scheduleNextRefresh();
 }
 
@@ -392,6 +394,14 @@ void OnPointActivity::drawReverseAffordance() const {
 void OnPointActivity::drawRouteList() const {
   const int width = renderer.getScreenWidth();
   const char* timetableLabel = tr(STR_ON_POINT_P2P_TIMETABLE);
+  if (routeList.count() == 0) {
+    // No routes to list (never the shipped catalogue): header and a notice only.
+    renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
+    renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
+    renderer.drawText(FOLLOWING_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, tr(STR_ON_POINT_TIMETABLE_UNAVAILABLE), true,
+                      EpdFontFamily::BOLD);
+    return;
+  }
   const size_t pinnedIndex = routeList.pinnedRoute();
   const char* pinnedLabel = on_point::pinnedHeading(routeList.resolution().state) == on_point::PinnedHeading::MainRoute
                                 ? tr(STR_ON_POINT_MAIN_ROUTE)
