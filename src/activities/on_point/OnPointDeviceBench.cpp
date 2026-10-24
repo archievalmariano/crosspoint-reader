@@ -1,11 +1,9 @@
-// DEV/BENCH ONLY (x4pro-all-capacity-bench): ON POINT timing on the X4 Pro over
-// the synthetic 60-route fixture, logged over serial when ON POINT opens.
-// Compiles to nothing unless ON_POINT_BENCH_TIMING is defined, which only that
-// env does (scripts/check_no_capacity_fixture.py).
+// DEV/BENCH ONLY: ON POINT timing on the X4 Pro, logged over serial when ON
+// POINT opens, over the real catalogue (x4pro-all-devtest) or the synthetic
+// 60-route fixture (x4pro-all-capacity-bench, x4pro-all-capacity-devtest).
+// Compiles to nothing unless ON_POINT_BENCH_TIMING is defined, which only those
+// dev envs do (scripts/check_no_capacity_fixture.py).
 #ifdef ON_POINT_BENCH_TIMING
-#ifndef ON_POINT_CAPACITY_FIXTURE
-#error "ON POINT device bench: x4pro-all-capacity-bench only"
-#endif
 
 #include <Logging.h>
 #include <esp_timer.h>

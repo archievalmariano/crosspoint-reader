@@ -1,7 +1,8 @@
 """PlatformIO pre-script for the DEV-ONLY ON POINT capacity envs.
 
-`x4pro-all-capacity` (size) and `x4pro-all-capacity-bench` (size + on-device
-timing via ON_POINT_BENCH_TIMING, src/activities/on_point/OnPointDeviceBench.cpp) build the largest package with the synthetic 60-route fixture in place
+`x4pro-all-capacity` (size), `x4pro-all-capacity-bench` (size + on-device
+timing via ON_POINT_BENCH_TIMING, src/activities/on_point/OnPointDeviceBench.cpp)
+and `x4pro-all-capacity-devtest` (bench + updates disabled, on_point_devtest.py) build the largest package with the synthetic 60-route fixture in place
 of OnPointScheduleData.cpp. This script refuses any other env, generates the
 fixture into the build directory, adds it to the build, and marks the image so it can never pass for a release:
 version suffix `-CAPACITY`, USB product `CrossPoint_X4_Pro_CAPACITY`, and an
@@ -16,7 +17,7 @@ import sys
 Import("env")  # noqa: F821  (SCons builtin)
 
 ENV_NAME = env["PIOENV"]  # noqa: F821
-if not re.match(r"^x4pro-all-capacity(-bench)?$", ENV_NAME):
+if not re.match(r"^x4pro-all-capacity(-bench|-devtest)?$", ENV_NAME):
     sys.stderr.write(f"on_point_capacity_fixture.py: refusing env {ENV_NAME!r}\n")
     env.Exit(1)  # noqa: F821
 

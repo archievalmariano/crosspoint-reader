@@ -170,7 +170,7 @@ All of it follows the §9 backup and restoration procedure.
    - the envs' `upload_command` always fails;
    - the release guard requires both.
 
-   An OTA-disabled device-test env is **proposed only**: `DEVICE-TEST-CONFIG-PROPOSAL.md`.
+   An OTA-disabled device-test env was proposed here; it is now implemented: `DEVICE-TEST-CONFIG.md`.
 
 ### Results at `da598c56`
 
