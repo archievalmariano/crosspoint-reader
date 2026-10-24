@@ -80,7 +80,7 @@ size_t RouteListModel::routeAtPosition(const size_t position) const {
 
 size_t RouteListModel::positionOfRoute(const size_t route) const { return route < count_ ? positionOf_[route] : 0; }
 
-size_t RouteListModel::pageStart(const size_t position) const {
+size_t RouteListModel::pageStart(const size_t position) {
   if (position == 0) return 0;
   return (position - 1) / ROUTE_LIST_VISIBLE_ROWS * ROUTE_LIST_VISIBLE_ROWS;
 }

@@ -47,7 +47,7 @@ class RouteListModel {
 
   // First non-pinned row (0-based among the other routes) of the page showing
   // position, and how many rows that page holds.
-  size_t pageStart(size_t position) const;
+  static size_t pageStart(size_t position);
   size_t visibleRows(size_t pageStart) const;
 
   // Front-button navigation: Next never returns to the pinned slot.
