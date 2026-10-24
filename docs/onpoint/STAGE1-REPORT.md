@@ -140,3 +140,51 @@ All of it follows the §9 backup and restoration procedure.
 - the alias table contents;
 - removing the unused legacy functions after the holidays branch lands;
 - a possible early exit in `getDepartureState`'s 371-day scan if device timing confirms the risk.
+
+## Review fixes (Codex: GO WITH FIXES), commit `da598c56`
+
+1. **Activity integration coverage.** `test/on_point_activity/` runs the production `OnPointActivity.cpp` against
+   small stand-ins (`stubs/`: renderer recording text and rectangles, one-event input, settings with a save
+   counter, `tr()` yielding the key name, Activity/RenderLock/ActivityManager). 14 tests cover:
+   - entry with the default and another saved route;
+   - NavNext order and wrap, NavPrevious;
+   - hold-to-set (once), and persistence into a new entry;
+   - the no-main state for unknown, case-mismatched and empty IDs (stored value untouched, saves 0 until a hold);
+     holding the pinned route;
+   - touch-down select, tap open, long-press set, gaps and off-screen taps;
+   - swipe paging;
+   - the departure view: reverse, then Back twice to Apps;
+   - the clock-not-set screen;
+   - input deferred during a render, except Back.
+
+   A separate empty-catalogue executable covers the zero-route guards. Mutation checks: forcing the "MAIN ROUTE"
+   heading fails 6 tests; removing the empty-list guard crashes the empty-catalogue test.
+   - **Not covered on the host:** real fonts, layout and pixels, e-ink refresh, the touch classifier, button
+     mapping and timing, and settings written to the SD card. These stay on the hardware list below.
+2. **Zero-route catalogue.** `drawRouteList()` shows the header and TIMETABLE UNAVAILABLE. `openSelectedRoute`,
+   `setSelectedAsMainRoute` and `updateState` do nothing without a route.
+3. **Alias table with null entries** and a nonzero count is treated as empty (test added).
+4. **Capacity images are never flashable:**
+   - the capacity script refuses upload targets before building (a `-t upload` request to a nonexistent port was
+     refused; esptool never started);
+   - the envs' `upload_command` always fails;
+   - the release guard requires both.
+
+   An OTA-disabled device-test env is **proposed only**: `DEVICE-TEST-CONFIG-PROPOSAL.md`.
+
+### Results at `da598c56`
+
+- **Host tests:** 602/602 on Stage 1.
+- **Guard script tests:** 11.
+- **`pio check`** (low/medium/high): PASSED.
+
+| Run | Conflicts | ctest | P / PD / GP / GPD / X4 G (bytes) | Fixture scan |
+|---|---|---|---|---|
+| V0 `da598c56` | — | 602/602 | 5,680,176 / 5,747,136 / 5,697,920 / 5,764,640 / 5,643,536 | clean; capacity 5,947,744 and bench 5,950,288 contain markers (expected); post-link check passed |
+| V1 + v1.2.1 | none | 606/606 | 5,680,240 / 5,747,184 / 5,697,952 / 5,764,688 / 5,643,600 | clean |
+| V2 + holidays | none | 607/607 | 5,681,072 / 5,748,016 / 5,698,784 / 5,765,520 / 5,643,968 | clean |
+| V3 + both | none | 611/611 | 5,681,136 / 5,748,064 / 5,698,832 / 5,765,568 / 5,644,016 | clean |
+
+- **GPD headroom:** 788,960 B with the shipped routes; **605,856 B (9.24%)** with the 60-route fixture.
+- **Code cost:** the fixes added 160 B to GPD.
+- **Protected refs:** unchanged after every run.
