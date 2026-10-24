@@ -188,3 +188,48 @@ All of it follows the §9 backup and restoration procedure.
 - **GPD headroom:** 788,960 B with the shipped routes; **605,856 B (9.24%)** with the 60-route fixture.
 - **Code cost:** the fixes added 160 B to GPD.
 - **Protected refs:** unchanged after every run.
+
+## Hardware validation (X4 Pro, 2026-10-24)
+
+**Image:** `x4pro-all-devtest`, built from v1.2.1-maint `353d48b0` + Stage 1 `4e7d14d8` (a temporary integration
+merge). Version `1.6.5-A1.2.1-GPD-DEVTEST`; SHA-256 `cbe97af9913ec980b1972b4618b6ff3f88c2d0b30658750ae26e94ff90ac3e64`.
+
+**Install:** the established app-only USB write (`boot_app0` at `0xe000`, the app at `0x10000`):
+- `Hash of data verified.` ×2;
+- `verify-flash` digests matched;
+- NVS, the partition table and the bootloader weren't written.
+
+**Owner checks (all PASS):**
+- Settings → About shows `…-DEVTEST`; Check for updates and SD Firmware Update are absent.
+- ON POINT by touch:
+  - a tap selects a row without opening it;
+  - a tap on the pinned card opens it;
+  - gaps and space below the list do nothing;
+  - swipe paging stops at the last page;
+  - a long-press sets the main route.
+- The main route persists across a full power-cycle.
+- Rendering is clean.
+- GOTO, DOGEAR, books and Tools all work.
+
+DOWN + POWER recovery wasn't exercised on the device; that path is compiled out.
+
+**Device measurements** (`ONPTB`, 27 samples per figure after 3 discarded; 4 ON POINT entries; 0 errors or panics):
+
+| Measure | X4 Pro |
+|---|---|
+| `RouteListModel::build` | median 8 µs, p95 9 µs |
+| Per-input list update (new model) | median 3 µs; the legacy single ranking call is 11 µs |
+| `getDepartureState` (real catalogue) | **median 40,154 µs**, p95 40,160 µs |
+| List draw | 34–47 ms |
+| Departure-board draw | 34 ms |
+| Refresh | HALF 1.52 s; FAST 0.61 s |
+| `sizeof(RouteListModel)` / `sizeof(OnPointActivity)` | 268 B / 500 B |
+| Internal heap | lowest free 125,844 B, lowest min-free 106,556 B, lowest largest block 77,812 B |
+| PSRAM free | at least 8.23 MB |
+
+**Finding:** `getDepartureState` is unchanged from v1.2.0; its 371-day scan has no early exit. On the device it
+takes about 40 ms with the shipped routes.
+- That's invisible beside an e-ink refresh, so it's **not a Stage 1 regression**.
+- It **fails the provisional ≤ 20 ms threshold**. The host ratio (0.33 → 2.0 ms) projects about 240 ms for the
+  60-route worst case.
+- Optimising it (bounded or early-exit search) is recommended before or with the regional stage.
