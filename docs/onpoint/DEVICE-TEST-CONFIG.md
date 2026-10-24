@@ -50,3 +50,31 @@ Release envs never define the macro, so their code is unchanged.
 - **`--scan-devtest`** (devtest images): requires the `-DEVTEST` identity. It rejects the update URL
   (`api.github.com/repos/`, `/releases/latest`), and, in the `.elf` symbol table, any symbol of the update modules.
 - The guard has its own tests (`scripts/test_check_no_capacity_fixture.py`), which run in ctest.
+
+## Results at `adcdf9cb` (local)
+
+**Images**, built by the V0 matrix run (a disposable worktree; clean, forced builds; 0 warnings):
+
+| Image | Size | Headroom | SHA-256 |
+|---|---|---|---|
+| `x4pro-all-devtest.bin` (`1.6.5-A1.2.0-GPD-DEVTEST`) | 5,738,064 | 815,536 | `ecb139c9bb2694ccb3444422a3423b78b5290db56e6bcf9e6fa8a41c345458e8` |
+| `x4pro-all-capacity-devtest.bin` (`1.6.5-A1.2.0-GPD-CAPACITY-DEVTEST`) | 5,921,200 | 632,400 | `a0e140ee536924eb0400933c6198206afc1a3eb245d3aa2822ceb305929a4a28` |
+
+- Both are valid images; `--scan-devtest` passes for each; the release scan rejects both; both refuse `-t upload`.
+
+**Release envs are unchanged:**
+- P, PD, GP, GPD and G have the same image sizes as at `da598c56`.
+- Every loaded section and every symbol (name, size, type) is identical.
+- The only ELF difference is 2–3 bytes of `.debug_line`.
+- Every differing image byte is the build date/time text, the ELF hash in the app descriptor (`0xb0–0xcf`), or the
+  trailing checksum and SHA.
+
+**Tests and checks:**
+- 602/602 host tests; the guard's 25 tests pass.
+- `pio check` PASSED (`default` and `x4pro-all-devtest`).
+- V1 (+ v1.2.1) 606, V2 (+ holidays) 607, V3 (+ both) 611: no conflicts, all release builds OK, scans clean.
+
+**Note:** the images are v1.2.0 + Stage 1. On a device running v1.2.1:
+- v1.2.1 changed no settings or state format;
+- its library-scan skip of `/dogear` is absent, so `/.crosspoint/library.*` may change while a devtest image runs.
+  That's restored from the SD backup afterwards.
