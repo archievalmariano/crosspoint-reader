@@ -123,12 +123,19 @@ int32_t ceilMinutes(const int64_t seconds) {
   return static_cast<int32_t>((seconds + 59) / 60);
 }
 
-void insertCandidate(std::array<DepartureOccurrence, CANDIDATE_COUNT>& candidates, size_t& count,
-                     const DepartureOccurrence& candidate) {
-  const int64_t epoch = occurrenceEpoch(candidate);
+// A future departure before conversion to civil time; only the kept ones are converted.
+struct Candidate {
+  int64_t epoch = 0;
+  int64_t serviceDay = 0;
+  uint16_t serviceMinute = 0;
+  bool isLast = false;
+};
+
+// Kept sorted by epoch; an equal epoch is dropped, so the first one visited wins.
+void insertCandidate(std::array<Candidate, CANDIDATE_COUNT>& candidates, size_t& count, const Candidate& candidate) {
   size_t insertAt = 0;
-  while (insertAt < count && occurrenceEpoch(candidates[insertAt]) < epoch) ++insertAt;
-  if (insertAt < count && occurrenceEpoch(candidates[insertAt]) == epoch) return;
+  while (insertAt < count && candidates[insertAt].epoch < candidate.epoch) ++insertAt;
+  if (insertAt < count && candidates[insertAt].epoch == candidate.epoch) return;
   if (insertAt >= CANDIDATE_COUNT) return;
   const size_t newCount = std::min(count + 1, CANDIDATE_COUNT);
   for (size_t i = newCount - 1; i > insertAt; --i) candidates[i] = candidates[i - 1];
@@ -214,16 +221,28 @@ DepartureState getDepartureState(const Schedule& schedule, const CivilDateTime& 
     state.minutesToLast = ceilMinutes(occurrenceEpoch(state.last) - localEpoch);
   }
 
-  std::array<DepartureOccurrence, CANDIDATE_COUNT> candidates{};
+  // Days and indices are visited in ascending order. Once CANDIDATE_COUNT are held, a departure
+  // at or after the last one can't change them (insertCandidate drops it), so the scan stops:
+  // within a day once a departure is later than the last candidate (lists strictly increase), and
+  // across days once a service day starts later than it (minutes >= 1440 only fall later still).
+  std::array<Candidate, CANDIDATE_COUNT> candidates{};
   size_t candidateCount = 0;
   for (int dayDelta = -1; dayDelta < SEARCH_DAYS; ++dayDelta) {
     const int64_t serviceDay = localDay + dayDelta;
+    const int64_t dayStart = serviceDay * SECONDS_PER_DAY;
+    if (candidateCount == CANDIDATE_COUNT && dayStart > candidates[CANDIDATE_COUNT - 1].epoch) break;
     const DepartureList* list = departuresForDay(schedule, serviceDay);
     if (list == nullptr) continue;
-    for (size_t i = 0; i < list->count; ++i) {
-      const int64_t epoch = serviceDay * SECONDS_PER_DAY + static_cast<int64_t>(list->minutes[i]) * 60;
-      if (epoch < localEpoch) continue;
-      insertCandidate(candidates, candidateCount, makeOccurrence(serviceDay, list->minutes[i], i + 1 == list->count));
+    // First departure at or after now; i keeps its original index for isLast.
+    const int64_t fromNow = localEpoch - dayStart;
+    size_t i = static_cast<size_t>(
+        std::lower_bound(list->minutes, list->minutes + list->count, fromNow,
+                         [](const uint16_t minute, const int64_t seconds) { return int64_t{minute} * 60 < seconds; }) -
+        list->minutes);
+    for (; i < list->count; ++i) {
+      const int64_t epoch = dayStart + static_cast<int64_t>(list->minutes[i]) * 60;
+      if (candidateCount == CANDIDATE_COUNT && epoch > candidates[CANDIDATE_COUNT - 1].epoch) break;
+      insertCandidate(candidates, candidateCount, {epoch, serviceDay, list->minutes[i], i + 1 == list->count});
     }
   }
 
@@ -232,11 +251,11 @@ DepartureState getDepartureState(const Schedule& schedule, const CivilDateTime& 
     return state;
   }
 
-  state.next = candidates[0];
-  state.minutesToNext = ceilMinutes(occurrenceEpoch(state.next) - localEpoch);
+  const Candidate& next = candidates[0];
+  state.next = makeOccurrence(next.serviceDay, next.serviceMinute, next.isLast);
+  state.minutesToNext = ceilMinutes(next.epoch - localEpoch);
   state.isLastDeparture = state.next.isLast;
-  const int64_t nextServiceDay =
-      floorDiv(occurrenceEpoch(state.next) - static_cast<int64_t>(state.next.serviceMinute) * 60, SECONDS_PER_DAY);
+  const int64_t nextServiceDay = next.serviceDay;
   if (const DepartureList* nextList = departuresForDay(schedule, nextServiceDay); nextList != nullptr) {
     for (size_t i = 1; i < nextList->count; ++i) {
       if (nextList->minutes[i] == state.next.serviceMinute) {
@@ -246,9 +265,12 @@ DepartureState getDepartureState(const Schedule& schedule, const CivilDateTime& 
     }
   }
   state.followingCount = std::min(candidateCount - 1, FOLLOWING_DEPARTURE_COUNT);
-  for (size_t i = 0; i < state.followingCount; ++i) state.following[i] = candidates[i + 1];
+  for (size_t i = 0; i < state.followingCount; ++i) {
+    const Candidate& candidate = candidates[i + 1];
+    state.following[i] = makeOccurrence(candidate.serviceDay, candidate.serviceMinute, candidate.isLast);
+  }
 
-  if (state.serviceStatus == ServiceStatus::InService && occurrenceEpoch(state.next) < localEpoch)
+  if (state.serviceStatus == ServiceStatus::InService && next.epoch < localEpoch)
     state.serviceStatus = ServiceStatus::ServiceEnded;
   return state;
 }
