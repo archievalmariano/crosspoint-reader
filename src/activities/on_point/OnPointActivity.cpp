@@ -14,6 +14,14 @@
 #include "OnPointScheduleData.h"
 #include "fontIds.h"
 
+#ifdef ON_POINT_BENCH_TIMING
+#include <esp_timer.h>
+
+namespace on_point_bench {
+void runOnEnter();  // test/fixtures/on_point/device (x4pro-all-capacity-bench only)
+}
+#endif
+
 namespace {
 
 constexpr int MARGIN = 24;
@@ -89,6 +97,9 @@ void OnPointActivity::onEnter() {
   reversed = false;
   cleanRefresh = true;
   fastRefreshCount = 0;
+#ifdef ON_POINT_BENCH_TIMING
+  on_point_bench::runOnEnter();
+#endif
   updateState();
   requestUpdate();
 }
@@ -584,6 +595,9 @@ void OnPointActivity::drawTimetableUnavailableScreen(const on_point::Schedule& s
 }
 
 void OnPointActivity::render(RenderLock&&) {
+#ifdef ON_POINT_BENCH_TIMING
+  const int64_t drawStart = esp_timer_get_time();
+#endif
   renderer.clearScreen();
   if (view == View::RouteList) {
     drawRouteList();
@@ -612,5 +626,13 @@ void OnPointActivity::render(RenderLock&&) {
   } else {
     ++fastRefreshCount;
   }
+#ifdef ON_POINT_BENCH_TIMING
+  const int64_t refreshStart = esp_timer_get_time();
+#endif
   renderer.displayBuffer(mode);
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "render view=%d mode=%d draw_us=%lld refresh_us=%lld", static_cast<int>(view),
+          static_cast<int>(mode), static_cast<long long>(refreshStart - drawStart),
+          static_cast<long long>(esp_timer_get_time() - refreshStart));
+#endif
 }

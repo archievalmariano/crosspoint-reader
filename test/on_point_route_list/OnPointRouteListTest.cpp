@@ -153,6 +153,14 @@ TEST(OnPointRouteList, RouteIdsAreUniqueSoTheOrderIsTotal) {
     for (size_t b = a + 1; b < N; ++b) EXPECT_STRNE(on_point::routeAt(a).routeId, on_point::routeAt(b).routeId);
 }
 
+TEST(OnPointRouteList, ShippedCatalogueHoldsNoCapacityFixtureData) {
+  ASSERT_EQ(on_point::routeCount(), N);
+  for (size_t index = 0; index < N; ++index) {
+    EXPECT_NE(strncmp(on_point::routeAt(index).routeId, "fixture-", 8), 0);
+    EXPECT_EQ(strstr(on_point::scheduleForRoute(index, false).origin, "FIXTURE"), nullptr);
+  }
+}
+
 TEST(OnPointRouteList, EveryMainRouteMatchesTheV120Golden) {
   for (size_t main = 0; main < N; ++main) {
     SCOPED_TRACE(main);
