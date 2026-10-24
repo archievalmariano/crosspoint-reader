@@ -4,6 +4,7 @@
 // mutating calls, so tests can fail or "lose power" before any single write, remove or rename.
 
 #include <map>
+#include <set>
 #include <string>
 
 #include "activities/on_point/OnPointStore.h"
@@ -11,10 +12,12 @@
 class FakeStorage : public on_point::OnPointStorage {
  public:
   std::map<std::string, std::string> files;
-  int mutations = 0;        // write, remove and rename calls made (including failed ones)
-  int failAt = -1;          // that mutation fails with no effect
-  int powerLossAt = -1;     // that mutation and every later one have no effect (power lost)
-  bool tornWrites = false;  // a failed or lost write leaves the first half of its data
+  int mutations = 0;                 // write, remove and rename calls made (including failed ones)
+  int failAt = -1;                   // that mutation fails with no effect
+  int powerLossAt = -1;              // that mutation and every later one have no effect (power lost)
+  bool tornWrites = false;           // a failed or lost write leaves the first half of its data (a short write)
+  bool closeFailures = false;        // a failed write leaves all its data but still reports failure
+  std::set<std::string> unreadable;  // paths whose reads fail (present but unreadable)
 
   bool exists(const char* path) override { return files.count(path) != 0; }
 
@@ -22,6 +25,7 @@ class FakeStorage : public on_point::OnPointStorage {
     length = 0;
     const auto it = files.find(path);
     if (it == files.end()) return ReadResult::Missing;
+    if (unreadable.count(path) != 0) return ReadResult::Error;
     if (it->second.size() > capacity) return ReadResult::TooLarge;
     it->second.copy(buffer, it->second.size());
     length = it->second.size();
@@ -30,7 +34,10 @@ class FakeStorage : public on_point::OnPointStorage {
 
   bool write(const char* path, const char* data, const size_t length) override {
     if (!allow()) {
-      if (tornWrites) files[path] = std::string(data, length / 2);
+      if (closeFailures)
+        files[path] = std::string(data, length);
+      else if (tornWrites)
+        files[path] = std::string(data, length / 2);
       return false;
     }
     files[path] = std::string(data, length);
@@ -50,6 +57,7 @@ class FakeStorage : public on_point::OnPointStorage {
     failAt = -1;
     powerLossAt = -1;
     tornWrites = false;
+    closeFailures = false;
   }
 
  private:

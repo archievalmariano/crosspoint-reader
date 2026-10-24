@@ -13,10 +13,19 @@ namespace on_point {
 // IDs are stable strings, never catalogue positions. Stock settings.json is never written:
 // SETTINGS.onPointMainRouteId is only read, for first-run migration and rollback reconciliation.
 //
-// Writes go to onpoint.tmp, are read back and validated, then the live file becomes onpoint.bak
-// (last known good) and the tmp file becomes live. Power-loss recovery is best-effort: FAT32
-// has no journal, so a write interrupted inside a filesystem operation, or media corruption, can
-// lose any copy. Loading never writes; nothing is saved except after an explicit user change.
+// Each file is Missing (confirmed absent), Unreadable (present but not readable: read error, over
+// 4 KiB, or no memory to read it), Invalid (read, but not a store file), Current (schema 1) or
+// Newer (a later schema). A save never deletes or overwrites a Newer or Unreadable file, and
+// removes or replaces a file only while another validated copy exists:
+//   1. Any Newer file: read-only. Any Unreadable file: the save is refused, nothing touched.
+//   2. A Current tmp with no Current live file (a recovered copy) is promoted to live first.
+//   3. The new content is written to tmp (now Missing or Invalid), read back and validated.
+//   4. A Current live file becomes the backup (replacing only a Missing or Current backup; an
+//      Invalid backup is kept and the live file removed instead); an Invalid live file is removed.
+//   5. tmp becomes live.
+// Loading uses live, then tmp (live Missing or Invalid), then the backup, else migrates, and
+// never writes. Power-loss recovery is best-effort: FAT32 has no journal, so an interruption
+// inside a filesystem operation, or media corruption, can still lose a copy.
 
 constexpr char ON_POINT_STORE_PATH[] = "/.crosspoint/onpoint.json";
 constexpr char ON_POINT_STORE_TMP_PATH[] = "/.crosspoint/onpoint.tmp";
@@ -71,7 +80,7 @@ class OnPointStore {
   const char* defaultRouteId(size_t regionIndex) const;
 
   Source source() const { return loadedFrom; }
-  // A newer-schema or oversize file was found: it is never written, renamed or removed.
+  // The live file is a newer schema or unreadable (or a newer copy was found): nothing is written.
   bool readOnly() const { return readOnlyFile; }
   // Some change made this session isn't on the card (read-only store or a failed save).
   bool hasUnsavedChanges() const { return unsaved; }
@@ -79,7 +88,7 @@ class OnPointStore {
   bool reconciledLegacyRoute() const { return reconciled; }
 
  private:
-  enum class FileState : uint8_t { Missing, Invalid, TooLarge, Current, Newer };
+  enum class FileState : uint8_t { Missing, Unreadable, Invalid, Current, Newer };
 
   void reset();
   FileState readFile(const char* path, bool applyFields);

@@ -185,7 +185,8 @@ TEST(OnPointStore, RecoveryOrder) {
       {"live wins", live.c_str(), tmp.c_str(), bak.c_str(), Source::Live, NORTH_LUZON},
       {"no live: tmp", nullptr, tmp.c_str(), bak.c_str(), Source::Temporary, AIRPORTS},
       {"no live, bad tmp: backup", nullptr, "{\"version\":1,", bak.c_str(), Source::Backup, BULACAN},
-      {"corrupt live: backup, tmp ignored", "garbage", tmp.c_str(), bak.c_str(), Source::Backup, BULACAN},
+      {"corrupt live: tmp before backup", "garbage", tmp.c_str(), bak.c_str(), Source::Temporary, AIRPORTS},
+      {"corrupt live, bad tmp: backup", "garbage", "{", bak.c_str(), Source::Backup, BULACAN},
       {"nothing valid: migrate", "{}", "[1]", "{\"version\":0}", Source::Migrated, BULACAN},
   };
   for (const Case& c : cases) {
@@ -331,6 +332,191 @@ TEST(OnPointStore, ReadBackMismatchAbortsBeforeTouchingTheLiveFile) {
   EXPECT_EQ(setup.setDefaultRoute(BULACAN, CAYPOMBO), Outcome::Failed);
   EXPECT_EQ(fs.files[ON_POINT_STORE_PATH], live);
   EXPECT_FALSE(fs.exists(ON_POINT_STORE_TMP_PATH));
+}
+
+// ---- Codex P2 findings (regressions) ----
+
+// Finding 1: with no live file, a recovered tmp is the only copy. A save interrupted in any way
+// must never leave the card without it (or without the new state).
+TEST(OnPointStore, Finding1_RecoveredTmpSurvivesEveryInterruptedSave) {
+  enum class Fault { WriteFails, ShortWrite, CloseFails, PowerLoss };
+  for (const Fault fault : {Fault::WriteFails, Fault::ShortWrite, Fault::CloseFails, Fault::PowerLoss}) {
+    for (int k = 0; k < 6; ++k) {
+      FakeStorage fs;
+      fs.files[ON_POINT_STORE_TMP_PATH] = v1("north-luzon", "\"north-luzon\":\"p2p-trinoma-clark-airport\"", BALAGTAS);
+      OnPointStore store(fs);
+      load(store, Legacy(BALAGTAS));
+      ASSERT_EQ(store.source(), Source::Temporary);
+      const Snapshot s0 = snapshot(store);
+      (fault == Fault::PowerLoss ? fs.powerLossAt : fs.failAt) = k;
+      fs.tornWrites = fault == Fault::ShortWrite || fault == Fault::PowerLoss;
+      fs.closeFailures = fault == Fault::CloseFails;
+      const Outcome outcome = store.setDefaultRoute(BULACAN, CAYPOMBO);
+      const Snapshot s1 = snapshot(store);
+      fs.clearFaults();
+
+      OnPointStore after(fs);
+      load(after, Legacy(BALAGTAS));
+      const std::string context =
+          "fault " + std::to_string(static_cast<int>(fault)) + " at mutation " + std::to_string(k);
+      EXPECT_NE(after.source(), Source::Migrated) << context;
+      const Snapshot got = snapshot(after);
+      EXPECT_TRUE(got == s0 || got == s1) << context;
+      if (outcome == Outcome::Saved) EXPECT_TRUE(got == s1) << context;
+    }
+  }
+}
+
+// Finding 2: a backup that can't be positively identified is never deleted or replaced.
+TEST(OnPointStore, Finding2_UnreadableOrOversizeBackupIsProtected) {
+  for (const bool oversize : {false, true}) {
+    FakeStorage fs;
+    fs.files[ON_POINT_STORE_PATH] = v1("bulacan", "", BALAGTAS);
+    const std::string backup = oversize ? std::string(5000, '{') : v1("north-luzon", "", BALAGTAS);
+    fs.files[ON_POINT_STORE_BAK_PATH] = backup;
+    if (!oversize) fs.unreadable.insert(ON_POINT_STORE_BAK_PATH);
+    OnPointStore store(fs);
+    load(store, Legacy(BALAGTAS));
+    EXPECT_NE(store.setDefaultRoute(BULACAN, CAYPOMBO), Outcome::Saved) << oversize;
+    EXPECT_TRUE(store.hasUnsavedChanges());
+    EXPECT_EQ(fs.files[ON_POINT_STORE_BAK_PATH], backup) << oversize;
+    EXPECT_EQ(fs.files[ON_POINT_STORE_PATH], v1("bulacan", "", BALAGTAS)) << oversize;
+  }
+}
+
+TEST(OnPointStore, Finding2_UnrecognisedBackupIsKeptWhileSaving) {
+  FakeStorage fs;
+  fs.files[ON_POINT_STORE_PATH] = v1("bulacan", "", BALAGTAS);
+  fs.files[ON_POINT_STORE_BAK_PATH] = "not json";  // unrecognised: never deleted or replaced
+  OnPointStore store(fs);
+  load(store, Legacy(BALAGTAS));
+  EXPECT_EQ(store.setDefaultRoute(BULACAN, CAYPOMBO), Outcome::Saved);
+  EXPECT_EQ(fs.files[ON_POINT_STORE_BAK_PATH], "not json");
+  EXPECT_STREQ(parse(fs.files[ON_POINT_STORE_PATH])["defaults"]["bulacan"].as<const char*>(), CAYPOMBO);
+}
+
+// Finding 3: an existing tmp file is inspected before the writer truncates it.
+TEST(OnPointStore, Finding3_NewerOrUnreadableTmpIsNeverTruncated) {
+  struct Case {
+    const char* name;
+    std::string tmp;
+    bool unreadable;
+    Outcome outcome;
+  } cases[] = {
+      {"newer", "{\"version\":2,\"activeRegion\":\"bulacan\"}", false, Outcome::ReadOnly},
+      {"oversize", std::string(5000, 'x'), false, Outcome::Failed},
+      {"unreadable", v1("bulacan", "", BALAGTAS), true, Outcome::Failed},
+  };
+  for (const Case& c : cases) {
+    FakeStorage fs;
+    fs.files[ON_POINT_STORE_PATH] = v1("bulacan", "", BALAGTAS);
+    fs.files[ON_POINT_STORE_TMP_PATH] = c.tmp;
+    if (c.unreadable) fs.unreadable.insert(ON_POINT_STORE_TMP_PATH);
+    OnPointStore store(fs);
+    load(store, Legacy(BALAGTAS));
+    EXPECT_EQ(store.setActiveRegion(NORTH_LUZON), c.outcome) << c.name;
+    EXPECT_EQ(fs.files[ON_POINT_STORE_TMP_PATH], c.tmp) << c.name;
+    EXPECT_EQ(fs.files[ON_POINT_STORE_PATH], v1("bulacan", "", BALAGTAS)) << c.name;
+    EXPECT_TRUE(store.hasUnsavedChanges()) << c.name;
+  }
+}
+
+// Finding 4: every schema-1 field a newer file carries is used, not only activeRegion.
+TEST(OnPointStore, Finding4_NewerFileFieldsAreUsedWithoutActiveRegion) {
+  FakeStorage fs;
+  fs.files[ON_POINT_STORE_PATH] =
+      "{\"version\":2,\"defaults\":{\"north-luzon\":\"p2p-trinoma-clark-airport\",\"airport-transfers\":"
+      "\"p2p-naia-pitx\"},\"legacyBaseline\":\"p2p-clark-airport-naia-t3\"}";
+  OnPointStore store(fs);
+  load(store, Legacy(CLARK_NAIA));
+  EXPECT_TRUE(store.readOnly());
+  EXPECT_STREQ(store.defaultRouteId(NORTH_LUZON), TRINOMA_CLARK);
+  EXPECT_STREQ(store.defaultRouteId(AIRPORTS), NAIA_PITX);
+  EXPECT_EQ(store.activeRegionIndex(), AIRPORTS);  // no activeRegion: the legacy route's collection, not the first
+  EXPECT_STREQ(store.defaultRouteId(BULACAN), BALAGTAS);
+  EXPECT_FALSE(store.reconciledLegacyRoute());  // the baseline it carries matches
+  EXPECT_EQ(fs.mutations, 0);
+}
+
+TEST(OnPointStore, UnreadableIsNotMissing) {
+  // A live file that can't be read is never treated as absent: read-only, values from the backup.
+  FakeStorage fs;
+  fs.files[ON_POINT_STORE_PATH] = v1("bulacan", "", BALAGTAS);
+  fs.unreadable.insert(ON_POINT_STORE_PATH);
+  fs.files[ON_POINT_STORE_BAK_PATH] = v1("north-luzon", "", BALAGTAS);
+  OnPointStore store(fs);
+  load(store, Legacy(BALAGTAS));
+  EXPECT_TRUE(store.readOnly());
+  EXPECT_EQ(store.source(), Source::Backup);
+  EXPECT_EQ(store.activeRegionIndex(), NORTH_LUZON);
+  EXPECT_EQ(store.setActiveRegion(AIRPORTS), Outcome::ReadOnly);
+  EXPECT_EQ(fs.mutations, 0);
+
+  // No live file and an unreadable tmp: the backup is used, and saves are refused untouched.
+  FakeStorage fs2;
+  fs2.files[ON_POINT_STORE_TMP_PATH] = v1("airport-transfers", "", BALAGTAS);
+  fs2.unreadable.insert(ON_POINT_STORE_TMP_PATH);
+  fs2.files[ON_POINT_STORE_BAK_PATH] = v1("north-luzon", "", BALAGTAS);
+  OnPointStore store2(fs2);
+  load(store2, Legacy(BALAGTAS));
+  EXPECT_EQ(store2.source(), Source::Backup);
+  EXPECT_FALSE(store2.readOnly());
+  EXPECT_EQ(store2.setActiveRegion(AIRPORTS), Outcome::Failed);
+  EXPECT_TRUE(store2.hasUnsavedChanges());
+  EXPECT_EQ(fs2.mutations, 0);
+  EXPECT_EQ(fs2.files.size(), 2u);
+}
+
+// Every starting state a save may proceed from, every fault, every mutation: the next load
+// yields the old or the new state, never a migration.
+TEST(OnPointStore, InterruptedSavesFromEveryRecoverableState) {
+  const std::string s0 = v1("north-luzon", "\"north-luzon\":\"p2p-trinoma-clark-airport\"", BALAGTAS);
+  struct Start {
+    const char* name;
+    const char* live;
+    const char* tmp;
+    const char* bak;
+  } starts[] = {
+      {"live + current backup", s0.c_str(), nullptr, s0.c_str()},
+      {"live + invalid backup", s0.c_str(), nullptr, "corrupt"},
+      {"live + invalid tmp", s0.c_str(), "{", nullptr},
+      {"invalid live + backup", "corrupt", nullptr, s0.c_str()},
+      {"invalid live + recovered tmp", "corrupt", s0.c_str(), nullptr},
+      {"recovered tmp only", nullptr, s0.c_str(), nullptr},
+      {"backup only", nullptr, nullptr, s0.c_str()},
+      {"backup + invalid tmp", nullptr, "{", s0.c_str()},
+  };
+  enum class Fault { Fails, Short, CloseFails, PowerLoss, TornPowerLoss };
+  for (const Start& start : starts) {
+    for (const Fault fault : {Fault::Fails, Fault::Short, Fault::CloseFails, Fault::PowerLoss, Fault::TornPowerLoss}) {
+      for (int k = 0; k < 7; ++k) {
+        FakeStorage fs;
+        if (start.live) fs.files[ON_POINT_STORE_PATH] = start.live;
+        if (start.tmp) fs.files[ON_POINT_STORE_TMP_PATH] = start.tmp;
+        if (start.bak) fs.files[ON_POINT_STORE_BAK_PATH] = start.bak;
+        OnPointStore store(fs);
+        load(store, Legacy(BALAGTAS));
+        ASSERT_NE(store.source(), Source::Migrated) << start.name;
+        const Snapshot before = snapshot(store);
+        const bool lose = fault == Fault::PowerLoss || fault == Fault::TornPowerLoss;
+        (lose ? fs.powerLossAt : fs.failAt) = k;
+        fs.tornWrites = fault == Fault::Short || fault == Fault::TornPowerLoss;
+        fs.closeFailures = fault == Fault::CloseFails;
+        const Outcome outcome = store.setDefaultRoute(BULACAN, CAYPOMBO);
+        const Snapshot after = snapshot(store);
+        fs.clearFaults();
+        OnPointStore reloaded(fs);
+        load(reloaded, Legacy(BALAGTAS));
+        const std::string context = std::string(start.name) + ", fault " + std::to_string(static_cast<int>(fault)) +
+                                    " at mutation " + std::to_string(k);
+        EXPECT_NE(reloaded.source(), Source::Migrated) << context;
+        const Snapshot got = snapshot(reloaded);
+        EXPECT_TRUE(got == before || got == after) << context;
+        if (outcome == Outcome::Saved) EXPECT_TRUE(got == after) << context;
+        if (start.bak && std::string(start.bak) == "corrupt") EXPECT_EQ(fs.files[ON_POINT_STORE_BAK_PATH], "corrupt");
+      }
+    }
+  }
 }
 
 // ---- Newer schema and oversize files: read-only ----

@@ -55,7 +55,7 @@ OnPointStore::FileState OnPointStore::readFile(const char* path, const bool appl
   auto buffer = makeUniqueNoThrow<char[]>(ON_POINT_STORE_MAX_BYTES);
   if (!buffer) {
     LOG_ERR("ONPT", "OOM: %u bytes to read %s", static_cast<unsigned>(ON_POINT_STORE_MAX_BYTES), path);
-    return FileState::TooLarge;  // unreadable: treated like an oversize file, never overwritten
+    return storage.exists(path) ? FileState::Unreadable : FileState::Missing;
   }
   size_t length = 0;
   switch (storage.read(path, buffer.get(), ON_POINT_STORE_MAX_BYTES, length)) {
@@ -63,7 +63,7 @@ OnPointStore::FileState OnPointStore::readFile(const char* path, const bool appl
       return FileState::Missing;
     case OnPointStorage::ReadResult::TooLarge:
     case OnPointStorage::ReadResult::Error:
-      return FileState::TooLarge;
+      return FileState::Unreadable;
     case OnPointStorage::ReadResult::Ok:
       break;
   }
@@ -115,41 +115,49 @@ void OnPointStore::load(const char* legacyMainRouteId, const size_t legacyCapaci
     if (length < limit) memcpy(legacy, legacyMainRouteId, length + 1);
   }
 
-  const FileState live = readFile(ON_POINT_STORE_PATH, true);
-  FileState chosen = live;
-  loadedFrom = Source::Live;
-  if (live == FileState::TooLarge) {
+  // Classify first; fields are applied only from the copy chosen.
+  const FileState live = readFile(ON_POINT_STORE_PATH, false);
+  if (live == FileState::Unreadable) {
     LOG_INF("ONPT", "%s is unreadable or over %u bytes: read-only", ON_POINT_STORE_PATH,
             static_cast<unsigned>(ON_POINT_STORE_MAX_BYTES));
     readOnlyFile = true;
-    migrate(legacy);
-    return;
   }
-  if (live != FileState::Current && live != FileState::Newer) {
-    chosen = FileState::Missing;
-    if (live == FileState::Missing) {
-      chosen = readFile(ON_POINT_STORE_TMP_PATH, true);
+  const char* chosenPath = nullptr;
+  FileState chosen = FileState::Missing;
+  if (live == FileState::Current || live == FileState::Newer) {
+    chosenPath = ON_POINT_STORE_PATH;
+    chosen = live;
+    loadedFrom = Source::Live;
+  } else {
+    if (live == FileState::Missing || live == FileState::Invalid) {
+      chosen = readFile(ON_POINT_STORE_TMP_PATH, false);
+      chosenPath = ON_POINT_STORE_TMP_PATH;
       loadedFrom = Source::Temporary;
     }
     if (chosen != FileState::Current && chosen != FileState::Newer) {
-      chosen = readFile(ON_POINT_STORE_BAK_PATH, true);
+      chosen = readFile(ON_POINT_STORE_BAK_PATH, false);
+      chosenPath = ON_POINT_STORE_BAK_PATH;
       loadedFrom = Source::Backup;
     }
-    if (chosen != FileState::Current && chosen != FileState::Newer) {
-      migrate(legacy);
-      return;
-    }
-    LOG_INF("ONPT", "Recovered preferences from %s",
-            loadedFrom == Source::Temporary ? ON_POINT_STORE_TMP_PATH : ON_POINT_STORE_BAK_PATH);
   }
+  if (chosen != FileState::Current && chosen != FileState::Newer) {
+    migrate(legacy);
+    return;
+  }
+  const Source source = loadedFrom;
   if (chosen == FileState::Newer) {
-    LOG_INF("ONPT", "Preferences use a newer schema: read-only");
+    // Start from migration, then use every schema-1 field the newer file carries with its
+    // schema-1 type; nothing is ever written back to it.
+    LOG_INF("ONPT", "%s uses a newer schema: read-only", chosenPath);
     readOnlyFile = true;
-    if (activeRegion[0] == '\0') {
-      migrate(legacy);  // no schema-1 fields to use; nothing is written either way
-      return;
-    }
+    migrate(legacy);
   }
+  if (readFile(chosenPath, true) != chosen) {  // changed between reads: start over from migration
+    migrate(legacy);
+    return;
+  }
+  loadedFrom = source;
+  if (source != Source::Live) LOG_INF("ONPT", "Recovered preferences from %s", chosenPath);
   reconcile(legacy);
 }
 
@@ -276,37 +284,39 @@ OnPointStore::SaveOutcome OnPointStore::save() {
     unsaved = true;
     return SaveOutcome::Failed;
   };
-  // Transient: one buffer for the live file, the new content and the read-back.
-  auto buffer = makeUniqueNoThrow<char[]>(ON_POINT_STORE_MAX_BYTES);
-  if (!buffer) return fail("allocation");
 
-  // Re-check the live file: a newer or oversize one must never be replaced.
-  size_t liveLength = 0;
-  const OnPointStorage::ReadResult liveRead =
-      storage.read(ON_POINT_STORE_PATH, buffer.get(), ON_POINT_STORE_MAX_BYTES, liveLength);
-  if (liveRead == OnPointStorage::ReadResult::TooLarge || liveRead == OnPointStorage::ReadResult::Error) {
+  // Preflight every copy: a newer one is never touched; an unreadable one can't be judged.
+  FileState live = readFile(ON_POINT_STORE_PATH, false);
+  FileState tmp = readFile(ON_POINT_STORE_TMP_PATH, false);
+  const FileState bak = readFile(ON_POINT_STORE_BAK_PATH, false);
+  if (live == FileState::Newer || tmp == FileState::Newer || bak == FileState::Newer) {
     readOnlyFile = true;
     unsaved = true;
     return SaveOutcome::ReadOnly;
   }
-  const bool liveExists = liveRead == OnPointStorage::ReadResult::Ok;
-  bool liveValid = false;
-  if (liveExists) {
-    JsonDocument doc;
-    if (!deserializeJson(doc, static_cast<const char*>(buffer.get()), liveLength)) {
-      const int version = schemaVersion(doc);
-      if (version > ON_POINT_STORE_VERSION) {
-        readOnlyFile = true;
-        unsaved = true;
-        return SaveOutcome::ReadOnly;
-      }
-      liveValid = version == ON_POINT_STORE_VERSION;
-    }
+  if (live == FileState::Unreadable || tmp == FileState::Unreadable || bak == FileState::Unreadable)
+    return fail("preflight (unreadable copy)");
+
+  // A recovered tmp may be the only copy: make it live before tmp is reused.
+  if (tmp == FileState::Current && live != FileState::Current) {
+    if (live == FileState::Invalid && !storage.remove(ON_POINT_STORE_PATH)) return fail("remove invalid live file");
+    if (!storage.rename(ON_POINT_STORE_TMP_PATH, ON_POINT_STORE_PATH)) return fail("promote recovered tmp");
+    live = FileState::Current;
+    tmp = FileState::Missing;
   }
 
+  // Transient: one buffer for the live file (the merge base), the new content and the read-back.
+  auto buffer = makeUniqueNoThrow<char[]>(ON_POINT_STORE_MAX_BYTES);
+  if (!buffer) return fail("allocation");
+  size_t liveLength = 0;
+  const bool merge = live == FileState::Current &&
+                     storage.read(ON_POINT_STORE_PATH, buffer.get(), ON_POINT_STORE_MAX_BYTES, liveLength) ==
+                         OnPointStorage::ReadResult::Ok;
   const size_t length =
-      serialize(buffer.get(), ON_POINT_STORE_MAX_BYTES, liveValid ? buffer.get() : nullptr, liveValid ? liveLength : 0);
+      serialize(buffer.get(), ON_POINT_STORE_MAX_BYTES, merge ? buffer.get() : nullptr, merge ? liveLength : 0);
   if (length == 0) return fail("serialise");
+
+  // tmp is now Missing or Invalid, and never the only copy.
   if (!storage.write(ON_POINT_STORE_TMP_PATH, buffer.get(), length)) {
     storage.remove(ON_POINT_STORE_TMP_PATH);
     return fail("write");
@@ -319,21 +329,16 @@ OnPointStore::SaveOutcome OnPointStore::save() {
     return fail("read-back");
   }
 
-  if (liveExists) {
-    if (liveValid) {
-      // The live file becomes the last known good copy, unless the backup is a newer schema.
-      if (readFile(ON_POINT_STORE_BAK_PATH, false) == FileState::Newer) {
-        storage.remove(ON_POINT_STORE_TMP_PATH);
-        readOnlyFile = true;
-        unsaved = true;
-        return SaveOutcome::ReadOnly;
-      }
-      if (storage.exists(ON_POINT_STORE_BAK_PATH) && !storage.remove(ON_POINT_STORE_BAK_PATH))
-        return fail("remove backup");
+  // tmp is a validated copy from here on, so the live file may be moved or removed.
+  if (live == FileState::Current) {
+    if (bak == FileState::Missing || bak == FileState::Current) {
+      if (bak == FileState::Current && !storage.remove(ON_POINT_STORE_BAK_PATH)) return fail("remove backup");
       if (!storage.rename(ON_POINT_STORE_PATH, ON_POINT_STORE_BAK_PATH)) return fail("back up live file");
-    } else if (!storage.remove(ON_POINT_STORE_PATH)) {
-      return fail("remove invalid live file");  // the existing backup stays the last known good
+    } else if (!storage.remove(ON_POINT_STORE_PATH)) {  // an Invalid backup is kept, unreplaced
+      return fail("remove live file");
     }
+  } else if (live == FileState::Invalid && !storage.remove(ON_POINT_STORE_PATH)) {
+    return fail("remove invalid live file");
   }
   if (!storage.rename(ON_POINT_STORE_TMP_PATH, ON_POINT_STORE_PATH)) return fail("install");
   unsaved = false;
