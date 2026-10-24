@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 #include "OnPointScheduleData.h"
 
@@ -42,25 +43,43 @@ void RouteListModel::build(const RouteResolution& resolution) {
             static_cast<unsigned>(MAX_CATALOGUE_ROUTES));
     total = MAX_CATALOGUE_ROUTES;
   }
-  count_ = static_cast<uint8_t>(total);
+  uint8_t all[MAX_CATALOGUE_ROUTES];
+  for (size_t i = 0; i < total; ++i) all[i] = static_cast<uint8_t>(i);
+  build(all, total, resolution);
+}
 
-  // Insertion sort, once per entry.
-  for (size_t i = 0; i < total; ++i) {
-    size_t j = i;
-    while (j > 0 && compareRoutes(i, sorted_[j - 1]) < 0) {
+void RouteListModel::build(const uint8_t* routes, const size_t entryCount, const RouteResolution& resolution) {
+  const size_t catalogue = std::min(routeCount(), MAX_CATALOGUE_ROUTES);
+  std::fill(std::begin(positionOf_), std::end(positionOf_), NOT_LISTED);
+  std::fill(std::begin(sorted_), std::end(sorted_), 0);
+  count_ = 0;
+  pinned_ = 0;
+  pinnedRank_ = 0;
+  resolution_ = resolution;
+
+  // Insertion sort, once per build. positionOf_ marks routes already taken.
+  for (size_t k = 0; routes != nullptr && k < entryCount; ++k) {
+    const size_t route = routes[k];
+    if (route >= catalogue || positionOf_[route] != NOT_LISTED) {
+      LOG_ERR("ONPT", "Skipping route list entry %u (route %u)", static_cast<unsigned>(k),
+              static_cast<unsigned>(route));
+      continue;
+    }
+    positionOf_[route] = 0;
+    size_t j = count_;
+    while (j > 0 && compareRoutes(route, sorted_[j - 1]) < 0) {
       sorted_[j] = sorted_[j - 1];
       --j;
     }
-    sorted_[j] = static_cast<uint8_t>(i);
+    sorted_[j] = static_cast<uint8_t>(route);
+    ++count_;
   }
 
-  resolution_ = resolution;
-  if (resolution_.hasRoute() && resolution_.index >= total) resolution_.state = RouteResolutionState::Unknown;
-  pinned_ = total == 0 ? 0 : (resolution_.hasRoute() ? static_cast<uint8_t>(resolution_.index) : sorted_[0]);
+  if (resolution_.hasRoute() && !contains(resolution_.index)) resolution_.state = RouteResolutionState::Unknown;
+  pinned_ = count_ == 0 ? 0 : (resolution_.hasRoute() ? static_cast<uint8_t>(resolution_.index) : sorted_[0]);
 
-  pinnedRank_ = 0;
   size_t position = 1;
-  for (size_t i = 0; i < total; ++i) {
+  for (size_t i = 0; i < count_; ++i) {
     const uint8_t route = sorted_[i];
     if (route == pinned_) {
       pinnedRank_ = static_cast<uint8_t>(i);
@@ -71,6 +90,10 @@ void RouteListModel::build(const RouteResolution& resolution) {
   }
 }
 
+bool RouteListModel::contains(const size_t route) const {
+  return route < MAX_CATALOGUE_ROUTES && positionOf_[route] != NOT_LISTED;
+}
+
 size_t RouteListModel::routeAtPosition(const size_t position) const {
   if (position == 0 || position >= count_) return pinned_;
   // Positions after the pinned slot walk the sort order with the pinned route removed.
@@ -78,7 +101,7 @@ size_t RouteListModel::routeAtPosition(const size_t position) const {
   return sorted_[rank];
 }
 
-size_t RouteListModel::positionOfRoute(const size_t route) const { return route < count_ ? positionOf_[route] : 0; }
+size_t RouteListModel::positionOfRoute(const size_t route) const { return contains(route) ? positionOf_[route] : 0; }
 
 size_t RouteListModel::pageStart(const size_t position) {
   if (position == 0) return 0;

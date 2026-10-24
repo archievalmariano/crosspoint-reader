@@ -32,9 +32,16 @@ PinnedHeading pinnedHeading(RouteResolutionState state);
 // rendering never re-sort. Display position 0 is the pinned slot: the resolved
 // main route, or the first route in sort order when no main route resolves.
 // Positions 1..count-1 are the other routes in sort order.
+//
+// The list holds either every catalogue route or one collection's members; route
+// indices are always catalogue indices. Each build replaces all previous state.
 class RouteListModel {
  public:
+  // Every catalogue route.
   void build(const RouteResolution& resolution);
+  // The given catalogue routes (a collection's members). Out-of-range and repeated
+  // entries are skipped; a resolved route that isn't listed resolves to Unknown.
+  void build(const uint8_t* routes, size_t entryCount, const RouteResolution& resolution);
 
   size_t count() const { return count_; }
   const RouteResolution& resolution() const { return resolution_; }
@@ -42,7 +49,9 @@ class RouteListModel {
   size_t pinnedRoute() const { return pinned_; }
   bool isMainRoute(size_t route) const { return hasMainRoute() && route == pinned_; }
 
+  bool contains(size_t route) const;
   size_t routeAtPosition(size_t position) const;
+  // 0 (the pinned slot) for a route that isn't listed.
   size_t positionOfRoute(size_t route) const;
 
   // First non-pinned row (0-based among the other routes) of the page showing
@@ -61,8 +70,10 @@ class RouteListModel {
   bool routeAtPoint(int x, int y, int screenWidth, size_t selectedPosition, size_t& route) const;
 
  private:
+  static constexpr uint8_t NOT_LISTED = 0xFF;
+
   uint8_t sorted_[MAX_CATALOGUE_ROUTES] = {};
-  uint8_t positionOf_[MAX_CATALOGUE_ROUTES] = {};
+  uint8_t positionOf_[MAX_CATALOGUE_ROUTES] = {};  // by catalogue index; NOT_LISTED if absent
   uint8_t count_ = 0;
   uint8_t pinned_ = 0;
   uint8_t pinnedRank_ = 0;  // index of pinned_ in sorted_

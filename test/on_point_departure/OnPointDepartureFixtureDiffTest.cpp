@@ -16,9 +16,9 @@ using departure_diff::sweep;
 
 constexpr int64_t MANILA = 8 * 3600;
 
-size_t fixtureScheduleCount() { return on_point::routeCount() * 2; }
-
 #ifndef ON_POINT_DIFFERENTIAL_FULL
+
+size_t fixtureScheduleCount() { return on_point::routeCount() * 2; }
 
 TEST(OnPointDepartureFixtureDiff, SampledSchedulesAcrossTwoYears) {
   ASSERT_EQ(fixtureScheduleCount(), 120u);

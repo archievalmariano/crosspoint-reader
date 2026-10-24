@@ -18,6 +18,10 @@ Shape (Stage 1 plan, Revision 3, section 7):
   Strings at their worst-case lengths; routes come in 20 groups of 3 sharing an
   origin, two of each group also sharing a destination (ID tie-break).
 
+Collections: 6 over the 60 routes. Collection k holds routes 10k..10k+14
+(mod 60), so neighbours share 5 routes; collection 0 also holds 30..34, so
+those are in 3 collections. Every route is in at least one.
+
 The generator checks its own output (uniqueness, validity) and exits non-zero
 on any violation. `--report` prints the expected totals as JSON.
 """
@@ -110,8 +114,30 @@ def build():
     return pairs
 
 
+COLLECTIONS = 6
+
+
+def collections():
+    """(id, member route indices, default route index) per collection."""
+    result = []
+    for k in range(COLLECTIONS):
+        members = [(10 * k + i) % PAIRS for i in range(15)]
+        if k == 0:
+            members += list(range(30, 35))
+        result.append((f"fixture-collection-{k}", members, members[0]))
+    return result
+
+
 def check(pairs):
     problems = []
+    groups = collections()
+    covered = {m for _, members, _ in groups for m in members}
+    if covered != set(range(PAIRS)):
+        problems.append("collections don't cover every route")
+    if any(len(set(members)) != len(members) or not 10 <= len(members) <= 20 for _, members, _ in groups):
+        problems.append("a collection has duplicate members or is outside 10..20 routes")
+    if max(sum(r in members for _, members, _ in groups) for r in range(PAIRS)) < 3:
+        problems.append("no route is in three collections")
     arrays = {}
     for p in pairs:
         for sch in p["schedules"]:
@@ -181,6 +207,7 @@ def emit(pairs):
     w("#include <cstring>")
     w("#include <iterator>")
     w("")
+    w('#include "activities/on_point/OnPointRegions.h"')
     w('#include "activities/on_point/OnPointScheduleData.h"')
     w("")
     w("namespace on_point {")
@@ -261,6 +288,18 @@ def emit(pairs):
     w("  }")
     w("  return 0;")
     w("}")
+    w("")
+    w("// Same contract as OnPointRegionData.cpp: overlapping collections over the fixture.")
+    w("namespace {")
+    for k, (_, members, _) in enumerate(collections()):
+        w(f"constexpr uint8_t FIXTURE_COLLECTION_{k}[] = {{{', '.join(map(str, members))}}};")
+    w("constexpr Region FIXTURE_REGIONS[] = {")
+    for k, (cid, _, default) in enumerate(collections()):
+        w(f"    {{{cstr(cid)}, FIXTURE_COLLECTION_{k}, std::size(FIXTURE_COLLECTION_{k}), {cstr(pairs[default]['id'])}}},")
+    w("};")
+    w("}  // namespace")
+    w("const Region* regionTable() { return FIXTURE_REGIONS; }")
+    w("size_t regionTableSize() { return std::size(FIXTURE_REGIONS); }")
     w("")
     w("}  // namespace on_point")
     return "\n".join(out) + "\n"
