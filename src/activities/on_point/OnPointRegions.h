@@ -35,12 +35,13 @@ enum class RegionTableError : uint8_t {
   NoRegions,
   InvalidId,  // null, empty, too long or not lower-kebab
   DuplicateId,
-  NoRoutes,          // a collection with no members (or a null member list)
-  TooManyRoutes,     // more members than the catalogue can hold
-  RouteOutOfRange,   // a member index >= catalogueRoutes
-  DuplicateRoute,    // the same route twice in one collection
-  DefaultNotMember,  // defaultRouteId null, unknown, or not one of its members
-  RouteNotCovered,   // a catalogue route in no collection
+  NoRoutes,           // a collection with no members (or a null member list)
+  TooManyRoutes,      // more members than the catalogue can hold
+  RouteOutOfRange,    // a member index >= catalogueRoutes
+  DuplicateRoute,     // the same route twice in one collection
+  DefaultNotMember,   // defaultRouteId null, unknown, or not one of its members
+  RouteNotCovered,    // a catalogue route in no collection
+  CatalogueTooLarge,  // more catalogue routes than MAX_CATALOGUE_ROUTES (the route list's bound)
 };
 
 struct RegionTableCheck {

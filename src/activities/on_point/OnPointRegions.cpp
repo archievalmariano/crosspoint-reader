@@ -42,6 +42,7 @@ bool isValidRegionId(const char* regionId) {
 }
 
 RegionTableCheck validateRegionTable(const Region* regions, const size_t count, const size_t catalogueRoutes) {
+  if (catalogueRoutes > MAX_CATALOGUE_ROUTES) return {RegionTableError::CatalogueTooLarge, catalogueRoutes};
   if (regions == nullptr || count == 0) return {RegionTableError::NoRegions, 0};
   RouteSet covered;
   for (size_t r = 0; r < count; ++r) {

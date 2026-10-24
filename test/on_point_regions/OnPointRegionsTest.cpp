@@ -159,6 +159,15 @@ TEST(OnPointRegions, ValidationRejectsEachDefect) {
   EXPECT_EQ(uncovered.region, 6u);  // the uncovered catalogue route
 }
 
+TEST(OnPointRegions, CataloguesBeyondTheRouteListBoundAreRejected) {
+  // 129 > MAX_CATALOGUE_ROUTES: rejected before any member is checked; 128 is accepted as a bound.
+  const auto tooLarge = on_point::validateRegionTable(on_point::regionTable(), on_point::regionTableSize(), 129);
+  EXPECT_EQ(tooLarge.error, RegionTableError::CatalogueTooLarge);
+  EXPECT_EQ(tooLarge.region, 129u);
+  EXPECT_NE(on_point::validateRegionTable(on_point::regionTable(), on_point::regionTableSize(), 128).error,
+            RegionTableError::CatalogueTooLarge);
+}
+
 // ---- RouteListModel over a collection ----
 
 TEST(OnPointRegions, AllRoutesBuildKeepsStage1Order) {
