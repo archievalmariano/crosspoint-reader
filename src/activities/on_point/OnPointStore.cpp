@@ -82,11 +82,12 @@ OnPointStore::FileState OnPointStore::readFile(const char* path, const bool appl
       for (const JsonPairConst entry : doc["defaults"].as<JsonObjectConst>()) {
         const size_t region = regionIndexForId(entry.key().c_str());
         if (region == NO_REGION || region >= ON_POINT_STORE_MAX_DEFAULTS || !entry.value().is<const char*>()) continue;
-        hasDefault[region] = copyId(defaults[region], entry.value().as<const char*>());
+        // A value that doesn't fit leaves the existing (e.g. migrated) one in place.
+        if (copyId(defaults[region], entry.value().as<const char*>())) hasDefault[region] = true;
       }
     }
-    if (doc["legacyBaseline"].is<const char*>())
-      hasBaseline = copyId(legacyBaseline, doc["legacyBaseline"].as<const char*>());
+    if (doc["legacyBaseline"].is<const char*>() && copyId(legacyBaseline, doc["legacyBaseline"].as<const char*>()))
+      hasBaseline = true;
   }
   return version > ON_POINT_STORE_VERSION ? FileState::Newer : FileState::Current;
 }
@@ -225,8 +226,12 @@ OnPointStore::SaveOutcome OnPointStore::setDefaultRoute(const size_t regionIndex
 size_t OnPointStore::serialize(char* out, const size_t capacity, const char* base, const size_t baseLength) const {
   JsonDocument doc;
   // Keep the live file's unknown keys and other collections' entries (schema 1 only).
-  const bool merged = base != nullptr && !deserializeJson(doc, base, baseLength) && schemaVersion(doc) == 1;
-  if (!merged) doc.to<JsonObject>();
+  if (base != nullptr) {
+    // A base that isn't schema 1 is never replaced by a reduced document.
+    if (deserializeJson(doc, base, baseLength) || schemaVersion(doc) != ON_POINT_STORE_VERSION) return 0;
+  } else {
+    doc.to<JsonObject>();
+  }
 
   for (int pass = 0; pass < 2; ++pass) {
     doc["version"] = ON_POINT_STORE_VERSION;
@@ -297,24 +302,29 @@ OnPointStore::SaveOutcome OnPointStore::save() {
   if (live == FileState::Unreadable || tmp == FileState::Unreadable || bak == FileState::Unreadable)
     return fail("preflight (unreadable copy)");
 
+  // The merge base is read before any change: the copy that is (or, after promotion, becomes)
+  // live. If it can't be reread as schema 1, the save stops with nothing touched.
+  const bool promote = tmp == FileState::Current && live != FileState::Current;
+  const char* basePath =
+      promote ? ON_POINT_STORE_TMP_PATH : (live == FileState::Current ? ON_POINT_STORE_PATH : nullptr);
+  // Transient: one buffer for the merge base, the new content and the read-back.
+  auto buffer = makeUniqueNoThrow<char[]>(ON_POINT_STORE_MAX_BYTES);
+  if (!buffer) return fail("allocation");
+  size_t baseLength = 0;
+  if (basePath != nullptr &&
+      storage.read(basePath, buffer.get(), ON_POINT_STORE_MAX_BYTES, baseLength) != OnPointStorage::ReadResult::Ok)
+    return fail("reread merge base");
+  const size_t length =
+      serialize(buffer.get(), ON_POINT_STORE_MAX_BYTES, basePath != nullptr ? buffer.get() : nullptr, baseLength);
+  if (length == 0) return fail("serialise (merge base no longer schema 1)");
+
   // A recovered tmp may be the only copy: make it live before tmp is reused.
-  if (tmp == FileState::Current && live != FileState::Current) {
+  if (promote) {
     if (live == FileState::Invalid && !storage.remove(ON_POINT_STORE_PATH)) return fail("remove invalid live file");
     if (!storage.rename(ON_POINT_STORE_TMP_PATH, ON_POINT_STORE_PATH)) return fail("promote recovered tmp");
     live = FileState::Current;
     tmp = FileState::Missing;
   }
-
-  // Transient: one buffer for the live file (the merge base), the new content and the read-back.
-  auto buffer = makeUniqueNoThrow<char[]>(ON_POINT_STORE_MAX_BYTES);
-  if (!buffer) return fail("allocation");
-  size_t liveLength = 0;
-  const bool merge = live == FileState::Current &&
-                     storage.read(ON_POINT_STORE_PATH, buffer.get(), ON_POINT_STORE_MAX_BYTES, liveLength) ==
-                         OnPointStorage::ReadResult::Ok;
-  const size_t length =
-      serialize(buffer.get(), ON_POINT_STORE_MAX_BYTES, merge ? buffer.get() : nullptr, merge ? liveLength : 0);
-  if (length == 0) return fail("serialise");
 
   // tmp is now Missing or Invalid, and never the only copy.
   if (!storage.write(ON_POINT_STORE_TMP_PATH, buffer.get(), length)) {

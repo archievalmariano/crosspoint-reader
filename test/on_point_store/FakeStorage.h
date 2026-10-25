@@ -18,6 +18,14 @@ class FakeStorage : public on_point::OnPointStorage {
   bool tornWrites = false;           // a failed or lost write leaves the first half of its data (a short write)
   bool closeFailures = false;        // a failed write leaves all its data but still reports failure
   std::set<std::string> unreadable;  // paths whose reads fail (present but unreadable)
+  // From its Nth read of a path (0-based) on: return `result`, or, with Ok, `replacement`.
+  struct ReadFault {
+    int fromRead = 0;
+    ReadResult result = ReadResult::Error;
+    std::string replacement;
+  };
+  std::map<std::string, ReadFault> readFaults;
+  std::map<std::string, int> reads;
 
   bool exists(const char* path) override { return files.count(path) != 0; }
 
@@ -26,6 +34,16 @@ class FakeStorage : public on_point::OnPointStorage {
     const auto it = files.find(path);
     if (it == files.end()) return ReadResult::Missing;
     if (unreadable.count(path) != 0) return ReadResult::Error;
+    const int n = reads[path]++;
+    const auto fault = readFaults.find(path);
+    if (fault != readFaults.end() && n >= fault->second.fromRead) {
+      if (fault->second.result != ReadResult::Ok) return fault->second.result;
+      const std::string& text = fault->second.replacement;
+      if (text.size() > capacity) return ReadResult::TooLarge;
+      text.copy(buffer, text.size());
+      length = text.size();
+      return ReadResult::Ok;
+    }
     if (it->second.size() > capacity) return ReadResult::TooLarge;
     it->second.copy(buffer, it->second.size());
     length = it->second.size();

@@ -519,6 +519,78 @@ TEST(OnPointStore, InterruptedSavesFromEveryRecoverableState) {
   }
 }
 
+// ---- Codex P2 re-review findings (regressions) ----
+
+// Re-review 1: an over-long field in a newer file never clears a value migration established.
+TEST(OnPointStore, ReReview1_OverlongNewerFieldsKeepMigratedValues) {
+  const std::string tooLong(60, 'r');
+  FakeStorage fs;
+  fs.files[ON_POINT_STORE_PATH] = "{\"version\":2,\"activeRegion\":\"bulacan\",\"defaults\":{\"bulacan\":\"" + tooLong +
+                                  "\",\"north-luzon\":\"p2p-trinoma-clark-airport\"},\"legacyBaseline\":\"" + tooLong +
+                                  "\"}";
+  const std::string card = fs.files[ON_POINT_STORE_PATH];
+  OnPointStore store(fs);
+  load(store, Legacy(CAYPOMBO));  // migration: bulacan default CAYPOMBO, baseline CAYPOMBO
+  EXPECT_TRUE(store.readOnly());
+  EXPECT_STREQ(store.defaultRouteId(BULACAN), CAYPOMBO);  // not cleared back to the shipped default
+  EXPECT_STREQ(store.defaultRouteId(NORTH_LUZON), TRINOMA_CLARK);
+  ASSERT_NE(store.legacyBaselineId(), nullptr);
+  EXPECT_STREQ(store.legacyBaselineId(), CAYPOMBO);
+  EXPECT_FALSE(store.reconciledLegacyRoute());
+  EXPECT_EQ(store.setActiveRegion(NORTH_LUZON), Outcome::ReadOnly);
+  EXPECT_EQ(fs.mutations, 0);
+  EXPECT_EQ(fs.files[ON_POINT_STORE_PATH], card);
+}
+
+// Re-review 2: when the live file can't be reread for the merge, the save stops untouched.
+TEST(OnPointStore, ReReview2_FailedLiveRereadAbortsBeforeAnyChange) {
+  const std::string live = v1("bulacan", "\"laguna\":\"p2p-laguna-route\"", BALAGTAS, ",\"future\":{\"x\":1}");
+  const std::string tmp = "{";  // invalid: would be overwritten by a save that went ahead
+  const std::string bak = v1("north-luzon", "", BALAGTAS);
+  struct Case {
+    const char* name;
+    FakeStorage::ReadFault fault;
+  } cases[] = {
+      {"read error", {1, on_point::OnPointStorage::ReadResult::Error, ""}},
+      {"oversize", {1, on_point::OnPointStorage::ReadResult::TooLarge, ""}},
+      {"now invalid", {1, on_point::OnPointStorage::ReadResult::Ok, "garbage"}},
+      {"now newer", {1, on_point::OnPointStorage::ReadResult::Ok, "{\"version\":2}"}},
+      {"now no version", {1, on_point::OnPointStorage::ReadResult::Ok, "{\"activeRegion\":\"bulacan\"}"}},
+  };
+  for (const Case& c : cases) {
+    FakeStorage fs;
+    fs.files[ON_POINT_STORE_PATH] = live;
+    fs.files[ON_POINT_STORE_TMP_PATH] = tmp;
+    fs.files[ON_POINT_STORE_BAK_PATH] = bak;
+    OnPointStore store(fs);
+    load(store, Legacy(BALAGTAS));
+    ASSERT_EQ(store.source(), Source::Live) << c.name;
+    fs.reads.clear();
+    fs.readFaults[ON_POINT_STORE_PATH] = c.fault;  // read 0 = preflight (fine), read 1 = the merge base
+    EXPECT_NE(store.setDefaultRoute(BULACAN, CAYPOMBO), Outcome::Saved) << c.name;
+    EXPECT_TRUE(store.hasUnsavedChanges()) << c.name;
+    EXPECT_EQ(fs.mutations, 0) << c.name;
+    EXPECT_EQ(fs.files[ON_POINT_STORE_PATH], live) << c.name;
+    EXPECT_EQ(fs.files[ON_POINT_STORE_TMP_PATH], tmp) << c.name;
+    EXPECT_EQ(fs.files[ON_POINT_STORE_BAK_PATH], bak) << c.name;
+  }
+}
+
+TEST(OnPointStore, ReReview2_FailedRecoveredTmpRereadAbortsBeforePromotion) {
+  const std::string tmp = v1("north-luzon", "\"laguna\":\"p2p-laguna-route\"", BALAGTAS);
+  FakeStorage fs;
+  fs.files[ON_POINT_STORE_TMP_PATH] = tmp;
+  OnPointStore store(fs);
+  load(store, Legacy(BALAGTAS));
+  ASSERT_EQ(store.source(), Source::Temporary);
+  fs.reads.clear();
+  fs.readFaults[ON_POINT_STORE_TMP_PATH] = {1, on_point::OnPointStorage::ReadResult::Error, ""};
+  EXPECT_EQ(store.setActiveRegion(BULACAN), Outcome::Failed);
+  EXPECT_EQ(fs.mutations, 0);
+  EXPECT_EQ(fs.files[ON_POINT_STORE_TMP_PATH], tmp);
+  EXPECT_FALSE(fs.exists(ON_POINT_STORE_PATH));
+}
+
 // ---- Newer schema and oversize files: read-only ----
 
 TEST(OnPointStore, NewerSchemaIsReadOnlyAndNeverTouched) {

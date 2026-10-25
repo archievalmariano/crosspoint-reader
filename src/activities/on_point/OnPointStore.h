@@ -23,9 +23,14 @@ namespace on_point {
 //   4. A Current live file becomes the backup (replacing only a Missing or Current backup; an
 //      Invalid backup is kept and the live file removed instead); an Invalid live file is removed.
 //   5. tmp becomes live.
-// Loading uses live, then tmp (live Missing or Invalid), then the backup, else migrates, and
-// never writes. Power-loss recovery is best-effort: FAT32 has no journal, so an interruption
-// inside a filesystem operation, or media corruption, can still lose a copy.
+// The merge base (the copy that is or becomes live) is reread before step 2; if that reread isn't
+// schema 1, the save stops before any change. Loading uses live, then tmp (live Missing or
+// Invalid), then the backup, else migrates, and never writes.
+//
+// Single writer: only ON POINT reads or writes these files, from its activity's loop task; one
+// activity runs at a time, so the web file manager and USB Drive mode never run alongside it, and
+// HalStorage serialises SD calls. Nothing here locks against another writer. Power-loss recovery is best-effort: FAT32
+// has no journal, so an interruption inside a filesystem operation, or media corruption, can still lose a copy.
 
 constexpr char ON_POINT_STORE_PATH[] = "/.crosspoint/onpoint.json";
 constexpr char ON_POINT_STORE_TMP_PATH[] = "/.crosspoint/onpoint.tmp";
@@ -84,6 +89,8 @@ class OnPointStore {
   bool readOnly() const { return readOnlyFile; }
   // Some change made this session isn't on the card (read-only store or a failed save).
   bool hasUnsavedChanges() const { return unsaved; }
+  // The legacy main route recorded with these preferences; nullptr if none.
+  const char* legacyBaselineId() const { return hasBaseline ? legacyBaseline : nullptr; }
   // A main route changed under older firmware was taken into its collection at load.
   bool reconciledLegacyRoute() const { return reconciled; }
 
