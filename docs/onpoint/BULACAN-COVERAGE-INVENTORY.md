@@ -159,3 +159,10 @@ PUBLISHED / PROVISIONAL / NOT COUNTDOWN-READY standard.
   Malolos outbound PUBLISHED.
 - **Held:** Plaridel ↔ SM North, Guiguinto and Angat ↔ Monumento.
 - **The 2027 holiday gap (§2) remains open.**
+
+**Pass 6 (2026-10-25):** the first batch is narrowed to **Balagtas, Caypombo and Malolos**.
+- **Plaridel:** one through-service, preferred designation Plaridel ↔ SM North EDSA; deferred.
+- **Pandi:** deferred, because its weekend assumption is contradicted.
+- **Guiguinto:** stays NOT COUNTDOWN-READY. A 2025 terminal timetable was transcribed.
+
+See [editorial/BULACAN-READINESS.md](editorial/BULACAN-READINESS.md) §6.
