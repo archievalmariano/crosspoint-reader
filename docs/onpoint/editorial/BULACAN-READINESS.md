@@ -1,4 +1,4 @@
-# BULACAN implementation readiness (pass 4)
+# BULACAN implementation readiness (passes 4–5)
 
 **Basis:** the reconciliation at `befc5eeb` ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md)), as accepted by
 the owner, re-assessed under the owner's standard of 2026-10-25. Documentation only. No firmware data, status label,
@@ -35,11 +35,26 @@ holiday rule or route entry was changed. No build, flash, push or release.
 | **PG-ANGAT-W** | White | ANGAT-MONUMENTO | ANGAT 03:30–04:00 to 19:00 · MONUMENTO 05:30 to 23:00 | **10–30 min** | None |
 | **PG-ANGAT-Y** | Yellow brand | "ANGAT-MONUMENTO DAILY TRIP SCHEDULE" | Same values | 10–30 min | **Post caption, partly cropped: "…of May 1, 2026 ang ating official Last Trip mula Monumento ay 11 PM."** 389 reactions, 42 comments, 64 shares. |
 
-**Chronology of the two Precious Grace timetables (an inference, not a date):**
-- G2 shares the yellow brand template with PG-ANGAT-Y, whose post refers to a policy "as of May 1, 2026".
-- G2 also splits Malolos from Caypombo with a different last trip, which looks like a refinement.
-- So **G2 is probably the newer timetable.**
-- **Still missing:** the publication date and permalink of either post.
+**Chronology (pass 5): established from owner screenshots of the Precious Grace page.** These are screenshots of the
+page, not opened by Claude. The permalinks are not captured.
+
+| Post | Post date as displayed | Year | Contents | Operator effective date | Supersession |
+|---|---|---|---|---|---|
+| **PG-P-20251230** | "December 30, 2025" | **Confirmed** (shown) | "Our 2026 Trip Schedule is out! … Point-to-Point and **Route 9 (Angat–Monumento)**". The images are **PG-G1** and **PG-ANGAT-W**. 134 reactions, 18 comments, 37 shares. | "2026 Trip Schedule". No start day given, so "from 2026" is all that is stated. | First 2026 schedule |
+| **PG-P-0313** | "March 13" (a Featured post) | **Inferred 2026.** Facebook omits the current year, and it must postdate the December 2025 post, which shows its year. | **PG-G2** | Not stated | **Supersedes G1 for Caypombo/Sta. Clara (last trip 20:00 → 20:30)**, unless a later contrary post exists. Malolos, Bocaue and North EDSA are unchanged. |
+| **PG-P-0501** | "May 1" (Featured; the screenshot reads "May 1") | **Inferred 2026**, consistent with its own text | "As of May 1, 2026 ang ating official Last Trip mula Monumento ay 11 PM." The image is **PG-ANGAT-Y**. | **2026-05-01, stated** (Monumento last trip) | Confirms the 23:00 Monumento last trip. The same value as December. |
+
+**Not checked:**
+- **Whether any post after May 2026 changes the P2P schedule.** The Featured section showed none, but the full post
+  history is behind the login wall.
+- **This is the "unless a later contrary announcement exists" condition.** It is recorded as residual, low-risk
+  uncertainty.
+
+**Scope flag:**
+- **The operator itself separates "Point-to-Point" from "Route 9 (Angat–Monumento)".**
+- Route 9 is a numbered route with a 10–30-minute interval. It is not presented as P2P.
+- It stays an approved coverage candidate and NOT COUNTDOWN-READY. The owner may also want to revisit whether it
+  belongs in a P2P-only catalogue.
 
 **Local evidence copies** (outside Git, not published): `_worktrees/records/bulacan-evidence/2026-10-25-owner-screenshots/`.
 It holds the nine screenshots with `SHA256SUMS`: G1 `52e86139…`, G2 `720155a1…`, Angat-Y `2ad63398…`.
@@ -61,12 +76,12 @@ first trip to the last, inclusive. Counts are trips.
 | | SM North → Plaridel | PROVISIONAL *(on hold)* | Mon–Fri 06:00–22:30 every 30 (34) · SSH 06:30–22:30 every 30 (33) | BP2P-0830-4, -1. P2PBUS pattern. | P2PBUS starts at 05:30; the operator's 06:00 governs. **On hold** because a `RoutePair` needs both directions, and the outbound is not ready. |
 | **Guiguinto ↔ TriNoma** (BP2P) | WalterMart Guiguinto → TriNoma | **NOT COUNTDOWN-READY** | None | Windows: BP2P-0830-5, -3, -2 (Mon/Tue–Fri 04:30–19:30, SSH 05:00–19:30) | **Genuinely missing:** any departure list or interval for this route. P2PBUS has no page; Sakay gives ranges only. The windows fall on :00 and :30, which is consistent with 30 minutes but doesn't establish it. |
 | | TriNoma → Guiguinto | **NOT COUNTDOWN-READY** | None | BP2P-0830-4, -1 (Mon–Fri 06:00–21:30, SSH 06:30–21:30) | As above. *Owner option, not recommended:* accept Bulacan P2P's network-wide 30-minute pattern, which would make it PROVISIONAL. |
-| **Caypombo ↔ SM North EDSA** (PG) | Caypombo → SM North | **PROVISIONAL** | **Daily 05:00–20:30 every 30 (32)**, per G2. *Alternative:* G1's 05:00–20:00 (31), which is the shipped array. | Operator pattern and days: PG-G2 ("DAILY", "INTERVAL 30 MINUTES") | **G1 vs G2 last trip** (20:00 vs 20:30). G2 is probably newer (see chronology); the owner chooses which to adopt. Times are at the Caypombo / Sta. Clara boarding area; Sta. Clara is a stop. P2PBUS: 05:00–19:45 with an hourly midday (undated). Directories: weekend 06:00 (undated). Sakay: "UBE Express" (undated). |
-| | SM North → Caypombo | **PROVISIONAL** | Daily 06:00–22:30 every 30 (34). **Shipped, unchanged.** | PG-G1 and PG-G2 agree | **"NORTH EDSA (TRINOMA AND SM)" is one row for every PG destination.** It doesn't say which stop the 06:00 departs from, or whether each destination gets a bus every 30 minutes. P2PBUS shows an hourly midday (undated). |
-| **Malolos ↔ TriNoma** (PG) | Malolos → TriNoma | **PUBLISHED** | Daily 05:00–20:00 every 30 (31) | Operator-stated window, interval and days: PG-G2 ("DAILY"). **PG-G1 agrees.** | No operator-internal conflict. Remaining contradictions are undated secondary: P2PBUS hourly midday (26); Sakay names "UBE Express", hourly. The operator's graphics settle the attribution as **Precious Grace**, matching the queue the owner observed. The publication date is unknown, which is disclosed in the note. |
-| | TriNoma → Malolos | **PROVISIONAL** | Daily 06:00–22:30 every 30 (34) | PG-G1 and PG-G2 (the shared North EDSA row) | The departure stop (TriNoma or SM) and the per-destination interval are not stated, as for SM North → Caypombo |
+| **Caypombo ↔ SM North EDSA** (PG) | Caypombo → SM North | **PUBLISHED** *(pass 5; was PROVISIONAL)* | **Daily 05:00–20:30 every 30 (32)**, per PG-G2. **The shipped array (05:00–20:00, 31) is superseded**: it omits the operator's 20:30 last trip. | Operator window, interval and days: PG-G2 (PG-P-0313, "DAILY", "INTERVAL 30 MINUTES"). It supersedes PG-G1 (PG-P-20251230). | **The G1 vs G2 conflict is resolved by chronology.** Residual: no later post was checked (see above). Times are at the Caypombo / Sta. Clara boarding area; Sta. Clara is a stop. Undated secondary contradictions are not adopted: P2PBUS 19:45 with an hourly midday; directories' weekend 06:00; Sakay's "UBE Express". |
+| | SM North → Caypombo | **PROVISIONAL** (unchanged) | Daily 06:00–22:30 every 30 (34). **Shipped, unchanged.** | PG-G1 and PG-G2 agree (both dated) | **"NORTH EDSA (TRINOMA AND SM)" is one row for every PG destination.** It doesn't say which stop the 06:00 departs from, or whether each destination gets a bus every 30 minutes. P2PBUS shows an hourly midday (undated). |
+| **Malolos ↔ TriNoma** (PG) | Malolos → TriNoma | **PUBLISHED** (confirmed in pass 5) | Daily 05:00–20:00 every 30 (31) | Operator-stated window, interval and days: PG-G2 (PG-P-0313, "DAILY"). **PG-G1 (PG-P-20251230) agrees**, so the value is stable across both 2026 publications. | No operator-internal conflict. Undated secondary contradictions are not adopted: P2PBUS hourly midday (26); Sakay's "UBE Express", hourly. The attribution is Precious Grace, per the operator's graphics and the owner's queue observation. |
+| | TriNoma → Malolos | **PROVISIONAL** (unchanged) | Daily 06:00–22:30 every 30 (34) | PG-G1 and PG-G2 (the shared North EDSA row; both dated) | **The chronology doesn't resolve the North EDSA split.** The departure stop (TriNoma or SM) and whether each destination departs every 30 minutes are still not stated. |
 | **Angat ↔ Monumento** (PG) | Angat → Monumento | **NOT COUNTDOWN-READY** (pending) | None | PG-ANGAT-W and -Y: first 03:30–04:00, last 19:00, daily | **Genuinely missing:** a fixed departure sequence. The "10–30 MINUTES" interval is variable, and the first trip is a range. |
-| | Monumento → Angat | **NOT COUNTDOWN-READY** (pending) | None | PG-ANGAT-Y: last trip 23:00 "as of May 1, 2026" | As above |
+| | Monumento → Angat | **NOT COUNTDOWN-READY** (pending) | None | PG-ANGAT-Y (PG-P-0501): last trip 23:00, effective 2026-05-01 (stated). PG-ANGAT-W (PG-P-20251230): the same value. | The window is confirmed, but the variable interval gives no departures. The operator calls it "Route 9", not P2P (scope flag above). |
 
 ## Missing information: what blocks a timetable, and what PROVISIONAL can disclose
 
@@ -77,7 +92,7 @@ first trip to the last, inclusive. Counts are trips.
 | Plaridel ↔ SM North | **The Plaridel → SM North departures** (the operator gives one combined Plaridel origin) | The return direction alone would be PROVISIONAL |
 | Guiguinto | **Any route-specific interval or list** | — |
 | Malolos | — | The return's North EDSA departure stop and interval. The publication date. |
-| Caypombo | — | Which graphic is current (G2 recommended). The North EDSA ambiguity. Undated directory midday gaps. |
+| Caypombo | — | Outbound: none material (G2 is current by chronology). Return: the North EDSA ambiguity. Undated directory midday gaps. |
 | Angat ↔ Monumento | **A fixed departure sequence** (the interval is variable) | — |
 
 ## Recommended first implementation batch (needs separate authorisation)
@@ -87,10 +102,16 @@ first trip to the last, inclusive. Counts are trips.
 | Pair | Change | Status (outbound / return) |
 |---|---|---|
 | Balagtas ↔ TriNoma | Relabel. Arrays, holiday overrides and effective date unchanged. Note cites BP2P-0830 and P2PBUS. | PROVISIONAL / PROVISIONAL |
-| Caypombo ↔ SM North EDSA | Relabel. **Owner decision:** adopt G2's 20:30 last trip (adds one trip) or keep G1's 20:00. Return array unchanged. | PROVISIONAL / PROVISIONAL |
+| Caypombo ↔ SM North EDSA | **Outbound array corrected to PG-G2:** 05:00–20:30 (adds the 20:30 trip; 31 → 32). Return array unchanged. Notes cite the dated posts. | **PUBLISHED** / PROVISIONAL |
 | **Pandi ↔ TriNoma** | New | PROVISIONAL / PROVISIONAL |
 | **Plaridel ↔ TriNoma** | New | PROVISIONAL / PROVISIONAL |
 | **Malolos ↔ TriNoma** | New | **PUBLISHED** / PROVISIONAL |
+
+**Pass 5 effect on the batch:** the composition is **unchanged**, at the same five pairs.
+- **Caypombo outbound:** PROVISIONAL → **PUBLISHED**, and its array gains the 20:30 trip.
+- **Malolos:** outbound PUBLISHED confirmed; return PROVISIONAL.
+- **No held route becomes ready.** Nothing in the new evidence concerns Bulacan P2P's Plaridel, Guiguinto or weekend
+  gaps.
 
 **Held:**
 - **Plaridel ↔ SM North EDSA:** the outbound is missing.
@@ -111,16 +132,24 @@ fixture. BULACAN goes from 2 to 5 routes.
   - From 2027-01-01, every Bulacan P2P direction (Balagtas, Pandi, Plaridel) falls back to its weekday timetable on
     holidays. The batch would widen that existing gap from one route to three.
   - It needs reconciling before 2027, separately from this batch.
-- **Effective dates:**
-  - Bulacan P2P routes: 2026-09-01, after the BP2P-0830 post. This matches Balagtas.
-  - **Malolos (and a G2 Caypombo change) needs an owner-chosen effective date,** because no Precious Grace post date
-    is known.
+- **Dates: three kinds, kept separate.**
+
+| Kind | Meaning | Values |
+|---|---|---|
+| **Post date** | When the operator published | BP2P-0830: 2026-08-30 (year inferred). PG-P-20251230: 2025-12-30 (confirmed). PG-P-0313: 2026-03-13 (year inferred). PG-P-0501: 2026-05-01 (year inferred). |
+| **Operator effective date** | When the operator says the schedule applies | BP2P: not stated ("updated schedule"). PG P2P: "2026" (December post), no day for G2. Angat: 2026-05-01 (stated). |
+| **Catalogue `effectiveDate`** (firmware) | A valid-from gate: service days before it show no departures (`OnPointSchedule.cpp:96`) | Shipped BULACAN: 2026-09-01. **For new pairs this is an internal choice.** It only affects days before the chosen date, so any date up to the release has the same user-visible effect today. |
+
+  - **Recommendation:** keep **2026-09-01** for the whole batch, as an internal catalogue date. Record the post dates
+    and operator effective dates in the notes and the register, not in `effectiveDate`. The alternative is each
+    route's own post date (Malolos and Caypombo: 2026-03-13), which only matters for days before September 2026.
 - **Validation:** labels such as PANDI, PLARIDEL and MALOLOS need the existing label-width test. Host tests, the
   release guard and the matrix as usual.
 
 ## Exact evidence still missing
 
-1. **Precious Grace G1 and G2:** permalinks and publication dates, to settle Caypombo's 20:00 vs 20:30 chronology.
+1. ~~**Precious Grace G1 and G2:** publication dates~~ **Resolved in pass 5.** Still open: the permalinks, and a check
+   for any post after May 2026.
 2. **Precious Grace's North EDSA row:** the departure stop (TriNoma or SM), and whether each destination departs
    every 30 minutes.
 3. **Bulacan P2P Plaridel:** departures by destination (TriNoma vs SM North). This unblocks Plaridel ↔ SM North.
@@ -128,3 +157,10 @@ fixture. BULACAN goes from 2 to 5 routes.
 5. **Bulacan P2P:** a weekend departure list or interval statement. This would upgrade the SSH disclosures.
 6. **Angat ↔ Monumento:** a fixed departure list, if one exists.
 7. **2027 holidays:** Bulacan P2P's holiday policy for 2027 and the verified 2027 proclamation.
+
+## Change log
+
+| Date | Change |
+|---|---|
+| 2026-10-25 | Pass 4: readiness under the owner's standard |
+| 2026-10-25 | **Pass 5:** Precious Grace chronology established from owner screenshots: 2025-12-30 (confirmed), 03-13 and 05-01 (2026 inferred). Caypombo outbound → PUBLISHED with G2's 20:30. Malolos confirmed. The Angat "Route 9" scope flag. Date kinds separated. |

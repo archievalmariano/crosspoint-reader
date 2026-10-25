@@ -52,6 +52,11 @@ The owner's own screenshots are the evidence copies.
 > - The yellow Angat graphic's post caption refers to a last-trip policy "as of May 1, 2026".
 >
 > See [BULACAN-READINESS.md](BULACAN-READINESS.md).
+>
+> **Pass 5:** the chronology is established.
+> - PG-G1 was posted **2025-12-30** (year shown), as the "2026 Trip Schedule".
+> - PG-G2 was posted **March 13**; 2026 is inferred. **It supersedes G1:** Caypombo's last trip is 20:30.
+> - The Angat advisory was posted **May 1**; 2026 is inferred. It states effect "as of May 1, 2026".
 
 The two Precious Grace graphics are referred to in the brief, but the images were **not available in this session**.
 The values below are the owner's transcription. Post permalinks, publication dates and any day-type wording are
@@ -248,5 +253,6 @@ departures, or an interval, by destination. Use three day types for the Bulacan 
 
 | Date | Change |
 |---|---|
+| 2026-10-25 | Pass 5: PG chronology. G2 supersedes G1. See BULACAN-READINESS.md. |
 | 2026-10-25 | Pass 4: owner screenshots seen. The readiness table is in BULACAN-READINESS.md. |
 | 2026-10-25 | Created (pass 3). BP2P-0830 accessed directly and transcribed per image. PG graphics recorded from the owner's transcription. P2PBUS re-read for all 11 Bulacan pages. |

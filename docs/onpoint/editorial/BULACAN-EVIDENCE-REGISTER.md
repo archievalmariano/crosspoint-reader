@@ -62,6 +62,9 @@ rule, route entry or firmware was changed.
 | P2PBUS-PLR | p2pbus.ph `sm-north-plaridel`, `trinoma-plaridel`, `bocaue-bulacan-trinoma` | Directory | Direct (pass 2) | No date |
 | ETIGO | https://etigo.com.ph/terminals/nlet-bocaue | Directory | Direct | "Last updated: March 17, 2026" |
 | MAP-2026 | https://mappedatlas.com/navigate/philippines-commute-guides/p2p-bus-routes-schedules-guide/ | Guide | Search snippet only | Not accessed |
+| PG-P-20251230 | Precious Grace FB post, "December 30, 2025" (2026 Trip Schedule; P2P + Route 9 Angat–Monumento) | Operator post | Owner screenshot (`PG-2025-12-30-post.webp`, sha256 `9bee868f…`); permalink not captured | **2025-12-30 (year shown)** |
+| PG-P-0313 | Precious Grace Featured post, "March 13" (P2P Daily Trip Schedule, PG-G2) | Operator post | Owner screenshot (`PG-featured-mar13-may1.webp`, `07c6fde9…`; graphic also in `PG-G2-yellow.webp`) | 2026-03-13 (**year inferred**) |
+| PG-P-0501 | Precious Grace Featured post, "May 1" (Angat–Monumento advisory) | Operator post | Same screenshot; graphic in `PG-ANGAT-Y.webp` | 2026-05-01 (**year inferred**; the text says "As of May 1, 2026") |
 
 **Inaccessible (INACC):**
 - **Every operator timetable post on Facebook** (login wall). Pass 2 searched for indexed post permalinks with dates
@@ -419,5 +422,6 @@ These can still be offered as PROVISIONAL with first and last trips.
 | Date | Change |
 |---|---|
 | 2026-10-25 | Register created (research pass 1). Sources accessed on 2026-10-25. |
+| 2026-10-25 | Pass 5: dated Precious Grace posts added to §2. Readiness updated in [BULACAN-READINESS.md](BULACAN-READINESS.md). |
 | 2026-10-25 | Pass 3: reconciliation of the approved eight-route catalogue in [BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md). Supersession notes added to §4 and §9. |
 | 2026-10-25 | Pass 2: §5 rewritten as a service-identity methodology and matrix. Owner's firsthand observations O1–O4 added (OBS: historical, not timetable evidence). Bocaue Crossing reclassified from candidate route to a stop on Balagtas. Plaridel split into an identity question (TriNoma vs SM North). Sources LAM-2022, CT-WM, P2PBUS-PLR and ETIGO added. A search for dated operator FB permalinks found none. |
