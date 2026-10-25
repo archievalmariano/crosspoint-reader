@@ -220,4 +220,25 @@ only.**
 | `x4pro-all-devtest` | 5,755,056 B | `4eb80792…` | Not v1.2.1-integrated, and **not installed** |
 
 - **`pio check`:** PASSED.
-- **V0–V3 matrix:** results recorded in the review brief.
+**V0–V3 matrix (run 2, on `61a29187`)**
+
+| Run | Builds | Host tests | Notes |
+|---|---|---|---|
+| V0 | 9/9; release and devtest scans OK; capacity positive controls OK | 697/697 | **Post-link check: pass** |
+| V1 (+ v1.2.1) | 5/5 | 701/701 | Clean merge |
+| V2 (+ 2027 holidays) | 5/5 | 701/702 | Clean merge |
+| V3 (+ both) | 5/5 | 705/706 | Clean merges |
+
+REFCHECK OK after each run.
+
+**The one V2/V3 failure is the intended 2027 tripwire.** `OnPointBulacanData.HolidayOverridesFollowEachOperatorsPolicy`
+fails because the 2027 branch gives Balagtas 2027 holidays but not Pandi, Plaridel or Guiguinto (§4). It turns green
+when the 2027 reconciliation adds their dates. Its failure message says so (`dac79426`, a comment and message change
+only).
+
+**Run 1 (on `1aaedbf4`) found two problems, both fixed:**
+1. **A one-comment conflict with the 2027 branch.** Fixed by keeping the Precious Grace comment's first line unchanged
+   (`d54640d0`).
+2. **The capacity post-link growth check.** Its fixed 4 KB allowance for the replaced shipped catalogue was too small
+   for 11 routes. It is now measured from the baseline ELF's on_point data symbols (5,405 B) plus 4 KB for strings
+   (`61a29187`). Margin: 2,871 B. A negative control that is 4 KB short still fails.
