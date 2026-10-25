@@ -1,4 +1,4 @@
-# BULACAN implementation readiness (passes 4–7)
+# BULACAN implementation readiness (passes 4–8)
 
 **Basis:** the reconciliation at `befc5eeb` ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md)), as accepted by
 the owner, re-assessed under the owner's standard of 2026-10-25. Documentation only. No firmware data, status label,
@@ -166,6 +166,7 @@ fixture. BULACAN goes from 2 to 5 routes.
 | Date | Change |
 |---|---|
 | 2026-10-25 | Pass 4: readiness under the owner's standard |
+| 2026-10-25 | **Pass 8:** Guiguinto triangulation. The weekday outbound is documented. The weekend outbound and returns are reconstructed as competing candidates with quantified disagreement. Below the Pandi/Plaridel threshold for the weekend outbound and the weekday return. Recommendation: outside the build. |
 | 2026-10-25 | **Pass 7:** Guiguinto photos of Sep 2025 (clean) and Mar 31 (possible disruption, excluded). The owner reinstates the five-route batch, with Plaridel ↔ TriNoma retained. Guiguinto outbound weekday is a candidate, but the weekend conflicts and there is no return: NOT COUNTDOWN-READY. |
 | 2026-10-25 | **Pass 6:** the Plaridel identity is one through-service (designation Plaridel ↔ SM North EDSA; TriNoma a stop), deferred. Guiguinto terminal timetable 2025 transcribed: weekday 28, weekend every 45 min; still NOT COUNTDOWN-READY. The weekend 30-minute assumption is contradicted, so Pandi is deferred. Batch: 3 pairs. |
 | 2026-10-25 | **Pass 5:** Precious Grace chronology established from owner screenshots: 2025-12-30 (confirmed), 03-13 and 05-01 (2026 inferred). Caypombo outbound → PUBLISHED with G2's 20:30. Malolos confirmed. The Angat "Route 9" scope flag. Date kinds separated. |
@@ -487,3 +488,119 @@ for reconciliation once the 2026 weekend notice and a TriNoma → Guiguinto list
 - The catalogue `effectiveDate`: 2026-09-01 is recommended.
 - Whether the "may shift with ridership" wording stays in the Caypombo note.
 - The 2027 holiday gap, which widens to three Bulacan P2P routes (Balagtas, Pandi, Plaridel).
+
+## Pass 8: Guiguinto ↔ TriNoma timetable triangulation (2026-10-25)
+
+**This is analysis only.** The five-route batch scope and the firmware are unchanged.
+
+### 8.1 Sources and labels
+
+| Label | Meaning | Source |
+|---|---|---|
+| **O** | Operator 2026 first or last trip | BP2P-0830 (Mon / Tue–Fri 04:30–19:30 and SSH 05:00–19:30 from Guiguinto; M–F 06:00–21:30 and SSH 06:30–21:30 from TriNoma) |
+| **D** | Directly documented departure (2025) | TN-GUI-20250912, the printed terminal notice. Confirmed by TN-GUI-20250625 except 16:20/16:40 → 16:30. |
+| **P** | Pattern-derived | An interval taken from another day type, direction or route. The basis is stated per candidate. |
+| **U** | Unsupported | Needed only to close a sequence onto an operator endpoint |
+
+**Context, not times:**
+- The owner's recollection of Guiguinto services at TriNoma (O2) confirms the return exists.
+- TN-GUI-0331 (a possible disruption period) is excluded.
+
+### 8.2 Guiguinto → TriNoma, Mon–Fri (Mon = Tue–Fri in 2026)
+
+| Departures | Labels | Confidence |
+|---|---|---|
+| 04:30, 05:00, 05:30, 06:00, 06:30, 07:00, 07:30, 08:00, 08:30, 09:00, 09:30, 10:00, 10:45, 11:30, 12:15, 13:00, 13:45, 14:30, 15:00, 15:30, 16:00, 16:30, 17:00, 17:30, 18:00, 18:45, 19:30 (27) | 04:30 and 19:30 are **O+D**; the other 25 are **D** | **Medium-high.** The endpoints agree with 2026. The interior is the 2025 printed list, stable from June to September 2025 apart from one revision. Its 2026 currency is not confirmed. |
+
+### 8.3 Guiguinto → TriNoma, Sat/Sun/Holiday (2026 window 05:00–19:30)
+
+**2025 baseline:**
+- Saturday and holidays: 04:30, every 45 minutes, to 19:30.
+- Sunday: 04:45, every 45 minutes, to 19:00, then 19:30.
+- 2026 merges all three day types into one 05:00–19:30 window. **Neither 2025 list contains 05:00**, so at least one
+  2025 list was retimed. Which one, and how, isn't documented.
+
+| Candidate | Sequence | Trips | Labels | Basis | Objection |
+|---|---|---|---|---|---|
+| **S-A**: 30 min (the Pandi/Plaridel method) | 05:00, 05:30 … 19:30 | 30 | 2 O, 28 P | The window plus the 30-minute assumption used for the other Bulacan P2P weekends | **Contradicted by this route's own weekend evidence** (45 minutes in every 2025 photo) |
+| **S-B**: 45 min from 05:00 | 05:00, 05:45, 06:30, 07:15, 08:00, 08:45, 09:30, 10:15, 11:00, 11:45, 12:30, 13:15, 14:00, 14:45, 15:30, 16:15, 17:00, 17:45, 18:30, 19:15, 19:30 | 21 | 2 O, 18 P, **19:15 U** | The 2025 weekend interval anchored at the 2026 first trip | The 05:00 + 45k grid misses 19:30, so the sequence needs an unsupported 19:15 → 19:30 step of 15 minutes |
+| **S-C**: the 2025 Sunday grid, 04:45 → 05:00 | 05:00, 05:30, 06:15, 07:00, 07:45, 08:30, 09:15, 10:00, 10:45, 11:30, 12:15, 13:00, 13:45, 14:30, 15:15, 16:00, 16:45, 17:30, 18:15, 19:00, 19:30 | 21 | 2 O, 19 D (Sunday 2025) | Keeps 19 documented Sunday times | **Arbitrary:** it drops the 04:45 trip, assumes the operator's 05:00 replaced it, and applies a *Sunday* list to Saturday and holidays |
+| **S-D**: the 2025 Saturday grid, minus 04:30, plus 05:00 | 05:00, 05:15, 06:00, 06:45 … 19:30 | 21 | 1 O, 20 D (Saturday 2025) | Keeps 20 documented Saturday times | **Rejected:** creates an implausible 15-minute 05:00 → 05:15 pair |
+
+**How much the candidates disagree.** The model: a rider arrives at any minute in the window and asks for the next
+departure.
+
+| Pair | Mean difference | Arrival minutes off by ≥ 10 min | Shared departures |
+|---|---|---|---|
+| S-A vs S-B | 12.4 min | 67% | — |
+| S-A vs S-C | 11.6 min | 61% | 12 |
+| **S-B vs S-C** | **19.4 min** | **98%** | **2** (the endpoints only) |
+
+**Verdict:** several sequences fit the evidence about equally well, and they disagree on almost every departure. **No
+candidate can be chosen without an arbitrary adjustment. Confidence: low.**
+
+### 8.4 TriNoma → Guiguinto (no departure of any kind is documented)
+
+**Comparable patterns on other Bulacan P2P services:**
+- The only TriNoma-origin Bulacan P2P departure lists are P2PBUS's (Balagtas, Pandi, Plaridel). They are uniform
+  30-minute weekday lists, undated, and possibly templated.
+- No terminal photo of any TriNoma-origin Bulacan P2P list exists.
+
+**Mon–Fri (window 06:00–21:30):**
+
+| Candidate | Sequence | Trips | Labels | Basis | Objection |
+|---|---|---|---|---|---|
+| **R-A**: 30 min, from sibling returns | 06:00, 06:30 … 21:30 | 32 | 2 O, 30 P | The P2PBUS sibling pattern (Balagtas, Pandi and Plaridel returns) | Not route-specific. Ignores this route's own 45-minute midday outbound. |
+| **R-B**: the outbound mirrored +90 min | 06:00 … 11:30 (every 30), 12:15, 13:00, 13:45, 14:30, 15:15, 16:00, 16:30 … 19:30 (every 30), 20:15, 21:00, 21:30 | 28 | 2 O, 25 P, **21:30 closure U** | A constant 90-minute turnaround, matching the operator's first-trip gap (04:30 → 06:00) | **The last-trip gap is 120 minutes** (19:30 → 21:30), so the constant turnaround fails at the end. The 21:30 is appended. |
+
+| Pair | Mean difference | Arrival minutes off by ≥ 10 min | Shared departures |
+|---|---|---|---|
+| R-A vs R-B | **4.8 min** | **25%** | 24 of 28 / 32 |
+
+The candidates agree from 06:00 to 11:30 and from 16:30 to 19:30. They **disagree at midday (12:00–16:00)** and from
+**19:30 to 21:30**. **Confidence: low-medium.** The structure is plausible, but there is no route-specific evidence.
+
+**Sat/Sun/Holiday (window 06:30–21:30):**
+
+| Candidate | Sequence | Trips | Labels | Basis |
+|---|---|---|---|---|
+| **RS-A**: 30 min | 06:30 … 21:30 | 31 | 2 O, 29 P | Sibling assumption |
+| **RS-B**: 45 min | 06:30, 07:15, 08:00 … 20:45, 21:30 | 21 | 2 O, 19 P | This route's 2025 weekend outbound interval. The 06:30 + 45k grid **lands exactly on 21:30**. A neat fit, but fitting the endpoints is weak evidence. |
+
+RS-A vs RS-B: mean difference **12.5 min**; **66%** of arrival minutes are off by 10 minutes or more; 11 departures
+are shared. **Confidence: low.**
+
+### 8.5 Same threshold as Pandi and Plaridel
+
+| Element | Pandi / Plaridel PROVISIONAL basis | Guiguinto | Meets the threshold? |
+|---|---|---|---|
+| Outbound weekday | Operator window + a **route-specific** secondary list (P2PBUS, undated) | Operator window + a **route-specific documented** terminal list (2025, photographed) | **Yes, and stronger** |
+| Outbound weekend | Operator window + an assumed 30-minute pattern, with **no route-specific contrary evidence** (disclosed) | The same method (S-A) **contradicts route-specific evidence**. The evidence-consistent options (S-B, S-C) need arbitrary closure. | **No.** It is weaker: the assumption is known to be false for this route as of 2025. |
+| Return weekday | Operator window + a **route-specific** secondary list (P2PBUS returns) | Operator window + **sibling-route** pattern only (R-A) or a constructed turnaround (R-B) | **No.** There is no route-specific return source. |
+| Return weekend | Operator window + an assumed 30-minute pattern (disclosed) | The same assumption (RS-A) or the route's 45-minute interval (RS-B) | **Borderline**, at the same level as Pandi's weekend, but with two competing intervals |
+
+### 8.6 Recommendation
+
+**Remain outside the build for now. Neither the first batch nor a development-only build.**
+
+**Why not the first batch:**
+- Two of the four direction/day-type cells are below the threshold applied to Pandi and Plaridel: the weekend
+  outbound, and the weekday return.
+- For the weekend outbound, the plausible sequences disagree on **61–98%** of arrival minutes. A countdown would be
+  wrong more often than right under at least one of them.
+
+**Why not a development-only build:**
+- The current device-test configuration has no mechanism to put catalogue routes **only** in development builds. The
+  release guard compares builds, and the capacity fixture is a separate environment.
+- Adding a dev-only catalogue gate would be new application architecture, which is outside the agreed scope.
+- A dev-only board would also show unsupported return times as a countdown, which helps little in the field.
+
+**What would make it ready.** All three are things the owner can photograph on one commute:
+1. **The TriNoma → Guiguinto terminal notice at TriNoma.** This lifts the return to the Pandi/Plaridel level or above.
+2. **The current WalterMart Guiguinto weekend notice.** This settles S-A / S-B / S-C.
+3. **Optionally, the current Guiguinto weekday notice.** This confirms the 2025 list for 2026.
+
+With (1) and (2), Guiguinto would likely qualify as PROVISIONAL in both directions. The outbound weekday is already
+the best-evidenced Bulacan P2P weekday sequence in the catalogue.
+
+**Kept on record for later reconciliation:** the outbound weekday sequence (§8.2) and every candidate (§8.3–8.4).
