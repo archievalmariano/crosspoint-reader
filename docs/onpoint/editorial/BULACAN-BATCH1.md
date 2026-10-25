@@ -1,0 +1,223 @@
+# BULACAN batch 1: implementation plan and directional timetables
+
+**Status:** implemented locally on `feature/onpoint-stage2` at `1aaedbf4`, for a **local development build** and
+Codex's data-integrity review.
+
+**Not done:** push, release or device flash. Those need separate approval.
+
+**Scope (owner decision, 2026-10-25):** six BULACAN pairs.
+- **In:** Balagtas, Caypombo, Pandi, Plaridel ↔ TriNoma, Malolos and Guiguinto.
+- **Deferred:** Plaridel ↔ SM North EDSA.
+- **Excluded:** Angat ↔ Monumento ("Route 9", variable interval).
+
+**Evidence:**
+- [BULACAN-EVIDENCE-REGISTER.md](BULACAN-EVIDENCE-REGISTER.md): the sources.
+- [BULACAN-READINESS.md](BULACAN-READINESS.md): the reasoning. §8 covers the Guiguinto alternatives.
+
+## 1. Provenance classes
+
+Every departure belongs to one class:
+
+| Class | Meaning |
+|---|---|
+| **PUB** | **Operator-published:** a first or last trip stated by the operator, or a departure derived from operator first/last trips plus an **operator-stated** interval |
+| **SEC** | **Secondary source:** an interior departure taken from P2PBus.ph's undated route-specific list, inside operator first/last trips |
+| **HIST** | **Historical primary:** printed on a photographed terminal notice (WalterMart Guiguinto, photo posted 2025-09-12) |
+| **ASSUMED** | **Pattern-assumed:** an interior departure from an interval no source lists for that day type or direction |
+| **RECON** | **Reconstructed:** a Guiguinto departure chosen from analysed alternatives (owner-approved development reconstruction) |
+
+**Status labels** (ON POINT's only two):
+- **PUBLISHED** only where every departure is PUB and no material conflict remains.
+- **PROVISIONAL** for everything else.
+- The firmware holds one status per direction, so a direction is as strong as its weakest rule.
+
+## 2. Catalogue
+
+| Index | Route ID (outbound) | Schedules | Origin → destination | Operator | Collection |
+|---|---|---|---|---|---|
+| 0 | `p2p-balagtas-trinoma` | 0 / 1 | BALAGTAS ↔ TRINOMA | Bulacan P2P | bulacan (default) |
+| 1 | `p2p-caypombo-sm-north-edsa` | 2 / 3 | CAYPOMBO ↔ SM NORTH EDSA | Precious Grace | bulacan |
+| 7 | `p2p-pandi-trinoma` | 14 / 15 | PANDI ↔ TRINOMA | Bulacan P2P | bulacan |
+| 8 | `p2p-plaridel-trinoma` | 16 / 17 | PLARIDEL ↔ TRINOMA | Bulacan P2P | bulacan |
+| 9 | `p2p-malolos-trinoma` | 18 / 19 | MALOLOS ↔ TRINOMA | Precious Grace | bulacan |
+| 10 | `p2p-guiguinto-trinoma` | 20 / 21 | GUIGUINTO ↔ TRINOMA | Bulacan P2P | bulacan |
+
+- **Appended, not inserted:** indices 0–6 and every existing route ID are unchanged, so saved main routes and
+  collection defaults keep resolving.
+- **Catalogue size:** 7 → 11 pairs (14 → 22 schedules). BULACAN goes from 2 to 6 members, which is two list pages.
+- **Catalogue `effectiveDate`:** 2026-09-01 for all six pairs (decision default, §6). This is an internal valid-from
+  date, distinct from the operators' post dates and effective dates (register §2).
+
+## 3. Directional timetables
+
+`a–b /30` means every 30 minutes from a to b inclusive. "SSH" means Saturday, Sunday and the 2026 non-working
+holidays (date overrides).
+
+### 3.1 Balagtas ↔ TriNoma (Bulacan P2P): PROVISIONAL / PROVISIONAL (shipped arrays, unchanged)
+
+| Direction | Mon–Fri | SSH |
+|---|---|---|
+| Balagtas → TriNoma | 04:30–20:00 /30 (32). Ends PUB, interior SEC. | 05:00–20:00 /30 (31). Ends PUB, interior ASSUMED. |
+| TriNoma → Balagtas | 06:00–22:30 /30 (34). Ends PUB, interior SEC. | 06:30–22:30 /30 (33). Ends PUB, interior ASSUMED. |
+
+- **Relabel:** PUBLISHED → PROVISIONAL.
+- **Known tension:** the only Bulacan P2P weekend lists found (Guiguinto, 2025) run every 45 minutes.
+- **Stop:** Bocaue Crossing is a stop on this service, not shown.
+
+### 3.2 Caypombo ↔ SM North EDSA (Precious Grace): **PUBLISHED** / PROVISIONAL
+
+| Direction | Daily |
+|---|---|
+| Caypombo → SM North EDSA | 05:00–**20:30** /30 (32), all PUB (PG-P-0313). **Adds 20:30**, superseding the 2025-12-30 graphic's 20:00. |
+| SM North EDSA → Caypombo | 06:00–22:30 /30 (34), all PUB, unchanged |
+
+- **Why the return is PROVISIONAL:** the operator's single "North EDSA (TriNoma and SM)" row doesn't say which stop
+  the time applies to, or whether each destination departs every 30 minutes.
+- **No holiday overrides:** the operator calls it "DAILY".
+- **Note text:** the unsourced "may shift with ridership" wording is removed from the code comment (decision
+  default, §6).
+
+### 3.3 Pandi ↔ TriNoma (Bulacan P2P): PROVISIONAL / PROVISIONAL (new)
+
+| Direction | Mon | Tue–Fri | SSH |
+|---|---|---|---|
+| Pandi → TriNoma | 03:30–19:30 /30 (33) | 04:30–19:30 /30 (31) | 04:30–19:30 /30 (31) |
+| TriNoma → Pandi | 06:00–21:30 /30 (32), the same as Tue–Fri | 06:00–21:30 /30 (32) | 06:30–21:30 /30 (31) |
+
+- **Classes:** all ends PUB (BP2P-0830). Weekday interiors SEC.
+- **Where P2PBus.ph falls short:** its list stops at 19:00 (out) and 21:00 (back). The operator's 19:30 and 21:30
+  last trips are PUB and govern.
+- **Monday 04:00 is ASSUMED**: between the operator's 03:30 and the P2PBus.ph 04:30 start. SSH interiors are ASSUMED.
+- **Encoding:** Tue–Fri and SSH share one array, rule mask Tue–Sat + Sun.
+
+### 3.4 Plaridel ↔ TriNoma (Bulacan P2P): PROVISIONAL / PROVISIONAL (new)
+
+| Direction | Mon | Tue–Fri | SSH |
+|---|---|---|---|
+| Plaridel → TriNoma | 03:30–20:30 /30 (35) | 04:00–20:30 /30 (34) | 04:30–20:30 /30 (33) |
+| TriNoma → Plaridel | 06:00–21:00 /30 (31) | 06:00–21:00 /30 (31) | 06:30–21:00 /30 (30) |
+
+- **Classes:** all ends PUB. Tue–Fri interiors SEC: P2PBus.ph matches the operator window exactly. Monday 03:30 is
+  PUB; the Monday trips before 04:00 and all SSH interiors are ASSUMED.
+- **Return:** P2PBus.ph's 05:30–22:00 overrun is not adopted.
+- **Identity:** one through-service via TriNoma and SM North. These are boarding-terminal departures from Plaridel
+  and from TriNoma.
+- **Not adopted:** Sakay's 75-minute list, an undated contradiction. SM North times are not derived from these.
+
+### 3.5 Malolos ↔ TriNoma (Precious Grace): **PUBLISHED** / PROVISIONAL (new)
+
+| Direction | Daily |
+|---|---|
+| Malolos → TriNoma | 05:00–20:00 /30 (31), all PUB (PG-P-0313; PG-P-20251230 agrees) |
+| TriNoma → Malolos | 06:00–22:30 /30 (34). PUB pattern, but the North EDSA row is ambiguous, so PROVISIONAL. |
+
+**Not adopted** (undated secondary): P2PBus.ph's hourly midday, and Sakay's "UBE Express" hourly list. The attribution
+is Precious Grace.
+
+### 3.6 Guiguinto ↔ TriNoma (Bulacan P2P): PROVISIONAL / PROVISIONAL (new, development reconstruction)
+
+**Guiguinto → TriNoma, Mon–Fri (27). Ends PUB + HIST; interior HIST (TN-GUI-20250912):**
+- 04:30, 05:00, 05:30, 06:00, 06:30, 07:00, 07:30, 08:00, 08:30, 09:00, 09:30, 10:00, 10:45, 11:30;
+- 12:15, 13:00, 13:45, 14:30, 15:00, 15:30, 16:00, 16:30, 17:00, 17:30, 18:00, 18:45, 19:30.
+
+**Guiguinto → TriNoma, SSH (21). Candidate S-C, selected:**
+
+| Departure | Class |
+|---|---|
+| **05:00** | PUB (2026 first trip; RECON placement: replaces the 2025 Sunday 04:45, which falls outside the 2026 window) |
+| 05:30, 06:15, 07:00, 07:45, 08:30, 09:15, 10:00, 10:45, 11:30, 12:15, 13:00, 13:45, 14:30, 15:15, 16:00, 16:45, 17:30, 18:15, 19:00 | HIST (the 2025 **Sunday** list), **applied to Saturday and holidays as RECON** |
+| 19:30 | PUB + HIST |
+
+**TriNoma → Guiguinto, Mon–Fri (32). Candidate R-A, selected:** 06:00–21:30 /30. Ends PUB; 30 interior departures
+RECON.
+
+**TriNoma → Guiguinto, SSH (21). Candidate RS-B, selected:** 06:30, 07:15, 08:00, 08:45, 09:30, 10:15, 11:00, 11:45,
+12:30, 13:15, 14:00, 14:45, 15:30, 16:15, 17:00, 17:45, 18:30, 19:15, 20:00, 20:45, 21:30. Ends PUB; 19 interior
+departures RECON.
+
+**Why these candidates (alternatives in readiness §8, all retained):**
+
+| Cell | Selected | Why | Alternatives and expected discrepancy |
+|---|---|---|---|
+| Out SSH | **S-C** | The only candidate whose every time is PUB or HIST. It needs no unsupported closing trip (S-B's 19:15) and keeps no trip known to be outside the 2026 window. | S-A (every 30, 30 trips): mean 11.6 min apart; 61% of arrival minutes ≥ 10 min apart. S-B (every 45 from 05:00): 19.4 min, 98%. S-D rejected (05:00/05:15 pair). **Saturday risk:** if Saturdays still follow the 2025 Saturday grid, every interior departure is 15 minutes off. |
+| Back Mon–Fri | **R-A** | The same method as every other Bulacan P2P return in this batch. R-B's constant turnaround is falsified at the end (a 120-minute last-trip gap against 90). | R-B (mirrored, 28 trips): mean 4.8 min; 25% of minutes ≥ 10 min apart, concentrated 12:00–16:00 and after 19:30. R-A shows 4 more trips than R-B. |
+| Back SSH | **RS-B** | Consistent with the selected 45-minute weekend outbound. The 06:30 + 45k grid lands exactly on the operator's 21:30. | RS-A (every 30, 31 trips): mean 12.5 min; 66% of minutes ≥ 10 min apart. RS-B shows 10 fewer trips. |
+
+**Notes and disclosure:**
+- The firmware notes read "Development reconstruction".
+- **Nothing claims operator endorsement of the intermediate times.**
+
+**Release check (owner, 2026-10-25):** Guiguinto's inferred countdowns are **approved for a local development build
+only.**
+- Before any public release, a current terminal timetable or equivalent operator confirmation is required.
+- If it is still unavailable at relaunch, the publication decision goes back to the owner.
+- Recorded in §5 as a release-blocking item.
+
+## 4. Holidays
+
+- **Bulacan P2P directions** (Balagtas, Pandi, Plaridel and Guiguinto, both ways) override the **21 2026 non-working
+  days** with their SSH array.
+  - New pairs use a `holidays2026()` helper over the existing `HOLIDAYS_2026` list.
+  - Balagtas's hand-written overrides are untouched. They are what the 2027 branch edits.
+- **Precious Grace** (DAILY): no overrides.
+- **2027 gap, kept open:**
+  - The unreleased `feature/ph-holidays-2027` branch adds 2027 overrides for **Balagtas only**.
+  - After it merges, Pandi, Plaridel and Guiguinto would still fall back to weekday timetables on 2027 holidays.
+  - Reconciling 2027 means adding their 2027 overrides and confirming the operator's 2027 holiday policy. That is
+    separate work.
+
+## 5. Release checks (blocking any public release of this batch)
+
+1. **Guiguinto, both directions:** a current terminal timetable or operator confirmation, or an explicit owner
+   publication decision (§3.6).
+2. **2027 holidays** for every Bulacan P2P direction (§4), before 2027-01-01 service is relied on.
+3. **The Plaridel ↔ SM North designation**, if it is later chosen to replace `p2p-plaridel-trinoma`. Saved main routes
+   would fall to the no-main state.
+4. **Device validation:** a v1.2.1-integrated development image and hardware check on the X4 Pro (BULACAN's two-page
+   list, label fit). That needs separate approval.
+
+## 6. Decision defaults applied (owner to confirm)
+
+| Open decision | Default applied | Alternative |
+|---|---|---|
+| Catalogue `effectiveDate` | 2026-09-01 for all six pairs | Each route's post date |
+| "May shift with ridership" wording | Removed (no source contains it) | Restore it in the Caypombo note |
+| 2027 holiday gap | Documented, not fixed (§4) | Add 2027 overrides once the 2027 branch is reconciled |
+
+## 7. Verification (local)
+
+**Host tests: 697/697.** That is the previous 692 plus 5 new `OnPointBulacanDataTest` tests:
+- every direction against an independent "HH:MM" transcription;
+- holiday policy per operator;
+- operator endpoints;
+- collection membership;
+- on-device day-type resolution (Monday, a Monday holiday, Saturday, Sunday).
+
+**Mutation checks:** all caught.
+
+| Mutation | Tests failing |
+|---|---|
+| Guiguinto 10:45 → 10:40 | 4 |
+| Caypombo outbound PUBLISHED → PROVISIONAL | 2 + 4 |
+| Pandi holiday overrides removed | 2 |
+| Pandi Monday rule disabled | 1 + 2 |
+| Guiguinto weekend 19:00 dropped | 4 |
+
+**Updated expectations, each tied to the data change:**
+- schedule test (route count, statuses, sort order, Caypombo 20:30);
+- route-list golden: regenerated from the v1.2.0 reference functions; that generator reproduces the old 7-route golden
+  exactly, 56/56 rows;
+- four departure-golden rows (Caypombo last 20:30);
+- region membership and synthetic validation tables;
+- six activity tests: BULACAN now has two pages, and the one-page swipe check moved to Airport Transfers;
+- the invalid-catalogue stub.
+
+**Builds:**
+
+| Image | Size | SHA-256 | Notes |
+|---|---|---|---|
+| `x4pro-all-gh_release` | 5,780,656 B | `18841263…` | Headroom 772,944 B (11.8%) in `0x640000`; no ON POINT warnings |
+| `x4pro-all-devtest` | 5,755,056 B | `4eb80792…` | Not v1.2.1-integrated, and **not installed** |
+
+- **`pio check`:** PASSED.
+- **V0–V3 matrix:** results recorded in the review brief.

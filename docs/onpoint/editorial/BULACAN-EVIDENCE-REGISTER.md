@@ -426,6 +426,7 @@ These can still be offered as PROVISIONAL with first and last trips.
 | Date | Change |
 |---|---|
 | 2026-10-25 | Register created (research pass 1). Sources accessed on 2026-10-25. |
+| 2026-10-25 | Batch 1 implemented (`1aaedbf4`). Per-departure provenance classes and release checks are in [BULACAN-BATCH1.md](BULACAN-BATCH1.md). |
 | 2026-10-25 | Pass 7: TN-GUI-20250912 and TN-GUI-0331 added. See BULACAN-READINESS.md §7. |
 | 2026-10-25 | Pass 6: TN-GUI-20250625 and COM-PLR-20250705 added. See BULACAN-READINESS.md §6. |
 | 2026-10-25 | Pass 5: dated Precious Grace posts added to §2. Readiness updated in [BULACAN-READINESS.md](BULACAN-READINESS.md). |

@@ -1,5 +1,9 @@
 # BULACAN implementation readiness (passes 4–8)
 
+> **Implemented:** the six-route batch is implemented at `1aaedbf4`. Guiguinto is included by owner decision as a
+> development reconstruction. The timetables, provenance and release checks are in
+> [BULACAN-BATCH1.md](BULACAN-BATCH1.md).
+
 **Basis:** the reconciliation at `befc5eeb` ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md)), as accepted by
 the owner, re-assessed under the owner's standard of 2026-10-25. Documentation only. No firmware data, status label,
 holiday rule or route entry was changed. No build, flash, push or release.

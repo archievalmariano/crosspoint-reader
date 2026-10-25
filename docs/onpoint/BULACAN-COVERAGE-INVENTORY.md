@@ -175,3 +175,11 @@ TriNoma and Malolos.
 - **March 2026 Guiguinto photo:** archived as a possible disruption-period schedule.
 
 See [editorial/BULACAN-READINESS.md](editorial/BULACAN-READINESS.md) §7.
+
+**Batch 1 implemented (2026-10-25, local, `1aaedbf4`):** six BULACAN pairs (Balagtas, Caypombo, Pandi, Plaridel ↔
+TriNoma, Malolos, Guiguinto).
+- **Guiguinto** is a development reconstruction and is **not cleared for public release**.
+- **Plaridel ↔ SM North:** deferred.
+- **Angat ↔ Monumento:** excluded.
+
+See [editorial/BULACAN-BATCH1.md](editorial/BULACAN-BATCH1.md).
