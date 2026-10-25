@@ -47,6 +47,12 @@ The owner's own screenshots are the evidence copies.
 
 ### 1.2 Precious Grace: owner-supplied graphics (not seen by Claude)
 
+> **Pass 4 update:** the owner supplied the screenshots, and they are now seen. The values below are confirmed.
+> - **PG-G2 is headed "P2P DAILY TRIP SCHEDULE".**
+> - The yellow Angat graphic's post caption refers to a last-trip policy "as of May 1, 2026".
+>
+> See [BULACAN-READINESS.md](BULACAN-READINESS.md).
+
 The two Precious Grace graphics are referred to in the brief, but the images were **not available in this session**.
 The values below are the owner's transcription. Post permalinks, publication dates and any day-type wording are
 **unknown**. PG's public page shows only its intro (register §3).
@@ -242,4 +248,5 @@ departures, or an interval, by destination. Use three day types for the Bulacan 
 
 | Date | Change |
 |---|---|
+| 2026-10-25 | Pass 4: owner screenshots seen. The readiness table is in BULACAN-READINESS.md. |
 | 2026-10-25 | Created (pass 3). BP2P-0830 accessed directly and transcribed per image. PG graphics recorded from the owner's transcription. P2PBUS re-read for all 11 Bulacan pages. |

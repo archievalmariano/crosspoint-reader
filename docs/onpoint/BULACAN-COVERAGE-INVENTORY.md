@@ -152,3 +152,10 @@ Each direction is reconciled in [editorial/BULACAN-RECONCILIATION.md](editorial/
 - **NEEDS RECONCILIATION:** everything else.
 
 The recommended next batch relabels the shipped Balagtas and Caypombo schedules PROVISIONAL and adds no routes.
+
+**Pass 4 (2026-10-25):** [editorial/BULACAN-READINESS.md](editorial/BULACAN-READINESS.md) applies the owner's
+PUBLISHED / PROVISIONAL / NOT COUNTDOWN-READY standard.
+- **Proposed first batch:** Balagtas, Caypombo, Pandi, Plaridel ↔ TriNoma and Malolos. That is five pairs, with
+  Malolos outbound PUBLISHED.
+- **Held:** Plaridel ↔ SM North, Guiguinto and Angat ↔ Monumento.
+- **The 2027 holiday gap (§2) remains open.**
