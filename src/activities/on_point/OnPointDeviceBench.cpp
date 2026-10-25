@@ -7,9 +7,12 @@
 
 #include <Logging.h>
 #include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 
 #include "../../../test/fixtures/on_point/LegacyRouteList.h"
 #include "activities/on_point/OnPointActivity.h"
@@ -47,6 +50,8 @@ void report(const char* label, Fn&& fn) {
 
 }  // namespace
 
+void logStacks(const char* where);
+
 void runOnEnter() {
   const size_t n = on_point::routeCount();
   const size_t main = n / 2;
@@ -72,6 +77,28 @@ void runOnEnter() {
   const on_point::Schedule& schedule = on_point::scheduleForRoute(selected, false);
   report("departure_state",
          [&] { sink = sink + on_point::getDepartureState(schedule, {2026, 10, 21, 0, 30, 0}).followingCount; });
+
+  // Every schedule (both directions) on a Wednesday at 08:30 and at 22:30 Manila: the morning
+  // case finds its trips on the day; the late one looks past midnight into the next day.
+  constexpr on_point::CivilDateTime INSTANTS[] = {{2026, 10, 21, 0, 30, 0}, {2026, 10, 21, 14, 30, 0}};
+  constexpr const char* INSTANT_NAMES[] = {"0830", "2230"};
+  for (size_t route = 0; route < n; ++route) {
+    for (const bool reversed : {false, true}) {
+      const on_point::Schedule& s = on_point::scheduleForRoute(route, reversed);
+      for (size_t i = 0; i < 2; ++i) {
+        char label[80];
+        snprintf(label, sizeof(label), "departure_state[%s@%s]", s.routeId, INSTANT_NAMES[i]);
+        report(label, [&] { sink = sink + on_point::getDepartureState(s, INSTANTS[i]).followingCount; });
+      }
+    }
+  }
+  logStacks("enter");
+}
+
+void logStacks(const char* where) {
+  // Free stack, in bytes, at its lowest so far, of the calling task.
+  LOG_INF("ONPTB", "stack %s task=%s low_water_bytes=%u", where, pcTaskGetName(nullptr),
+          static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr) * sizeof(StackType_t)));
 }
 
 }  // namespace on_point_bench

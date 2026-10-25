@@ -19,8 +19,9 @@
 #include <esp_timer.h>
 
 namespace on_point_bench {
-void runOnEnter();  // test/fixtures/on_point/device (x4pro-all-capacity-bench only)
-}
+void runOnEnter();  // OnPointDeviceBench.cpp (dev builds only)
+void logStacks(const char* where);
+}  // namespace on_point_bench
 #endif
 
 namespace {
@@ -145,6 +146,8 @@ void OnPointActivity::onEnter() {
   cleanRefresh = true;
   fastRefreshCount = 0;
 #ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "store source=%d read_only=%d region=%u has_main=%d", static_cast<int>(store.source()),
+          store.readOnly() ? 1 : 0, static_cast<unsigned>(region), routeList.hasMainRoute() ? 1 : 0);
   on_point_bench::runOnEnter();
 #endif
   updateState();
@@ -219,7 +222,12 @@ void OnPointActivity::selectCollection(const size_t index) {
     closeCollectionPicker();
     return;
   }
-  store.setActiveRegion(index);  // a failed or read-only save shows NOT SAVED
+  [[maybe_unused]] const auto outcome = store.setActiveRegion(index);  // a failed or read-only save shows NOT SAVED
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "save collection=%u outcome=%d unsaved=%d", static_cast<unsigned>(index), static_cast<int>(outcome),
+          store.hasUnsavedChanges() ? 1 : 0);
+  on_point_bench::logStacks("save");
+#endif
   region = index;
   buildRouteList();
   routeIndex = routeList.pinnedRoute();
@@ -247,7 +255,12 @@ void OnPointActivity::selectDisplayIndex(const size_t displayIndex) {
 void OnPointActivity::setSelectedAsMainRoute() {
   if (routeList.count() == 0 || routeList.isMainRoute(routeIndex)) return;
   // This collection's main route, in onpoint.json; a failed or read-only save shows NOT SAVED.
-  store.setDefaultRoute(region, on_point::routeAt(routeIndex).routeId);
+  [[maybe_unused]] const auto outcome = store.setDefaultRoute(region, on_point::routeAt(routeIndex).routeId);
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "save default collection=%u route=%s outcome=%d unsaved=%d", static_cast<unsigned>(region),
+          on_point::routeAt(routeIndex).routeId, static_cast<int>(outcome), store.hasUnsavedChanges() ? 1 : 0);
+  on_point_bench::logStacks("save");
+#endif
   buildRouteList();
   cleanRefresh = true;
   requestUpdate();
@@ -903,5 +916,6 @@ void OnPointActivity::render(RenderLock&&) {
   LOG_INF("ONPTB", "render view=%d mode=%d draw_us=%lld refresh_us=%lld", static_cast<int>(view),
           static_cast<int>(mode), static_cast<long long>(refreshStart - drawStart),
           static_cast<long long>(esp_timer_get_time() - refreshStart));
+  on_point_bench::logStacks("render");
 #endif
 }
