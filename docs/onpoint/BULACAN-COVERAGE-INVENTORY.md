@@ -141,3 +141,14 @@ All seven decisions above were taken by the owner:
 **Research pass 1** is recorded in [editorial/BULACAN-EVIDENCE-REGISTER.md](editorial/BULACAN-EVIDENCE-REGISTER.md):
 the evidence register, the route-identity assessment, the coverage gaps and the ranked shortlist. No firmware,
 timetable, label or holiday rule was changed.
+
+**Pass 3 (2026-10-25):** the owner approved an **eight-route BULACAN catalogue**:
+- Balagtas, Pandi, Plaridel ↔ TriNoma, Plaridel ↔ SM North, Guiguinto (all Bulacan P2P);
+- Caypombo, Malolos, Angat ↔ Monumento (all Precious Grace).
+
+Each direction is reconciled in [editorial/BULACAN-RECONCILIATION.md](editorial/BULACAN-RECONCILIATION.md):
+- **READY:** only the Balagtas Monday–Friday directions, as PROVISIONAL.
+- **NOT COUNTDOWN-READY:** Guiguinto (no departure list) and Angat ↔ Monumento (variable 10–30-minute interval).
+- **NEEDS RECONCILIATION:** everything else.
+
+The recommended next batch relabels the shipped Balagtas and Caypombo schedules PROVISIONAL and adds no routes.

@@ -89,6 +89,13 @@ Quezon City (Trinoma) and vice versa with pick up and drop off at Bocaue tolgate
 
 ## 4. Existing firmware schedules: re-verification
 
+> **Superseded in part by pass 3 ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md)).**
+> - **Balagtas:** Bulacan P2P post BP2P-0830 (dated "August 30", year not shown; read directly on 2026-10-25) now
+>   supports **every** shipped Balagtas window, including the Sat/Sun/Holiday grouping.
+> - **Caypombo:** the shipped arrays equal the derivation from owner-supplied Precious Grace graphic PG-G1, but
+>   conflict with PG-G2 (last trip 20:30).
+> - **Unchanged from pass 1:** the conflicts with secondary sources recorded below.
+
 All four are labelled PUBLISHED (`SourceStatus::Verified`), effective 2026-09-01, from commit `ceebac2a`
 (2026-09-26). **No URL or date was recorded for the "official post" they cite.**
 
@@ -352,6 +359,9 @@ current source.
 
 ## 9. Ranked shortlist, with the exact evidence needed for PUBLISHED
 
+> **Superseded by the owner's approved eight-route catalogue (brief of 2026-10-25) and by pass 3
+> ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md) §5).** Kept below as a record.
+
 ### What every promotion requires
 
 1. **A dated operator publication, directly accessed.** One of:
@@ -409,4 +419,5 @@ These can still be offered as PROVISIONAL with first and last trips.
 | Date | Change |
 |---|---|
 | 2026-10-25 | Register created (research pass 1). Sources accessed on 2026-10-25. |
+| 2026-10-25 | Pass 3: reconciliation of the approved eight-route catalogue in [BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md). Supersession notes added to §4 and §9. |
 | 2026-10-25 | Pass 2: §5 rewritten as a service-identity methodology and matrix. Owner's firsthand observations O1–O4 added (OBS: historical, not timetable evidence). Bocaue Crossing reclassified from candidate route to a stop on Balagtas. Plaridel split into an identity question (TriNoma vs SM North). Sources LAM-2022, CT-WM, P2PBUS-PLR and ETIGO added. A search for dated operator FB permalinks found none. |
