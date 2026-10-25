@@ -1,8 +1,40 @@
 # BULACAN implementation readiness (passes 4–8)
 
-> **Implemented:** the six-route batch is implemented at `1aaedbf4`. Guiguinto is included by owner decision as a
-> development reconstruction. The timetables, provenance and release checks are in
-> [BULACAN-BATCH1.md](BULACAN-BATCH1.md).
+## Current recommendation (2026-10-26)
+
+**The approved first batch is six BULACAN pairs**, implemented on `feature/onpoint-stage2` (`1aaedbf4`…`532fc156`)
+and reviewed by Codex as PASS WITH CONDITIONS. The timetables, the provenance class of every departure and the release
+checks are in [BULACAN-BATCH1.md](BULACAN-BATCH1.md).
+
+| Pair | Outbound / return | Basis |
+|---|---|---|
+| Balagtas ↔ TriNoma | PROVISIONAL / PROVISIONAL | Operator first/last trips; P2PBus.ph weekday interval; weekend interval assumed |
+| Caypombo ↔ SM North EDSA | PUBLISHED / PROVISIONAL | Precious Grace 2026-03-13 daily schedule (last trip 20:30) |
+| Pandi ↔ TriNoma | PROVISIONAL / PROVISIONAL | As Balagtas, with a separate Monday rule |
+| Plaridel ↔ TriNoma | PROVISIONAL / PROVISIONAL | As Pandi. A through-service; SM North times are not derived. |
+| Malolos ↔ TriNoma | PUBLISHED / PROVISIONAL | Precious Grace 2026-03-13 daily schedule |
+| **Guiguinto ↔ TriNoma** | PROVISIONAL / PROVISIONAL | **Owner-approved development reconstruction** (§8 candidates S-C, R-A, RS-B) |
+
+**Guiguinto, stated precisely:**
+- The weekday outbound departures are the 2025 terminal notice's.
+- The weekend outbound and every return departure are **reconstructed**. The operator states only the first and last
+  trips.
+- **No intermediate Guiguinto time is operator-confirmed.**
+- **Approved for a local development build only.** Before any public release, a current terminal timetable or
+  operator confirmation is required, or the publication decision goes back to the owner (BATCH1 §5).
+
+**Still not in the catalogue:**
+- **Plaridel ↔ SM North EDSA:** a documented candidate, pending SM North boarding-terminal departures.
+- **Angat ↔ Monumento:** excluded ("Route 9", variable interval).
+
+> **Historical findings.** The sections below record the reasoning as it developed, passes 4 to 8, and are kept
+> unchanged as a record.
+> - **The five-route recommendation** (§7.8) and **§8.6's recommendation to keep Guiguinto out** are earlier
+>   analytical positions.
+> - The owner superseded them by deciding to include Guiguinto in the development batch, while accepting the
+>   uncertainty §8 quantifies.
+> - The evidence concerns in §6.4, §7.5 and §8.3–8.5 **still apply**: they are the reason for the PROVISIONAL label and
+>   the public-release condition.
 
 **Basis:** the reconciliation at `befc5eeb` ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md)), as accepted by
 the owner, re-assessed under the owner's standard of 2026-10-25. Documentation only. No firmware data, status label,
@@ -99,7 +131,7 @@ first trip to the last, inclusive. Counts are trips.
 | Caypombo | — | Outbound: none material (G2 is current by chronology). Return: the North EDSA ambiguity. Undated directory midday gaps. |
 | Angat ↔ Monumento | **A fixed departure sequence** (the interval is variable) | — |
 
-## Recommended first implementation batch (needs separate authorisation)
+## Recommended first implementation batch (needs separate authorisation) *(historical)*
 
 **The largest defensible batch: five BULACAN pairs, ten directions.**
 
@@ -169,6 +201,7 @@ fixture. BULACAN goes from 2 to 5 routes.
 
 | Date | Change |
 |---|---|
+| 2026-10-26 | Current recommendation added: the six-route batch, owner-approved, Codex PASS WITH CONDITIONS. Passes 4–8 recommendations marked historical. Guiguinto's evidence concerns and release condition retained. |
 | 2026-10-25 | Pass 4: readiness under the owner's standard |
 | 2026-10-25 | **Pass 8:** Guiguinto triangulation. The weekday outbound is documented. The weekend outbound and returns are reconstructed as competing candidates with quantified disagreement. Below the Pandi/Plaridel threshold for the weekend outbound and the weekday return. Recommendation: outside the build. |
 | 2026-10-25 | **Pass 7:** Guiguinto photos of Sep 2025 (clean) and Mar 31 (possible disruption, excluded). The owner reinstates the five-route batch, with Plaridel ↔ TriNoma retained. Guiguinto outbound weekday is a candidate, but the weekend conflicts and there is no return: NOT COUNTDOWN-READY. |
@@ -467,7 +500,7 @@ TriNoma departures *are* boarding-terminal departures.
 main-route choices would then need the store's existing unknown-ID handling (the no-main state). Record that before
 release.
 
-### 7.8 Recommendation
+### 7.8 Recommendation *(historical: the five-route batch, before Guiguinto was approved)*
 
 **The approved five-route batch is still the best first development batch.**
 
@@ -583,7 +616,7 @@ are shared. **Confidence: low.**
 | Return weekday | Operator window + a **route-specific** secondary list (P2PBUS returns) | Operator window + **sibling-route** pattern only (R-A) or a constructed turnaround (R-B) | **No.** There is no route-specific return source. |
 | Return weekend | Operator window + an assumed 30-minute pattern (disclosed) | The same assumption (RS-A) or the route's 45-minute interval (RS-B) | **Borderline**, at the same level as Pandi's weekend, but with two competing intervals |
 
-### 8.6 Recommendation
+### 8.6 Recommendation *(historical: superseded by the owner's development-batch decision; see the current recommendation above)*
 
 **Remain outside the build for now. Neither the first batch nor a development-only build.**
 
