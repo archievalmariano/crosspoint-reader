@@ -166,3 +166,12 @@ PUBLISHED / PROVISIONAL / NOT COUNTDOWN-READY standard.
 - **Guiguinto:** stays NOT COUNTDOWN-READY. A 2025 terminal timetable was transcribed.
 
 See [editorial/BULACAN-READINESS.md](editorial/BULACAN-READINESS.md) §6.
+
+**Pass 7 (2026-10-25):** the owner reinstated the **five-route first batch**: Balagtas, Caypombo, Pandi, Plaridel ↔
+TriNoma and Malolos.
+- **Plaridel ↔ SM North:** a documented candidate only.
+- **Guiguinto:** stays out. The September 2025 terminal notice supports a weekday outbound candidate, but its weekend
+  lists conflict with the 2026 windows and there is no return list.
+- **March 2026 Guiguinto photo:** archived as a possible disruption-period schedule.
+
+See [editorial/BULACAN-READINESS.md](editorial/BULACAN-READINESS.md) §7.

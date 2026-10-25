@@ -1,4 +1,4 @@
-# BULACAN implementation readiness (passes 4–6)
+# BULACAN implementation readiness (passes 4–7)
 
 **Basis:** the reconciliation at `befc5eeb` ([BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md)), as accepted by
 the owner, re-assessed under the owner's standard of 2026-10-25. Documentation only. No firmware data, status label,
@@ -166,12 +166,13 @@ fixture. BULACAN goes from 2 to 5 routes.
 | Date | Change |
 |---|---|
 | 2026-10-25 | Pass 4: readiness under the owner's standard |
+| 2026-10-25 | **Pass 7:** Guiguinto photos of Sep 2025 (clean) and Mar 31 (possible disruption, excluded). The owner reinstates the five-route batch, with Plaridel ↔ TriNoma retained. Guiguinto outbound weekday is a candidate, but the weekend conflicts and there is no return: NOT COUNTDOWN-READY. |
 | 2026-10-25 | **Pass 6:** the Plaridel identity is one through-service (designation Plaridel ↔ SM North EDSA; TriNoma a stop), deferred. Guiguinto terminal timetable 2025 transcribed: weekday 28, weekend every 45 min; still NOT COUNTDOWN-READY. The weekend 30-minute assumption is contradicted, so Pandi is deferred. Batch: 3 pairs. |
 | 2026-10-25 | **Pass 5:** Precious Grace chronology established from owner screenshots: 2025-12-30 (confirmed), 03-13 and 05-01 (2026 inferred). Caypombo outbound → PUBLISHED with G2's 20:30. Malolos confirmed. The Angat "Route 9" scope flag. Date kinds separated. |
 
 ## Pass 6: Plaridel identity and Guiguinto terminal timetable (2026-10-25)
 
-**Supersedes** the batch recommendation above where they differ. Documentation only.
+**Supersedes** the batch recommendation above where they differ. Documentation only. *(The batch part was itself superseded by pass 7, §7.8: the owner reinstated the five-route batch.)*
 
 ### 6.1 New evidence
 
@@ -331,3 +332,158 @@ accepts a disclosed weekend assumption, Pandi ↔ TriNoma can be added as a four
   also settle the 19:00 vs 19:30 last trip.
 - **Guiguinto:** the 2026 weekend list and any TriNoma → Guiguinto list.
 - **Balagtas:** a weekend list, to confirm or correct the shipped weekend arrays.
+
+## Pass 7: Guiguinto terminal photos and owner decisions (2026-10-25)
+
+**Owner decisions recorded. They supersede §6.6 where different.**
+1. **The approved five-route batch stands:** Balagtas, Caypombo, Pandi, Plaridel ↔ TriNoma and Malolos. Each uses its
+   defensible PROVISIONAL pattern and the agreed directional PUBLISHED classifications.
+2. **Plaridel ↔ TriNoma stays in the batch.** The shared TriNoma/SM North journey is investigated, but the stops'
+   times are never treated as interchangeable.
+3. **Plaridel ↔ SM North EDSA** is a documented candidate only, until boarding-terminal-specific departures exist.
+4. **Photographed terminal timetables** are primary historical operational evidence. A post date shows when the photo
+   was posted, not when the schedule took effect.
+5. **The March 31 photo is excluded** from the normal-service sequence and archived as a **possible disruption-period
+   schedule**. The owner notes that bus operators reduced trips during the March 2026 fuel-price crisis. There is no
+   proof that this caused the Guiguinto changes.
+6. **Terminal photos are not a prerequisite** for routes that already have defensible provisional evidence.
+
+### 7.1 New evidence
+
+| ID | What | Date | Class |
+|---|---|---|---|
+| **TN-GUI-20250912** | A photo of the printed WalterMart Guiguinto – TriNoma terminal notice: Monday–Friday, plus separate **Saturday** and **Sunday** lists. A boxed "HOLIDAY" label sits on the Saturday heading. File `TN-GUI-20250912-photo.webp` (`2f5c4bc5…`). | Photo post **2025-09-12 (year shown)**. The notice is undated. | Terminal notice (primary, historical) |
+| **TN-GUI-0331** | The same printed notice, with handwritten weekday-afternoon changes. File `TN-GUI-0331-POSSIBLE-DISRUPTION.webp` (`61aeea97…`). | Photo post "March 31". **The year isn't shown.** 2026 is likely by Facebook convention but not confirmed. | **Possible disruption-period schedule.** Archived, and excluded from the candidate. |
+
+### 7.2 Transcription: TN-GUI-20250912 (all printed; no handwriting; legibility good)
+
+**Monday–Friday (27):**
+- 04:30, 05:00, 05:30, 06:00, 06:30, 07:00, 07:30, 08:00, 08:30, 09:00, 09:30, 10:00, 10:45, 11:30;
+- 12:15 NN, 13:00, 13:45, 14:30, 15:00, 15:30, 16:00, **16:30**, 17:00, 17:30, 18:00, 18:45, 19:30.
+
+**Saturday, with the "HOLIDAY" label (21):** every 45 minutes from 04:30 to 19:30.
+- 04:30, 05:15, 06:00, 06:45, 07:30, 08:15, 09:00, 09:45, 10:30, 11:15;
+- 12:00 NN, 12:45, 13:30, 14:15, 15:00, 15:45, 16:30, 17:15, 18:00, 18:45, 19:30.
+
+**Sunday (21):**
+- 04:45, 05:30, 06:15, 07:00, 07:45, 08:30, 09:15, 10:00, 10:45, 11:30;
+- 12:15 NN, 13:00, 13:45, 14:30, 15:15, 16:00, 16:45, 17:30, 18:15, 19:00, **19:30**.
+- That is every 45 minutes from 04:45 to 19:00, then a 30-minute step to the 19:30 last trip.
+
+**Reading flags:**
+- The "HOLIDAY" box is attached to the Saturday heading. This is read as *holidays use the Saturday list*. Its
+  placement is clear, but it is an attached label, not part of the printed table.
+- The 11:30 AM entries are all printed with AM. No ambiguities remain.
+
+**Against the June 2025 photo (TN-GUI-20250625):**
+- **Weekday:** identical except the 16:00–17:00 segment. June's handwritten 16:20 and 16:40 are replaced by a printed
+  16:30. So the weekday list was revised, and 27 trips replace 28.
+- **Weekend:** June showed one combined Saturday–Sunday list (04:30, every 45). September splits Saturday (04:30
+  start) from **Sunday (04:45 start)**.
+
+### 7.3 Transcription: TN-GUI-0331 (possible disruption period; not a candidate)
+
+**Monday–Friday:**
+- **Printed, unchanged:** the morning is identical to September 2025. The afternoon runs 12:15 NN, 13:00, 13:45,
+  14:30, 15:00, 15:30, 16:00.
+- **Printed and struck through by hand:** 16:30, 17:00, 17:30, 18:00, 18:45, 19:30. The strokes are heavy; the
+  underlying values are inferred from the September print, with which they agree where legible.
+- **Handwritten:** "4 PM ONWARDS MAY BYAHE PA PO." ("From 4 PM onwards there are still trips"), and "LAST TRIP 7:30".
+- **Reading:** after 16:00 the fixed departures were withdrawn. Trips continued at **unspecified** times until 19:30.
+
+**Saturday and Sunday:** printed, and identical to September 2025. No "HOLIDAY" label is visible in this photo.
+
+### 7.4 Comparison with the 2026 operator windows (BP2P-0830)
+
+| Day type | 2026 operator window | TN-GUI-20250912 | Result |
+|---|---|---|---|
+| Mon | 04:30–19:30 | M–F 04:30…19:30 (27) | **Both ends agree** |
+| Tue–Fri | 04:30–19:30 | Same | **Both ends agree** |
+| Sat | **05:00**–19:30 | 04:30…19:30 (every 45) | **The first trip conflicts.** 05:00 isn't on the 04:30 + 45k grid. |
+| Sun | **05:00**–19:30 | 04:45…19:30 | **The first trip conflicts.** 05:00 isn't in the list. |
+| Holiday | **05:00**–19:30 (with Sat/Sun) | The Saturday list (label) | Conflicts as Saturday does. 2026 also groups Saturday and Sunday together, where 2025 split them. |
+
+### 7.5 Guiguinto verdict
+
+**WalterMart Guiguinto → TriNoma, Mon–Fri: a PROVISIONAL candidate is supported.**
+- The **27 printed departures of TN-GUI-20250912**, whose first and last trips equal the 2026 operator window exactly.
+- **Disclose:**
+  - The list dates from 2025 (posted 2025-09-12; effective date unknown).
+  - March 2026 showed a possible disruption after 16:00.
+  - The 2026 sequence hasn't been confirmed.
+
+**Sat/Sun/Holiday: no defensible sequence.**
+- Both 2025 weekend lists start before the 2026 operator's 05:00 first trip.
+- Making them fit would mean removing or shifting times, which is not allowed.
+
+**TriNoma → WalterMart Guiguinto: no evidence at all.** Every photo is of the Guiguinto-origin notice. Nothing will be
+invented.
+
+**Pair verdict: NOT COUNTDOWN-READY. Flagged for later reconciliation.**
+- **It can't be included without inventing departures.** A direction needs every operating day covered; leaving
+  weekends out would show "no service". The return has no departures at all.
+- **What's missing:**
+  1. The 2026 weekend (and holiday) departure list from Guiguinto.
+  2. Any TriNoma → Guiguinto departure list.
+- **Disclosable, not blocking:** whether the September 2025 weekday list is still current.
+
+### 7.6 What the Guiguinto photos say about other Bulacan P2P weekend arrays (disclosure, not a block)
+
+**Pattern:** across three terminal photos (June 2025, September 2025, March 2026), Guiguinto's weekend service was
+**every 45 minutes**, never 30. Weekday service was mostly every 30 minutes, with 45-minute midday gaps. This is one
+route's evidence. It doesn't establish other routes' patterns.
+
+**Effect on the batch:** the Bulacan P2P weekend arrays in the batch assume a 30-minute interval inside the operator's
+weekend windows:
+- Balagtas, shipped;
+- Pandi, new;
+- Plaridel ↔ TriNoma, new.
+
+**Per decision 6, this does not block them.** Their notes and this register must disclose that the weekend
+departures are pattern-assumed, and that the only Bulacan P2P weekend lists found (Guiguinto) run at 45 minutes.
+Photographing the Balagtas, Pandi and Plaridel weekend notices is the **first** target for the next commute.
+
+### 7.7 Plaridel, as directed
+
+**Plaridel ↔ TriNoma (in the batch):** the through-service evidence (§6.5) makes **TriNoma the first North Avenue
+boarding point on the return** (Sakay's stop order; the owner found passengers already aboard at SM North). So
+TriNoma departures *are* boarding-terminal departures.
+- **Return:** M–F 06:00–21:00 and SSH 06:30–21:00, every 30 minutes (BP2P-0830 window, P2PBUS pattern; P2PBUS's
+  05:30–22:00 overrun is not adopted).
+- **Outbound:** the Plaridel stream. Mon 03:30, Tue–Fri 04:00 and SSH 04:30, each to 20:30, every 30 minutes.
+  Disclosed: the operator's single Plaridel row doesn't say whether every departure continues to SM North.
+
+**Plaridel ↔ SM North EDSA (documented candidate only):**
+- SM North departure times are never derived from TriNoma's.
+- **Needed:** the SM North → Plaridel departure list, including the SM North-only trips after 21:00, plus the
+  operator's confirmation of the stop order.
+
+**ID note:** if a single Plaridel ↔ SM North designation is chosen later, it replaces `p2p-plaridel-trinoma`. Saved
+main-route choices would then need the store's existing unknown-ID handling (the no-main state). Record that before
+release.
+
+### 7.8 Recommendation
+
+**The approved five-route batch is still the best first development batch.**
+
+| Pair | Outbound / return | Basis |
+|---|---|---|
+| Balagtas ↔ TriNoma | PROVISIONAL / PROVISIONAL (shipped arrays) | §3 and §7.6 disclosure |
+| Caypombo ↔ SM North EDSA | **PUBLISHED** / PROVISIONAL (outbound to 20:30) | Pass 5 |
+| Pandi ↔ TriNoma | PROVISIONAL / PROVISIONAL | Readiness table; §7.6 disclosure |
+| Plaridel ↔ TriNoma | PROVISIONAL / PROVISIONAL | §7.7 |
+| Malolos ↔ TriNoma | **PUBLISHED** / PROVISIONAL | Pass 5 |
+
+**Why it is the best:**
+- Every direction has a sequence bounded by **operator-stated** first and last trips, with no invented endpoints.
+- The Precious Grace directions rest on an operator-stated interval.
+- The Bulacan P2P weekday directions rest on a secondary route-specific pattern.
+- The Bulacan P2P weekends are the disclosed weak point.
+
+**Guiguinto:** **not included.** It can't be included without inventing weekend and return departures. It is flagged
+for reconciliation once the 2026 weekend notice and a TriNoma → Guiguinto list are photographed.
+
+**Still needed before authorising implementation:**
+- The catalogue `effectiveDate`: 2026-09-01 is recommended.
+- Whether the "may shift with ridership" wording stays in the Caypombo note.
+- The 2027 holiday gap, which widens to three Bulacan P2P routes (Balagtas, Pandi, Plaridel).

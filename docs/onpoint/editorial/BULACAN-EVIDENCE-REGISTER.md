@@ -67,6 +67,8 @@ rule, route entry or firmware was changed.
 | PG-P-0501 | Precious Grace Featured post, "May 1" (Angat–Monumento advisory) | Operator post | Same screenshot; graphic in `PG-ANGAT-Y.webp` | 2026-05-01 (**year inferred**; the text says "As of May 1, 2026") |
 | TN-GUI-20250625 | Photo of the physical "P2P BUS TERMINAL TIME SCHEDULE — WalterMart Guiguinto – Trinoma" notice, posted on Facebook by a member of the public | Terminal notice (photographed). Unbranded. | Owner screenshot `TN-GUI-20250625-photo.webp` (`9aa1a590…`) | Photo post 2025-06-25 (year shown). The notice is undated. |
 | COM-PLR-20250705 | Community-group Q&A: Plaridel P2P → "Dadaan po muna ng Trinoma then SM North" | Commuter comment (non-authoritative) | Owner screenshot `COM-PLR-20250705.png` (`ce997936…`) | Post 2025-07-05 (year shown) |
+| TN-GUI-20250912 | Photo of the printed WalterMart Guiguinto – TriNoma terminal notice (M–F, Saturday + HOLIDAY label, Sunday) | Terminal notice, photographed (primary, historical) | Owner screenshot `TN-GUI-20250912-photo.webp` (`2f5c4bc5…`) | Photo post 2025-09-12 (year shown). Notice effective date unknown. |
+| TN-GUI-0331 | The same notice, with weekday afternoon departures struck and "4 PM ONWARDS MAY BYAHE PA PO", "LAST TRIP 7:30" handwritten | **Possible disruption-period schedule.** Archived, excluded from candidates (owner decision). | Owner screenshot `TN-GUI-0331-POSSIBLE-DISRUPTION.webp` (`61aeea97…`) | Photo post "March 31". **Year not shown** (2026 likely, unconfirmed). |
 
 **Inaccessible (INACC):**
 - **Every operator timetable post on Facebook** (login wall). Pass 2 searched for indexed post permalinks with dates
@@ -424,6 +426,7 @@ These can still be offered as PROVISIONAL with first and last trips.
 | Date | Change |
 |---|---|
 | 2026-10-25 | Register created (research pass 1). Sources accessed on 2026-10-25. |
+| 2026-10-25 | Pass 7: TN-GUI-20250912 and TN-GUI-0331 added. See BULACAN-READINESS.md §7. |
 | 2026-10-25 | Pass 6: TN-GUI-20250625 and COM-PLR-20250705 added. See BULACAN-READINESS.md §6. |
 | 2026-10-25 | Pass 5: dated Precious Grace posts added to §2. Readiness updated in [BULACAN-READINESS.md](BULACAN-READINESS.md). |
 | 2026-10-25 | Pass 3: reconciliation of the approved eight-route catalogue in [BULACAN-RECONCILIATION.md](BULACAN-RECONCILIATION.md). Supersession notes added to §4 and §9. |
