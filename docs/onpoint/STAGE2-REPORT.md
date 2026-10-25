@@ -56,3 +56,24 @@ written.
 | Refresh | 0.60 s (FAST) – 1.52 s (HALF) |
 
 **Firmware size (release GPD, P3):** 5,776,912 B, with 776,688 B (11.9%) of the app slot free.
+
+## Milestone closed (2026-10-25)
+
+The owner accepted Stage 2 (P0–P4) as technically complete and hardware-validated. The basis is the Codex source
+reviews (P0–P3 CLEAR WITH CONDITIONS), exact-image verification, and the X4 Pro acceptance above.
+
+**Decisions:**
+- The X4 Pro keeps `1.6.5-A1.2.1-GPD-DEVTEST` (`ce48bab8…64ce`) for continued development; no restore to v1.2.1.
+- There are no further SD-card or firmware operations to re-confirm passed tests.
+- **Not done (each needs separate approval):** pushing; merging into a public release branch; building a production
+  release; publishing.
+
+**Kept** (local, outside Git):
+- the acceptance report (this file);
+- the installed image and its build logs (`_worktrees/records/devtest-stage2/`);
+- the install, verify and serial logs (`_worktrees/records/hardware/2026-10-25-stage2/`);
+- the v1.2.1 restoration pieces (`dogear-split/release-candidates/v1.2.1/run-39254794103/`).
+
+**Next milestone:** timetable coverage. BULACAN first (`BULACAN-COVERAGE-INVENTORY.md`), then CAVITE, LAGUNA and
+RIZAL; NORTH LUZON and AIRPORT TRANSFERS are secondary. The ON POINT relaunch combines Stage 2 with expanded,
+verified commuter coverage.
