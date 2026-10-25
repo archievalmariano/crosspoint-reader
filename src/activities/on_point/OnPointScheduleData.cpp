@@ -106,9 +106,9 @@ constexpr DateOverride TRINOMA_HOLIDAYS[] = {
     {HOLIDAYS_2026[20], {TRINOMA_TO_BALAGTAS_WEEKENDS, std::size(TRINOMA_TO_BALAGTAS_WEEKENDS)}},
 };
 
-// Precious Grace's daily trip schedule (2026-03-13 post, superseding the
-// 2025-12-30 one): first and last trips with a stated 30-minute interval. Its
-// one North EDSA row covers TriNoma and SM North for every destination.
+// Precious Grace official post (current): first trip, last trip and a
+// 30-minute interval, every day (the 2026-03-13 daily trip schedule, superseding
+// 2025-12-30). Its one North EDSA row covers TriNoma and SM North.
 constexpr uint16_t CAYPOMBO_TO_SM_NORTH_EDSA[] = {
     300, 330, 360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,
     780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
