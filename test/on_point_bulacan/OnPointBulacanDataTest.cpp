@@ -138,8 +138,10 @@ TEST(OnPointBulacanData, EveryDirectionMatchesTheEditorialTable) {
   }
 }
 
-// Bulacan P2P directions carry the 21 2026 non-working holidays on their
-// Saturday/Sunday/holiday timetable; Precious Grace's schedule is daily.
+// Bulacan P2P directions carry the same non-working holidays as Balagtas on
+// their Saturday/Sunday/holiday timetable; Precious Grace's schedule is daily.
+// Deliberately fails when holidays reach Balagtas alone (feature/ph-holidays-2027
+// adds 2027 to it): the other Bulacan P2P directions need the same dates.
 TEST(OnPointBulacanData, HolidayOverridesFollowEachOperatorsPolicy) {
   const Schedule& balagtas = on_point::scheduleForRoute(0, false);
   for (const Expected& e : expectedBulacan()) {
@@ -150,7 +152,8 @@ TEST(OnPointBulacanData, HolidayOverridesFollowEachOperatorsPolicy) {
       EXPECT_EQ(s->dateOverrideCount, 0u);
       continue;
     }
-    ASSERT_EQ(s->dateOverrideCount, balagtas.dateOverrideCount);
+    ASSERT_EQ(s->dateOverrideCount, balagtas.dateOverrideCount)
+        << "every Bulacan P2P direction needs Balagtas's holiday dates (BULACAN-BATCH1.md §4)";
     for (size_t i = 0; i < s->dateOverrideCount; ++i) {
       const on_point::DateOverride& o = s->dateOverrides[i];
       EXPECT_EQ(o.date.year, balagtas.dateOverrides[i].date.year);
