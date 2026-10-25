@@ -1,7 +1,8 @@
 // The production OnPointActivity over the shipped catalogue and collections (Stage 2):
 // direct launch, the route list, the SELECT COLLECTION row and picker, and persistence through
-// OnPointStore. Collections: bulacan {BALAGTAS, CAYPOMBO}, north-luzon {CUBAO, TRINOMA->CLARK,
-// CLARK->BAGUIO}, airport-transfers {CLARK->NAIA T3, NAIA T3->PITX}.
+// OnPointStore. Collections: bulacan {BALAGTAS, CAYPOMBO, GUIGUINTO, MALOLOS, PANDI, PLARIDEL in
+// list order; two pages}, north-luzon {CUBAO, TRINOMA->CLARK, CLARK->BAGUIO}, airport-transfers
+// {CLARK->NAIA T3, NAIA T3->PITX}.
 
 #include <ArduinoJson.h>
 
@@ -90,9 +91,9 @@ TEST_F(OnPointActivityTest, BoardIsUnchangedByCollections) {
   enter();
   EXPECT_FALSE(collectionRowShown());
   EXPECT_FALSE(drew("STR_ON_POINT_NOT_SAVED"));
-  EXPECT_TRUE(drewAt("2026-10-21", FOOTER_Y));  // the board footer: date and source
-  EXPECT_TRUE(drew("STR_ON_POINT_PUBLISHED"));
-  send(Event::Pressed, Button::NavNext);  // reverse direction
+  EXPECT_TRUE(drewAt("2026-10-21", FOOTER_Y));    // the board footer: date and source
+  EXPECT_TRUE(drew("STR_ON_POINT_PROVISIONAL"));  // Balagtas is PROVISIONAL
+  send(Event::Pressed, Button::NavNext);          // reverse direction
   EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "TRINOMA");
 }
 
@@ -176,11 +177,14 @@ TEST_F(OnPointActivityTest, InputWaitsWhileARenderIsInProgressExceptBack) {
 // ---- The SELECT COLLECTION row ----
 
 TEST_F(OnPointActivityTest, ButtonsCycleThroughTheRoutesAndTheCollectionRow) {
-  enterList();  // bulacan: 0 = BALAGTAS (pinned), 1 = CAYPOMBO
+  enterList();  // bulacan: 0 = BALAGTAS (pinned), 1 CAYPOMBO ... 5 PLARIDEL
   EXPECT_TRUE(collectionRowShown());
   EXPECT_FALSE(collectionRowSelected());
   send(Event::Pressed, Button::NavNext);
   EXPECT_EQ(selectedRow(), 0);
+  for (int i = 0; i < 4; ++i) send(Event::Pressed, Button::NavNext);  // to position 5, page 2
+  EXPECT_EQ(selectedRow(), 1);
+  EXPECT_EQ(textAt(ROW_Y[1] + 8), "PLARIDEL");
   send(Event::Pressed, Button::NavNext);  // last route -> the row
   EXPECT_TRUE(collectionRowSelected());
   EXPECT_EQ(selectedRow(), -1);
@@ -192,9 +196,9 @@ TEST_F(OnPointActivityTest, ButtonsCycleThroughTheRoutesAndTheCollectionRow) {
   send(Event::Pressed, Button::NavPrevious);  // position 1 -> the row
   EXPECT_TRUE(collectionRowSelected());
   send(Event::Pressed, Button::NavPrevious);  // the row -> the last route
-  EXPECT_EQ(selectedRow(), 0);
+  EXPECT_EQ(selectedRow(), 1);
   send(Event::LongPressed, Button::Confirm);  // hold-to-set unchanged
-  EXPECT_EQ(textAt(PINNED_ORIGIN_Y), "CAYPOMBO");
+  EXPECT_EQ(textAt(PINNED_ORIGIN_Y), "PLARIDEL");
 }
 
 TEST_F(OnPointActivityTest, NavPreviousFromThePinnedRouteStillGoesToTheLastRoute) {
@@ -207,7 +211,7 @@ TEST_F(OnPointActivityTest, NavPreviousFromThePinnedRouteStillGoesToTheLastRoute
 
 TEST_F(OnPointActivityTest, HoldingOnTheCollectionRowDoesNothing) {
   enterList();
-  send(Event::Pressed, Button::NavPrevious);  // pinned -> last (CAYPOMBO)
+  send(Event::Pressed, Button::NavNext);      // pinned -> position 1 (CAYPOMBO)
   send(Event::Pressed, Button::NavPrevious);  // -> the row
   ASSERT_TRUE(collectionRowSelected());
   send(Event::LongPressed, Button::Confirm);
@@ -220,14 +224,14 @@ TEST_F(OnPointActivityTest, HoldingOnTheCollectionRowDoesNothing) {
 
 TEST_F(OnPointActivityTest, ConfirmOnTheRowOpensThePickerAndBackRestoresTheList) {
   enterList();
-  send(Event::Pressed, Button::NavNext);  // CAYPOMBO
-  send(Event::Pressed, Button::NavNext);  // the row
+  send(Event::Pressed, Button::NavNext);      // CAYPOMBO
+  send(Event::Pressed, Button::NavPrevious);  // the row
   send(Event::Released, Button::Confirm);
   ASSERT_TRUE(inPicker());
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_BULACAN", PICKER_ROW_Y[0] + 8));
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_NORTH_LUZON", PICKER_ROW_Y[1] + 8));
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_AIRPORT_TRANSFERS", PICKER_ROW_Y[2] + 8));
-  EXPECT_TRUE(drewAt("2 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[0] + 64));
+  EXPECT_TRUE(drewAt("6 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[0] + 64));
   EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[1] + 64));
   EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
   EXPECT_EQ(selectedPickerRow(), 0);
@@ -240,14 +244,15 @@ TEST_F(OnPointActivityTest, ConfirmOnTheRowOpensThePickerAndBackRestoresTheList)
   EXPECT_TRUE(collectionRowSelected());
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_BULACAN", COLLECTION_TEXT_Y));
   EXPECT_EQ(textAt(ROW_Y[0] + 8), "CAYPOMBO");  // same page
-  send(Event::Pressed, Button::NavPrevious);    // the row -> last route: the selection is intact
-  EXPECT_EQ(selectedRow(), 0);
+  send(Event::Pressed, Button::NavPrevious);    // the row -> last route (PLARIDEL, page 2)
+  EXPECT_EQ(selectedRow(), 1);
+  EXPECT_EQ(textAt(ROW_Y[1] + 8), "PLARIDEL");
   EXPECT_EQ(storage.mutations, 0);
 }
 
 TEST_F(OnPointActivityTest, PickerWrapsAndSelectsWithButtons) {
   enterList();
-  send(Event::Pressed, Button::NavPrevious);
+  send(Event::Pressed, Button::NavNext);
   send(Event::Pressed, Button::NavPrevious);  // the row
   send(Event::Released, Button::Confirm);
   send(Event::Pressed, Button::NavPrevious);  // wraps to AIRPORT TRANSFERS
@@ -314,9 +319,11 @@ TEST_F(OnPointActivityTest, DefaultsAreKeptPerCollection) {
 }
 
 TEST_F(OnPointActivityTest, SwipeFromTheRowReturnsFocusToARoute) {
+  // airport-transfers: one page (CLARK AIRPORT pinned, NAIA T3 the only row).
+  storage.files[ON_POINT_STORE_PATH] = R"({"version":1,"activeRegion":"airport-transfers"})";
   enterList();
-  send(Event::Pressed, Button::NavPrevious);
-  send(Event::Pressed, Button::NavPrevious);
+  send(Event::Pressed, Button::NavNext);
+  send(Event::Pressed, Button::NavNext);  // the only route -> the row
   ASSERT_TRUE(collectionRowSelected());
   swipe(SwipeDir::Up);  // one page: no target, focus stays
   EXPECT_TRUE(collectionRowSelected());

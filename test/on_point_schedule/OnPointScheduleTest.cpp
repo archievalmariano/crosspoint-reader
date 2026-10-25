@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <cstring>
 #include <iterator>
 
 #include "activities/on_point/OnPointSchedule.h"
@@ -83,7 +84,7 @@ TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
 }
 
 TEST(OnPointScheduleData, EveryRoutePairIsValidAndMirrored) {
-  ASSERT_EQ(on_point::ROUTE_COUNT, 7u);
+  ASSERT_EQ(on_point::ROUTE_COUNT, 11u);
   ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
   for (size_t index = 0; index < on_point::ROUTE_COUNT; ++index) {
     const on_point::Schedule& outbound = on_point::scheduleForRoute(index, false);
@@ -96,7 +97,7 @@ TEST(OnPointScheduleData, EveryRoutePairIsValidAndMirrored) {
 }
 
 TEST(OnPointScheduleData, BalagtasTrinomaHasWeekdayAndWeekendTimetables) {
-  EXPECT_EQ(on_point::scheduleForRoute(0, false).sourceStatus, on_point::SourceStatus::Verified);
+  EXPECT_EQ(on_point::scheduleForRoute(0, false).sourceStatus, on_point::SourceStatus::Provisional);
 
   const DepartureState friday =
       on_point::getDepartureState(on_point::scheduleForRoute(0, false), manilaTime(2026, 9, 25, 4, 0));
@@ -129,7 +130,7 @@ TEST(OnPointScheduleData, CaypomboRunsDailyEveryThirtyMinutes) {
   EXPECT_EQ(sunday.next.local.hour, 5);
   EXPECT_EQ(sunday.next.local.minute, 0);
   EXPECT_EQ(sunday.last.local.hour, 20);
-  EXPECT_EQ(sunday.last.local.minute, 0);
+  EXPECT_EQ(sunday.last.local.minute, 30);
 
   const DepartureState weekdayReturn =
       on_point::getDepartureState(on_point::scheduleForRoute(1, true), manilaTime(2026, 9, 28, 22, 10));
@@ -164,11 +165,26 @@ TEST(OnPointScheduleData, GenesisRoutesFollowTheOperatorSchedule) {
   EXPECT_EQ(clarkToTrinoma.next.local.minute, 15);
 }
 
-TEST(OnPointScheduleData, EveryScheduleComesFromItsOperator) {
+// PUBLISHED only where the operator states the departure pattern itself
+// (docs/onpoint/editorial/BULACAN-BATCH1.md); every other BULACAN direction is
+// PROVISIONAL.
+TEST(OnPointScheduleData, EveryScheduleCarriesItsEditorialStatus) {
+  const char* const provisional[] = {
+      "p2p-balagtas-trinoma",  "p2p-trinoma-balagtas",  "p2p-sm-north-edsa-caypombo", "p2p-pandi-trinoma",
+      "p2p-trinoma-pandi",     "p2p-plaridel-trinoma",  "p2p-trinoma-plaridel",       "p2p-trinoma-malolos",
+      "p2p-guiguinto-trinoma", "p2p-trinoma-guiguinto",
+  };
+  size_t provisionalCount = 0;
   for (size_t index = 0; index < on_point::SCHEDULE_COUNT; ++index) {
-    EXPECT_EQ(on_point::scheduleAt(index).sourceStatus, on_point::SourceStatus::Verified)
-        << on_point::scheduleAt(index).routeId;
+    const on_point::Schedule& schedule = on_point::scheduleAt(index);
+    bool isProvisional = false;
+    for (const char* id : provisional) isProvisional |= strcmp(schedule.routeId, id) == 0;
+    provisionalCount += isProvisional;
+    EXPECT_EQ(schedule.sourceStatus,
+              isProvisional ? on_point::SourceStatus::Provisional : on_point::SourceStatus::Verified)
+        << schedule.routeId;
   }
+  EXPECT_EQ(provisionalCount, std::size(provisional));
 }
 
 TEST(OnPointScheduleData, BalagtasHolidaysUseTheWeekendTimetable) {
@@ -246,14 +262,19 @@ TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrd
   EXPECT_EQ(on_point::routeIndexForId("p2p-trinoma-clark-airport"), 4u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-clark-airport-baguio"), 5u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-naia-pitx"), 6u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-pandi-trinoma"), 7u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-plaridel-trinoma"), 8u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-malolos-trinoma"), 9u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-guiguinto-trinoma"), 10u);
   // Removed routes (and unknown ids) fall back to the first pair.
   EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
 
   const char* expected[][2] = {
       {"BALAGTAS", "TRINOMA"},      {"CAYPOMBO", "SM NORTH EDSA"}, {"CLARK AIRPORT", "BAGUIO"},
-      {"CLARK AIRPORT", "NAIA T3"}, {"CUBAO", "CLARK AIRPORT"},    {"NAIA T3", "PITX"},
-      {"TRINOMA", "CLARK AIRPORT"},
+      {"CLARK AIRPORT", "NAIA T3"}, {"CUBAO", "CLARK AIRPORT"},    {"GUIGUINTO", "TRINOMA"},
+      {"MALOLOS", "TRINOMA"},       {"NAIA T3", "PITX"},           {"PANDI", "TRINOMA"},
+      {"PLARIDEL", "TRINOMA"},      {"TRINOMA", "CLARK AIRPORT"},
   };
   for (size_t position = 0; position < on_point::ROUTE_COUNT; ++position) {
     const size_t routeIndex = on_point::routeIndexInAlphabeticalOrder(position);

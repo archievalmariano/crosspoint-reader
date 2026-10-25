@@ -12,13 +12,16 @@ namespace {
 constexpr uint8_t DAILY = 0b1111111;
 constexpr uint8_t WEEKDAYS = 0b0111110;  // Monday through Friday.
 constexpr uint8_t WEEKENDS = 0b1000001;  // Saturday and Sunday.
+constexpr uint8_t MONDAY = 0b0000010;
+constexpr uint8_t TUESDAY_TO_FRIDAY = 0b0111100;
 
 // Timetables are Verified (shown as PUBLISHED) when they come from the
 // operator's own published schedule; anything else must stay Provisional
 // (shown as PROVISIONAL) until checked with the operator.
 
-// Bulacan P2P official posts: first/last trips for Monday to Friday and for
-// Saturday, Sunday and holidays; 30-minute interval (as P2PBus.ph lists).
+// Bulacan P2P's 2026-08-30 post gives first/last trips for Monday to Friday
+// and for Saturday, Sunday and holidays. The 30-minute weekday departures are
+// P2PBus.ph's; the weekend keeps that interval by assumption (no weekend list).
 constexpr uint16_t BALAGTAS_TO_TRINOMA_WEEKDAYS[] = {
     270, 300, 330, 360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,
     750, 780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200,
@@ -103,11 +106,12 @@ constexpr DateOverride TRINOMA_HOLIDAYS[] = {
     {HOLIDAYS_2026[20], {TRINOMA_TO_BALAGTAS_WEEKENDS, std::size(TRINOMA_TO_BALAGTAS_WEEKENDS)}},
 };
 
-// Precious Grace official post (current): first trip, last trip and a
-// 30-minute interval, every day; departures may shift with ridership.
+// Precious Grace's daily trip schedule (2026-03-13 post, superseding the
+// 2025-12-30 one): first and last trips with a stated 30-minute interval. Its
+// one North EDSA row covers TriNoma and SM North for every destination.
 constexpr uint16_t CAYPOMBO_TO_SM_NORTH_EDSA[] = {
     300, 330, 360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,
-    780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200,
+    780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
 };
 
 constexpr uint16_t SM_NORTH_EDSA_TO_CAYPOMBO[] = {
@@ -169,6 +173,114 @@ constexpr uint16_t PITX_TO_NAIA[] = {
     285, 405, 525, 660, 855, 990, 1110,
 };
 
+// Bulacan P2P (2026-08-30 post) for Pandi and Plaridel: first/last trips for
+// Monday, Tuesday to Friday, and Saturday/Sunday/holidays, with P2PBus.ph's
+// 30-minute weekday interval applied inside every window (no weekend list).
+constexpr uint16_t PANDI_TO_TRINOMA_MONDAY[] = {
+    210, 240, 270, 300, 330, 360, 390, 420, 450, 480, 510,  540,  570,  600,  630,  660,  690,
+    720, 750, 780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170,
+};
+
+// Tuesday to Friday and Saturday/Sunday/holidays share one window.
+constexpr uint16_t PANDI_TO_TRINOMA[] = {
+    270, 300, 330, 360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,
+    750, 780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170,
+};
+
+constexpr uint16_t TRINOMA_TO_PANDI_WEEKDAYS[] = {
+    360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290,
+};
+
+constexpr uint16_t TRINOMA_TO_PANDI_WEEKENDS[] = {
+    390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,  780,  810,  840,
+    870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290,
+};
+
+// The operator's single Plaridel row does not split departures between TriNoma
+// and SM North; the trips run on via TriNoma, so these are Plaridel departures.
+constexpr uint16_t PLARIDEL_TO_TRINOMA_MONDAY[] = {
+    210, 240, 270, 300, 330, 360, 390, 420, 450, 480,  510,  540,  570,  600,  630,  660,  690,  720,
+    750, 780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
+};
+
+constexpr uint16_t PLARIDEL_TO_TRINOMA_TUESDAY_TO_FRIDAY[] = {
+    240, 270, 300, 330, 360, 390, 420, 450, 480, 510,  540,  570,  600,  630,  660,  690,  720,
+    750, 780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
+};
+
+constexpr uint16_t PLARIDEL_TO_TRINOMA_WEEKENDS[] = {
+    270, 300, 330, 360, 390, 420, 450, 480, 510,  540,  570,  600,  630,  660,  690,  720,  750,
+    780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
+};
+
+constexpr uint16_t TRINOMA_TO_PLARIDEL_WEEKDAYS[] = {
+    360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260,
+};
+
+constexpr uint16_t TRINOMA_TO_PLARIDEL_WEEKENDS[] = {
+    390, 420, 450, 480, 510, 540, 570,  600,  630,  660,  690,  720,  750,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260,
+};
+
+// Precious Grace's daily trip schedule (2026-03-13 post; the 2025-12-30 post
+// agrees): Robinsons Malolos first and last trips with a stated 30-minute
+// interval, and the shared North EDSA row for the return.
+constexpr uint16_t MALOLOS_TO_TRINOMA[] = {
+    300, 330, 360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,
+    780, 810, 840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200,
+};
+
+constexpr uint16_t TRINOMA_TO_MALOLOS[] = {
+    360, 390, 420, 450, 480, 510,  540,  570,  600,  630,  660,  690,  720,  750,  780,  810,  840,
+    870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290, 1320, 1350,
+};
+
+// WalterMart Guiguinto to TriNoma (owner-approved development reconstruction,
+// BULACAN-BATCH1.md). Weekdays: the printed WalterMart Guiguinto terminal notice
+// photographed 2025-09-12, whose first/last trips match the 2026-08-30 post.
+constexpr uint16_t GUIGUINTO_TO_TRINOMA_WEEKDAYS[] = {
+    270, 300, 330, 360, 390, 420, 450, 480, 510,  540,  570,  600,  645,  690,
+    735, 780, 825, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1125, 1170,
+};
+
+// Saturday/Sunday/holidays: the 2026 05:00 first trip, then the 2025 notice's
+// Sunday departures from 05:30 to the 19:30 last trip (candidate S-C).
+constexpr uint16_t GUIGUINTO_TO_TRINOMA_WEEKENDS[] = {
+    300, 330, 375, 420, 465, 510, 555, 600, 645, 690, 735, 780, 825, 870, 915, 960, 1005, 1050, 1095, 1140, 1170,
+};
+
+// TriNoma to WalterMart Guiguinto: no departure list exists. Within the
+// 2026-08-30 first/last trips, weekdays assume the 30-minute interval of the
+// other Bulacan P2P returns (candidate R-A) and weekends the route's own
+// 45-minute weekend interval (candidate RS-B).
+constexpr uint16_t TRINOMA_TO_GUIGUINTO_WEEKDAYS[] = {
+    360, 390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290,
+};
+
+constexpr uint16_t TRINOMA_TO_GUIGUINTO_WEEKENDS[] = {
+    390, 435, 480, 525, 570, 615, 660, 705, 750, 795, 840, 885, 930, 975, 1020, 1065, 1110, 1155, 1200, 1245, 1290,
+};
+
+// One override per 2026 non-working holiday, running the given departures.
+template <size_t N>
+constexpr std::array<DateOverride, HOLIDAYS_2026.size()> holidays2026(const uint16_t (&departures)[N]) {
+  std::array<DateOverride, HOLIDAYS_2026.size()> overrides{};
+  for (size_t index = 0; index < HOLIDAYS_2026.size(); ++index) {
+    overrides[index] = DateOverride{HOLIDAYS_2026[index], {departures, N}};
+  }
+  return overrides;
+}
+
+constexpr auto PANDI_HOLIDAYS = holidays2026(PANDI_TO_TRINOMA);
+constexpr auto TRINOMA_PANDI_HOLIDAYS = holidays2026(TRINOMA_TO_PANDI_WEEKENDS);
+constexpr auto PLARIDEL_HOLIDAYS = holidays2026(PLARIDEL_TO_TRINOMA_WEEKENDS);
+constexpr auto TRINOMA_PLARIDEL_HOLIDAYS = holidays2026(TRINOMA_TO_PLARIDEL_WEEKENDS);
+constexpr auto GUIGUINTO_HOLIDAYS = holidays2026(GUIGUINTO_TO_TRINOMA_WEEKENDS);
+constexpr auto TRINOMA_GUIGUINTO_HOLIDAYS = holidays2026(TRINOMA_TO_GUIGUINTO_WEEKENDS);
+
 constexpr ServiceRule BALAGTAS_RULES[] = {
     {WEEKDAYS, {BALAGTAS_TO_TRINOMA_WEEKDAYS, std::size(BALAGTAS_TO_TRINOMA_WEEKDAYS)}},
     {WEEKENDS, {BALAGTAS_TO_TRINOMA_WEEKENDS, std::size(BALAGTAS_TO_TRINOMA_WEEKENDS)}},
@@ -227,6 +339,45 @@ constexpr ServiceRule PITX_RULES[] = {
     {DAILY, {PITX_TO_NAIA, std::size(PITX_TO_NAIA)}},
 };
 
+constexpr ServiceRule PANDI_RULES[] = {
+    {MONDAY, {PANDI_TO_TRINOMA_MONDAY, std::size(PANDI_TO_TRINOMA_MONDAY)}},
+    {TUESDAY_TO_FRIDAY | WEEKENDS, {PANDI_TO_TRINOMA, std::size(PANDI_TO_TRINOMA)}},
+};
+
+constexpr ServiceRule TRINOMA_PANDI_RULES[] = {
+    {WEEKDAYS, {TRINOMA_TO_PANDI_WEEKDAYS, std::size(TRINOMA_TO_PANDI_WEEKDAYS)}},
+    {WEEKENDS, {TRINOMA_TO_PANDI_WEEKENDS, std::size(TRINOMA_TO_PANDI_WEEKENDS)}},
+};
+
+constexpr ServiceRule PLARIDEL_RULES[] = {
+    {MONDAY, {PLARIDEL_TO_TRINOMA_MONDAY, std::size(PLARIDEL_TO_TRINOMA_MONDAY)}},
+    {TUESDAY_TO_FRIDAY, {PLARIDEL_TO_TRINOMA_TUESDAY_TO_FRIDAY, std::size(PLARIDEL_TO_TRINOMA_TUESDAY_TO_FRIDAY)}},
+    {WEEKENDS, {PLARIDEL_TO_TRINOMA_WEEKENDS, std::size(PLARIDEL_TO_TRINOMA_WEEKENDS)}},
+};
+
+constexpr ServiceRule TRINOMA_PLARIDEL_RULES[] = {
+    {WEEKDAYS, {TRINOMA_TO_PLARIDEL_WEEKDAYS, std::size(TRINOMA_TO_PLARIDEL_WEEKDAYS)}},
+    {WEEKENDS, {TRINOMA_TO_PLARIDEL_WEEKENDS, std::size(TRINOMA_TO_PLARIDEL_WEEKENDS)}},
+};
+
+constexpr ServiceRule MALOLOS_RULES[] = {
+    {DAILY, {MALOLOS_TO_TRINOMA, std::size(MALOLOS_TO_TRINOMA)}},
+};
+
+constexpr ServiceRule TRINOMA_MALOLOS_RULES[] = {
+    {DAILY, {TRINOMA_TO_MALOLOS, std::size(TRINOMA_TO_MALOLOS)}},
+};
+
+constexpr ServiceRule GUIGUINTO_RULES[] = {
+    {WEEKDAYS, {GUIGUINTO_TO_TRINOMA_WEEKDAYS, std::size(GUIGUINTO_TO_TRINOMA_WEEKDAYS)}},
+    {WEEKENDS, {GUIGUINTO_TO_TRINOMA_WEEKENDS, std::size(GUIGUINTO_TO_TRINOMA_WEEKENDS)}},
+};
+
+constexpr ServiceRule TRINOMA_GUIGUINTO_RULES[] = {
+    {WEEKDAYS, {TRINOMA_TO_GUIGUINTO_WEEKDAYS, std::size(TRINOMA_TO_GUIGUINTO_WEEKDAYS)}},
+    {WEEKENDS, {TRINOMA_TO_GUIGUINTO_WEEKENDS, std::size(TRINOMA_TO_GUIGUINTO_WEEKENDS)}},
+};
+
 constexpr Schedule SCHEDULES[] = {
     {"p2p-balagtas-trinoma",
      "Bulacan P2P",
@@ -239,8 +390,8 @@ constexpr Schedule SCHEDULES[] = {
      std::size(BALAGTAS_RULES),
      BALAGTAS_HOLIDAYS,
      std::size(BALAGTAS_HOLIDAYS),
-     "Bulacan P2P official posts: first/last trips, 30-minute interval; holidays use the weekend timetable.",
-     SourceStatus::Verified},
+     "Bulacan P2P 2026-08-30 post: first/last trips; P2PBus.ph weekday interval; weekend interval assumed.",
+     SourceStatus::Provisional},
     {"p2p-trinoma-balagtas",
      "Bulacan P2P",
      "TRINOMA",
@@ -252,8 +403,8 @@ constexpr Schedule SCHEDULES[] = {
      std::size(TRINOMA_RULES),
      TRINOMA_HOLIDAYS,
      std::size(TRINOMA_HOLIDAYS),
-     "Bulacan P2P official posts: first/last trips, 30-minute interval; holidays use the weekend timetable.",
-     SourceStatus::Verified},
+     "Bulacan P2P 2026-08-30 post: first/last trips; P2PBus.ph weekday interval; weekend interval assumed.",
+     SourceStatus::Provisional},
     {"p2p-caypombo-sm-north-edsa",
      "Precious Grace",
      "CAYPOMBO",
@@ -265,7 +416,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(CAYPOMBO_RULES),
      nullptr,
      0,
-     "Precious Grace official post: first/last trips, 30-minute interval.",
+     "Precious Grace 2026-03-13 daily schedule: first/last trips, 30-minute interval.",
      SourceStatus::Verified},
     {"p2p-sm-north-edsa-caypombo",
      "Precious Grace",
@@ -278,8 +429,8 @@ constexpr Schedule SCHEDULES[] = {
      std::size(SM_NORTH_EDSA_RULES),
      nullptr,
      0,
-     "Precious Grace official post: first/last trips, 30-minute interval.",
-     SourceStatus::Verified},
+     "Precious Grace 2026-03-13 daily schedule; departure stop within North EDSA unstated.",
+     SourceStatus::Provisional},
     {"p2p-cubao-clark-airport",
      "Genesis",
      "CUBAO",
@@ -410,6 +561,110 @@ constexpr Schedule SCHEDULES[] = {
      0,
      "UBE Express trip schedule as of 2026-05-01.",
      SourceStatus::Verified},
+    {"p2p-pandi-trinoma",
+     "Bulacan P2P",
+     "PANDI",
+     "TRINOMA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     PANDI_RULES,
+     std::size(PANDI_RULES),
+     PANDI_HOLIDAYS.data(),
+     PANDI_HOLIDAYS.size(),
+     "Bulacan P2P 2026-08-30 post: first/last trips; P2PBus.ph weekday interval; weekend interval assumed.",
+     SourceStatus::Provisional},
+    {"p2p-trinoma-pandi",
+     "Bulacan P2P",
+     "TRINOMA",
+     "PANDI",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     TRINOMA_PANDI_RULES,
+     std::size(TRINOMA_PANDI_RULES),
+     TRINOMA_PANDI_HOLIDAYS.data(),
+     TRINOMA_PANDI_HOLIDAYS.size(),
+     "Bulacan P2P 2026-08-30 post: first/last trips; P2PBus.ph weekday interval; weekend interval assumed.",
+     SourceStatus::Provisional},
+    {"p2p-plaridel-trinoma",
+     "Bulacan P2P",
+     "PLARIDEL",
+     "TRINOMA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     PLARIDEL_RULES,
+     std::size(PLARIDEL_RULES),
+     PLARIDEL_HOLIDAYS.data(),
+     PLARIDEL_HOLIDAYS.size(),
+     "Bulacan P2P 2026-08-30 post: Plaridel first/last trips; P2PBus.ph weekday interval; weekend assumed.",
+     SourceStatus::Provisional},
+    {"p2p-trinoma-plaridel",
+     "Bulacan P2P",
+     "TRINOMA",
+     "PLARIDEL",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     TRINOMA_PLARIDEL_RULES,
+     std::size(TRINOMA_PLARIDEL_RULES),
+     TRINOMA_PLARIDEL_HOLIDAYS.data(),
+     TRINOMA_PLARIDEL_HOLIDAYS.size(),
+     "Bulacan P2P 2026-08-30 post: first/last trips; P2PBus.ph weekday interval; weekend interval assumed.",
+     SourceStatus::Provisional},
+    {"p2p-malolos-trinoma",
+     "Precious Grace",
+     "MALOLOS",
+     "TRINOMA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     MALOLOS_RULES,
+     std::size(MALOLOS_RULES),
+     nullptr,
+     0,
+     "Precious Grace 2026-03-13 daily schedule: first/last trips, 30-minute interval.",
+     SourceStatus::Verified},
+    {"p2p-trinoma-malolos",
+     "Precious Grace",
+     "TRINOMA",
+     "MALOLOS",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     TRINOMA_MALOLOS_RULES,
+     std::size(TRINOMA_MALOLOS_RULES),
+     nullptr,
+     0,
+     "Precious Grace 2026-03-13 daily schedule; departure stop within North EDSA unstated.",
+     SourceStatus::Provisional},
+    {"p2p-guiguinto-trinoma",
+     "Bulacan P2P",
+     "GUIGUINTO",
+     "TRINOMA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     GUIGUINTO_RULES,
+     std::size(GUIGUINTO_RULES),
+     GUIGUINTO_HOLIDAYS.data(),
+     GUIGUINTO_HOLIDAYS.size(),
+     "Development reconstruction: 2025 terminal notice within 2026-08-30 first/last trips.",
+     SourceStatus::Provisional},
+    {"p2p-trinoma-guiguinto",
+     "Bulacan P2P",
+     "TRINOMA",
+     "GUIGUINTO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     TRINOMA_GUIGUINTO_RULES,
+     std::size(TRINOMA_GUIGUINTO_RULES),
+     TRINOMA_GUIGUINTO_HOLIDAYS.data(),
+     TRINOMA_GUIGUINTO_HOLIDAYS.size(),
+     "Development reconstruction: inferred departures within 2026-08-30 first/last trips.",
+     SourceStatus::Provisional},
 };
 
 constexpr RoutePair ROUTES[] = {
@@ -420,6 +675,10 @@ constexpr RoutePair ROUTES[] = {
     {"p2p-trinoma-clark-airport", 8, 9, "QUEZON CITY", "PAMPANGA"},
     {"p2p-clark-airport-baguio", 10, 11, "PAMPANGA", "BAGUIO"},
     {"p2p-naia-pitx", 12, 13, "PASAY", "PARAÑAQUE"},
+    {"p2p-pandi-trinoma", 14, 15, "PANDI, BULACAN", "QUEZON CITY"},
+    {"p2p-plaridel-trinoma", 16, 17, "PLARIDEL, BULACAN", "QUEZON CITY"},
+    {"p2p-malolos-trinoma", 18, 19, "MALOLOS, BULACAN", "QUEZON CITY"},
+    {"p2p-guiguinto-trinoma", 20, 21, "GUIGUINTO, BULACAN", "QUEZON CITY"},
 };
 
 static_assert(std::size(SCHEDULES) == SCHEDULE_COUNT);
