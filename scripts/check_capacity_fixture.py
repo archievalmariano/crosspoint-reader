@@ -10,7 +10,9 @@ capacity measurement can't come out optimistic through merged or dropped data:
   - the image holds every distinct fixture string the generator expects
     (none merged away);
   - optionally, .flash.rodata grew by at least the fixture's raw bytes versus a
-    baseline ELF of the same package.
+    baseline ELF of the same package, less the shipped catalogue it replaces
+    (measured from the baseline's on_point data symbols, plus 4 KB for its
+    unsymbolised strings).
 
 Usage: check_capacity_fixture.py --elf firmware.elf --bin firmware.bin
          --objdump <xtensa objdump> [--baseline-elf base.elf] [--json out.json]
@@ -69,6 +71,19 @@ def section_size(objdump, elf, name):
         if len(parts) >= 3 and parts[1] == name:
             return int(parts[2], 16)
     return None
+
+
+# The shipped catalogue and collection tables (on_point anonymous-namespace data
+# in .flash.rodata); the capacity build replaces them with the fixture.
+def shipped_catalogue_bytes(objdump, elf):
+    text = subprocess.check_output([objdump, "-t", "-C", elf], text=True)
+    total = 0
+    for line in text.splitlines():
+        if "on_point::(anonymous namespace)::" not in line or ".flash.rodata" not in line:
+            continue
+        parts = line.split()
+        total += int(parts[parts.index(".flash.rodata") + 1], 16)
+    return total
 
 
 def main():
@@ -136,8 +151,13 @@ def main():
         result["rodataBaseline"] = base
         result["rodataCapacity"] = cap
         result["rodataGrowth"] = cap - base
-        if cap - base < raw - 4096:  # 4 KB slack: the 7 real routes it replaces leave the image
-            problems.append(f".flash.rodata grew {cap - base} B, less than the fixture's raw {raw} B")
+        shipped = shipped_catalogue_bytes(args.objdump, args.baseline_elf)
+        result["shippedCatalogueBytes"] = shipped
+        if cap - base < raw - shipped - 4096:  # the replaced catalogue's strings: 4 KB
+            problems.append(
+                f".flash.rodata grew {cap - base} B, less than the fixture's raw {raw} B"
+                f" less the replaced catalogue's {shipped} B + 4096 B"
+            )
 
     result["problems"] = problems
     if args.json:
