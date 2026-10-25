@@ -125,3 +125,19 @@ No. 1006, plus the NCR ASEAN Summit days, from `util/MarkedDates.h`). Special wo
    once its proclamation is verified.
 7. **Review cadence:** how often a published timetable is re-checked, and what to do when a source can't be confirmed
    (Provisional, or remove).
+
+## 6. Decisions taken and research status (2026-10-25)
+
+All seven decisions above were taken by the owner:
+- **Scope:** P2P only.
+- **Geography:** Bulacan, including intra-Bulacan services.
+- **Verified:** dated, attributable operator evidence. A derivation is allowed when the operator states an exact
+  interval.
+- **Archives:** dated references.
+- **Provenance:** a separate register.
+- **Holidays:** verified per operator, never inferred.
+- **Re-verification:** a 90-day target.
+
+**Research pass 1** is recorded in [editorial/BULACAN-EVIDENCE-REGISTER.md](editorial/BULACAN-EVIDENCE-REGISTER.md):
+the evidence register, the route-identity assessment, the coverage gaps and the ranked shortlist. No firmware,
+timetable, label or holiday rule was changed.
