@@ -60,6 +60,10 @@ class OnPointStorage {
   virtual bool rename(const char* oldPath, const char* newPath) = 0;
 };
 
+// The storage ON POINT uses: the SD card in firmware (OnPointStoreHal.cpp); host tests define
+// their own.
+OnPointStorage& onPointStorage();
+
 class OnPointStore {
  public:
   enum class Source : uint8_t { Live, Temporary, Backup, Migrated };

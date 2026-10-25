@@ -18,6 +18,13 @@ constexpr int MAIN_ROUTE_HEIGHT = 150;
 constexpr int ROW_TOP = 316;
 constexpr int ROW_HEIGHT = 104;
 constexpr int ROW_GAP = 22;
+// The SELECT COLLECTION row, between the last route row (ends at 672) and the footer rule (726).
+constexpr int COLLECTION_ROW_TOP = 678;
+constexpr int COLLECTION_ROW_HEIGHT = 44;
+static_assert(ROW_TOP + 3 * ROW_HEIGHT + 2 * ROW_GAP <= COLLECTION_ROW_TOP, "collection row overlaps the route rows");
+// The collection picker's rows (same height and gap as route rows).
+constexpr int PICKER_ROW_TOP = 102;
+constexpr size_t PICKER_VISIBLE_ROWS = 4;
 }  // namespace list_geometry
 
 // Orders route pairs by outbound origin, then destination, then pair ID

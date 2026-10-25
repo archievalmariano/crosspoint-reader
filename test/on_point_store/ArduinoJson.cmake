@@ -1,0 +1,18 @@
+# Sets ON_POINT_ARDUINOJSON to the ArduinoJson 7.4.2 the firmware uses: the pinned tarball
+# test/dogear_tls downloads (SHA-256 checked there), or a local PlatformIO copy; empty if neither.
+set(ON_POINT_ARDUINOJSON "")
+foreach(candidate "${CMAKE_BINARY_DIR}/dogear_tls/deps/arduinojson/src")
+  if(EXISTS "${candidate}/ArduinoJson.h")
+    set(ON_POINT_ARDUINOJSON "${candidate}")
+  endif()
+endforeach()
+if(NOT ON_POINT_ARDUINOJSON)
+  file(GLOB ON_POINT_PIO_ARDUINOJSON "${REPO_ROOT}/.pio/libdeps/*/ArduinoJson/src/ArduinoJson/version.hpp")
+  foreach(version_file IN LISTS ON_POINT_PIO_ARDUINOJSON)
+    file(STRINGS "${version_file}" version_line REGEX "#define ARDUINOJSON_VERSION \"7\\.4\\.2\"")
+    if(version_line AND NOT ON_POINT_ARDUINOJSON)
+      get_filename_component(dir "${version_file}" DIRECTORY)
+      get_filename_component(ON_POINT_ARDUINOJSON "${dir}" DIRECTORY)
+    endif()
+  endforeach()
+endif()

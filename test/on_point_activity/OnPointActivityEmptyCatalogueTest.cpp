@@ -1,42 +1,20 @@
-#include <gtest/gtest.h>
+// The production OnPointActivity with no routes at all (EmptyCatalogue.cpp): a notice, no
+// collection row, every list input ignored, nothing written.
 
-#include <cstring>
-#include <memory>
-#include <string>
-
-#include "CrossPointSettings.h"
-#include "activities/on_point/OnPointActivity.h"
-
-// OnPointActivity over a catalogue with no routes (EmptyCatalogue.cpp): it
-// shows a notice and ignores every input that would need a route.
-
-ActivityManager activityManager;
-bool RenderLock::peekResult = false;
-unsigned long millis() { return 1000; }
-bool on_point::HalClockSource::nowUtc(CivilDateTime& value) const {
-  value = {2026, 10, 21, 0, 30, 0};
-  return true;
-}
+#include "OnPointActivityHarness.h"
 
 namespace {
 
-using Button = MappedInputManager::Button;
-using Event = MappedInputManager::Event;
+using namespace harness;
 
-TEST(OnPointActivityEmptyCatalogue, ShowsANoticeAndIgnoresRouteInput) {
-  SETTINGS.reset();
-  GfxRenderer renderer;
-  MappedInputManager input;
-  OnPointActivity activity(renderer, input);
-  activity.onEnter();
-  activity.render(RenderLock{});
-  const auto drew = [&](const std::string& text) {
-    for (const auto& t : renderer.texts)
-      if (t.text == text) return true;
-    return false;
-  };
+class OnPointActivityEmptyCatalogue : public ActivityTest {};
+
+TEST_F(OnPointActivityEmptyCatalogue, ShowsANoticeAndIgnoresRouteInput) {
+  enter();
+  EXPECT_FALSE(inDepartureView());
   EXPECT_TRUE(drew("STR_ON_POINT_TIMETABLE_UNAVAILABLE"));
   EXPECT_FALSE(drew("STR_ON_POINT_MAIN_ROUTE"));
+  EXPECT_FALSE(collectionRowShown());
 
   const struct {
     Event event;
@@ -46,19 +24,15 @@ TEST(OnPointActivityEmptyCatalogue, ShowsANoticeAndIgnoresRouteInput) {
                 {Event::ScreenTap, Button::Back},      {Event::ScreenLongPress, Button::Back},
                 {Event::ScreenTouchDown, Button::Back}};
   for (const auto& in : inputs) {
-    input.event = in.event;
-    input.button = in.button;
     input.x = 100;
     input.y = 150;
-    activity.loop();
-    input.clear();
-    activity.render(RenderLock{});
+    send(in.event, in.button);
     EXPECT_TRUE(drew("STR_ON_POINT_TIMETABLE_UNAVAILABLE"));
+    EXPECT_FALSE(inPicker());
   }
+  EXPECT_EQ(storage.mutations, 0);
   EXPECT_EQ(SETTINGS.saves, 0);
-  input.event = Event::Released;
-  input.button = Button::Back;
-  activity.loop();
+  send(Event::Released, Button::Back);
   EXPECT_EQ(activityManager.goToAppsCalls, 1);
 }
 

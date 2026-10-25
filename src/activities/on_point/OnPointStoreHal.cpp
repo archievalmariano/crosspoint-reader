@@ -32,4 +32,9 @@ bool HalOnPointStorage::remove(const char* path) { return Storage.remove(path); 
 
 bool HalOnPointStorage::rename(const char* oldPath, const char* newPath) { return Storage.rename(oldPath, newPath); }
 
+OnPointStorage& onPointStorage() {
+  static HalOnPointStorage storage;
+  return storage;
+}
+
 }  // namespace on_point
