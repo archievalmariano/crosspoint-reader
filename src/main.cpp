@@ -387,12 +387,17 @@ void setup() {
   // only SD state survives to the next boot.
   const bool wakeHoldVerified = wakeupReason != HalGPIO::WakeupReason::PowerButton || gpio.verifyPowerButtonWakeup();
 
+#ifdef CROSSPOINT_FIRMWARE_UPDATES_DISABLED
+  // Device-test images can't reflash themselves: no SD recovery picker.
+  constexpr bool recoveryFirmwareMode = false;
+#else
   // X4 Pro and X4 Classic both map BTN_UP to GPIO0 — an ESP32-S3 boot strap — so
   // gate recovery on the non-strap Down key (GPIO7) to avoid a stuck-in-recovery loop.
   const auto recoveryButton = (BoardConfig::isX4Pro() || BoardConfig::isX4Classic()) ? MappedInputManager::Button::Down
                                                                                      : MappedInputManager::Button::Up;
   const bool recoveryFirmwareMode = wakeupReason == HalGPIO::WakeupReason::PowerButton && !BoardConfig::isPaperMono() &&
                                     mappedInputManager.isPressed(recoveryButton);
+#endif
 
   halTiltSensor.begin();
   halClock.begin();

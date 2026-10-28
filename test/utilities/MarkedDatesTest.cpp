@@ -30,6 +30,8 @@ void expectValidAndSorted(const std::array<MarkedDate, N>& dates, const bool ann
 TEST(MarkedDates, OfficialDatesAreValidAndSorted) {
   expectValidAndSorted(marked_dates::PHILIPPINES_2026, false);
   for (const MarkedDate& date : marked_dates::PHILIPPINES_2026) EXPECT_TRUE(marked_dates::isOfficial(date.kind));
+  expectValidAndSorted(marked_dates::PHILIPPINES_2027, false);
+  for (const MarkedDate& date : marked_dates::PHILIPPINES_2027) EXPECT_TRUE(marked_dates::isOfficial(date.kind));
 }
 
 TEST(MarkedDates, ObservancesAreAnnualValidAndSorted) {
@@ -72,6 +74,20 @@ TEST(MarkedDates, Proclamation1006Counts) {
   EXPECT_EQ(marked_dates::countNonWorking(marked_dates::PHILIPPINES_2026), 21u);
 }
 
+TEST(MarkedDates, Proclamation1427Counts) {
+  size_t regular = 0, specialNonWorking = 0, specialWorking = 0;
+  for (const MarkedDate& date : marked_dates::PHILIPPINES_2027) {
+    regular += date.kind == Kind::RegularHoliday ? 1 : 0;
+    specialNonWorking += date.kind == Kind::SpecialNonWorking ? 1 : 0;
+    specialWorking += date.kind == Kind::SpecialWorking ? 1 : 0;
+  }
+  EXPECT_EQ(regular, 10u);
+  EXPECT_EQ(specialNonWorking, 8u);  // no regional days declared for 2027
+  EXPECT_EQ(specialWorking, 1u);     // EDSA anniversary
+  EXPECT_EQ(marked_dates::PHILIPPINES_2027.size(), 19u);
+  EXPECT_EQ(marked_dates::countNonWorking(marked_dates::PHILIPPINES_2027), 18u);
+}
+
 TEST(MarkedDates, LookupByDate) {
   const MarkedDate* found[4];
   ASSERT_EQ(marked_dates::datesOn(2026, 12, 25, found, 4), 1u);
@@ -84,11 +100,35 @@ TEST(MarkedDates, LookupByDate) {
 }
 
 TEST(MarkedDates, OfficialDatesBelongToTheirYear) {
-  // 2027 has not been proclaimed: no official mark, only annual observances.
+  // 2028 has not been proclaimed: no official mark, only annual observances.
   const MarkedDate* found[4];
-  const size_t count = marked_dates::datesOn(2027, 12, 25, found, 4);
+  const size_t count = marked_dates::datesOn(2028, 12, 25, found, 4);
   for (size_t i = 0; i < count; ++i) EXPECT_FALSE(marked_dates::isOfficial(found[i]->kind)) << found[i]->name;
-  EXPECT_NE(marked_dates::markOn(2027, 12, 25), Mark::Official);
+  EXPECT_NE(marked_dates::markOn(2028, 12, 25), Mark::Official);
+}
+
+TEST(MarkedDates, Lookup2027AndYearBoundary) {
+  const MarkedDate* found[4];
+  // A 2027 regular holiday resolves to its own year's entry, not 2026's.
+  ASSERT_EQ(marked_dates::datesOn(2027, 12, 25, found, 4), 1u);
+  EXPECT_STREQ(found[0]->name, "Christmas Day");
+  EXPECT_EQ(found[0]->year, 2027);
+  EXPECT_EQ(found[0]->kind, Kind::RegularHoliday);
+  EXPECT_EQ(marked_dates::markOn(2027, 12, 25), Mark::Official);
+
+  // Chinese New Year moves year to year: 17 Feb 2026, 6 Feb 2027.
+  EXPECT_EQ(marked_dates::markOn(2026, 2, 17), Mark::Official);
+  EXPECT_EQ(marked_dates::markOn(2027, 2, 17), Mark::None);
+  EXPECT_EQ(marked_dates::markOn(2027, 2, 6), Mark::Official);
+
+  // A special working day is still official; a plain 2027 day is unmarked.
+  EXPECT_EQ(marked_dates::markOn(2027, 2, 25), Mark::Official);
+  EXPECT_EQ(marked_dates::markOn(2027, 9, 29), Mark::None);
+
+  // The 2026/2027 boundary: both New Year's Eves and New Year's Days are marked.
+  EXPECT_EQ(marked_dates::markOn(2026, 12, 31), Mark::Official);
+  EXPECT_EQ(marked_dates::markOn(2027, 1, 1), Mark::Official);
+  EXPECT_EQ(marked_dates::markOn(2027, 12, 31), Mark::Official);
 }
 
 TEST(MarkedDates, LookupRespectsMax) {

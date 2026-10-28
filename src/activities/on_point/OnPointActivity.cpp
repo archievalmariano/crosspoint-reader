@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <I18n.h>
+#include <Logging.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -10,8 +11,18 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "OnPointRegions.h"
 #include "OnPointScheduleData.h"
 #include "fontIds.h"
+
+#ifdef ON_POINT_BENCH_TIMING
+#include <esp_timer.h>
+
+namespace on_point_bench {
+void runOnEnter();  // OnPointDeviceBench.cpp (dev builds only)
+void logStacks(const char* where);
+}  // namespace on_point_bench
+#endif
 
 namespace {
 
@@ -30,13 +41,13 @@ constexpr int ROUTE_DESTINATION_Y = 145;
 constexpr int ROUTE_TOUCH_TOP = 58;
 constexpr int ROUTE_TOUCH_HEIGHT = 132;
 constexpr int MAIN_ROUTE_LABEL_Y = 76;
-constexpr int MAIN_ROUTE_TOP = 102;
-constexpr int MAIN_ROUTE_HEIGHT = 150;
+constexpr int MAIN_ROUTE_TOP = on_point::list_geometry::MAIN_ROUTE_TOP;
+constexpr int MAIN_ROUTE_HEIGHT = on_point::list_geometry::MAIN_ROUTE_HEIGHT;
 constexpr int ALL_ROUTES_LABEL_Y = 282;
-constexpr int ROUTE_LIST_ROW_TOP = 316;
-constexpr int ROUTE_LIST_ROW_HEIGHT = 104;
-constexpr int ROUTE_LIST_ROW_GAP = 22;
-constexpr size_t ROUTE_LIST_VISIBLE_ROWS = 3;
+constexpr int ROUTE_LIST_ROW_TOP = on_point::list_geometry::ROW_TOP;
+constexpr int ROUTE_LIST_ROW_HEIGHT = on_point::list_geometry::ROW_HEIGHT;
+constexpr int ROUTE_LIST_ROW_GAP = on_point::list_geometry::ROW_GAP;
+constexpr size_t ROUTE_LIST_VISIBLE_ROWS = on_point::ROUTE_LIST_VISIBLE_ROWS;
 constexpr unsigned long SET_MAIN_HOLD_MS = 700;
 constexpr int COUNTDOWN_LABEL_Y = 204;
 constexpr int COUNTDOWN_Y = 252;
@@ -78,15 +89,67 @@ bool sameDate(const on_point::CivilDateTime& a, const on_point::CivilDateTime& b
   return a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
+static_assert(on_point::list_geometry::COLLECTION_ROW_TOP + on_point::list_geometry::COLLECTION_ROW_HEIGHT <=
+                  FOOTER_RULE_Y,
+              "collection row overlaps the footer");
+
+// A collection's display name: a translated string chosen by its stable ID, never derived from
+// the ID. Collections without one (the capacity fixture's) are numbered.
+const char* regionLabel(const size_t index, char* fallback, const size_t size) {
+  const on_point::Region* region = on_point::regionAt(index);
+  if (region != nullptr) {
+    if (strcmp(region->regionId, "bulacan") == 0) return tr(STR_ON_POINT_REGION_BULACAN);
+    if (strcmp(region->regionId, "north-luzon") == 0) return tr(STR_ON_POINT_REGION_NORTH_LUZON);
+    if (strcmp(region->regionId, "airport-transfers") == 0) return tr(STR_ON_POINT_REGION_AIRPORT_TRANSFERS);
+  }
+  snprintf(fallback, size, "%s %u", tr(STR_ON_POINT_COLLECTION), static_cast<unsigned>(index + 1));
+  return fallback;
+}
+
+bool inCollectionRow(const int x, const int y, const int screenWidth) {
+  using namespace on_point::list_geometry;
+  return x >= 0 && x < screenWidth && y >= COLLECTION_ROW_TOP && y < COLLECTION_ROW_TOP + COLLECTION_ROW_HEIGHT;
+}
+
+size_t pickerPageStart(const size_t cursor) {
+  using on_point::list_geometry::PICKER_VISIBLE_ROWS;
+  return cursor / PICKER_VISIBLE_ROWS * PICKER_VISIBLE_ROWS;
+}
+
+// The collection under (x, y) on the page showing cursor; false for gaps and empty rows.
+bool collectionAtPoint(const int x, const int y, const int screenWidth, const size_t cursor, size_t& index) {
+  using namespace on_point::list_geometry;
+  if (x < 0 || x >= screenWidth || y < PICKER_ROW_TOP) return false;
+  const int step = ROW_HEIGHT + ROW_GAP;
+  const size_t row = static_cast<size_t>((y - PICKER_ROW_TOP) / step);
+  if (row >= PICKER_VISIBLE_ROWS || (y - PICKER_ROW_TOP) % step >= ROW_HEIGHT) return false;
+  const size_t candidate = pickerPageStart(cursor) + row;
+  if (candidate >= on_point::regionCount()) return false;
+  index = candidate;
+  return true;
+}
+
 }  // namespace
 
 void OnPointActivity::onEnter() {
   Activity::onEnter();
-  view = View::RouteList;
-  routeIndex = mainRouteIndex();
+  // Reads onpoint.json (and the legacy main route, for migration only); never writes.
+  store.load(SETTINGS.onPointMainRouteId, sizeof(SETTINGS.onPointMainRouteId));
+  region = on_point::regionCount() > 0 ? store.activeRegionIndex() : 0;
+  buildRouteList();
+  routeIndex = routeList.pinnedRoute();
+  pickerCursor = region;
+  collectionFocused = routeList.count() == 0 && hasCollectionRow();
+  // Straight to the active collection's main route; its list when it has none.
+  view = routeList.hasMainRoute() ? View::Departure : View::RouteList;
   reversed = false;
   cleanRefresh = true;
   fastRefreshCount = 0;
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "store source=%d read_only=%d region=%u has_main=%d", static_cast<int>(store.source()),
+          store.readOnly() ? 1 : 0, static_cast<unsigned>(region), routeList.hasMainRoute() ? 1 : 0);
+  on_point_bench::runOnEnter();
+#endif
   updateState();
   requestUpdate();
 }
@@ -95,58 +158,94 @@ const on_point::Schedule& OnPointActivity::selectedSchedule() const {
   return on_point::scheduleForRoute(routeIndex, reversed);
 }
 
-size_t OnPointActivity::mainRouteIndex() const { return on_point::routeIndexForId(SETTINGS.onPointMainRouteId); }
-
-size_t OnPointActivity::displayRouteIndex(const size_t displayIndex) const {
-  const size_t mainIndex = mainRouteIndex();
-  if (displayIndex == 0 || displayIndex >= on_point::routeCount()) return mainIndex;
-
-  size_t visiblePosition = 1;
-  for (size_t position = 0; position < on_point::routeCount(); ++position) {
-    const size_t index = on_point::routeIndexInAlphabeticalOrder(position);
-    if (index == mainIndex) continue;
-    if (visiblePosition == displayIndex) return index;
-    ++visiblePosition;
+void OnPointActivity::buildRouteList() {
+  const on_point::Region* active = on_point::regionAt(region);
+  const char* saved = store.defaultRouteId(region);
+  const on_point::RouteResolution resolution = on_point::resolveSavedRoute(
+      saved != nullptr ? saved : "", on_point::ON_POINT_STORED_ID_CAPACITY, on_point::productionAliases());
+  routeList.build(active != nullptr ? active->routes : nullptr, active != nullptr ? active->routeCount : 0, resolution);
+  if (!routeList.hasMainRoute()) {
+    // The stored value is kept as-is; only holding a route replaces it.
+    LOG_INF("ONPT", "No main route in collection %u (state %d)", static_cast<unsigned>(region),
+            static_cast<int>(routeList.resolution().state));
   }
-  return mainIndex;
 }
 
-size_t OnPointActivity::selectedDisplayIndex() const {
-  for (size_t displayIndex = 0; displayIndex < on_point::routeCount(); ++displayIndex) {
-    if (displayRouteIndex(displayIndex) == routeIndex) return displayIndex;
+bool OnPointActivity::hasCollectionRow() const { return on_point::regionCount() > 1 && on_point::routeCount() > 0; }
+
+const char* OnPointActivity::routeListFooterLabel() const {
+  if (store.hasUnsavedChanges()) return tr(STR_ON_POINT_NOT_SAVED);
+  if (collectionFocused) return tr(STR_ON_POINT_CHOOSE_COLLECTION);
+  return routeList.isMainRoute(routeIndex) ? tr(STR_ON_POINT_MAIN_ROUTE) : tr(STR_ON_POINT_HOLD_SET_MAIN);
+}
+
+void OnPointActivity::moveRouteFocus(const bool forward) {
+  const size_t count = routeList.count();
+  if (!hasCollectionRow()) {  // one collection: exactly Stage 1
+    if (count <= 1) return;
+    const size_t position = selectedDisplayIndex();
+    selectDisplayIndex(forward ? routeList.nextPosition(position) : routeList.previousPosition(position));
+    return;
   }
-  return 0;
-}
-
-size_t OnPointActivity::routeListFirstPosition() const {
-  const size_t displayIndex = selectedDisplayIndex();
-  if (displayIndex == 0) return 0;
-  return (displayIndex - 1) / ROUTE_LIST_VISIBLE_ROWS * ROUTE_LIST_VISIBLE_ROWS;
-}
-
-size_t OnPointActivity::routeListVisibleCount() const {
-  const size_t otherRouteCount = on_point::routeCount() > 0 ? on_point::routeCount() - 1 : 0;
-  return std::min(ROUTE_LIST_VISIBLE_ROWS, otherRouteCount - routeListFirstPosition());
-}
-
-bool OnPointActivity::routeAtPoint(const int x, const int y, size_t& index) const {
-  if (x < 0 || x >= renderer.getScreenWidth()) return false;
-  if (y >= MAIN_ROUTE_TOP && y < MAIN_ROUTE_TOP + MAIN_ROUTE_HEIGHT) {
-    index = mainRouteIndex();
-    return true;
+  if (collectionFocused) {
+    if (count == 0) return;
+    // One route: Next and Previous alternate between it and the row.
+    selectDisplayIndex(count == 1 ? 0 : (forward ? 1 : count - 1));
+    return;
   }
-  if (y < ROUTE_LIST_ROW_TOP) return false;
-  const int rowStep = ROUTE_LIST_ROW_HEIGHT + ROUTE_LIST_ROW_GAP;
-  const int row = (y - ROUTE_LIST_ROW_TOP) / rowStep;
-  if (row < 0 || row >= static_cast<int>(routeListVisibleCount()) ||
-      (y - ROUTE_LIST_ROW_TOP) % rowStep >= ROUTE_LIST_ROW_HEIGHT)
-    return false;
-  index = displayRouteIndex(1 + routeListFirstPosition() + static_cast<size_t>(row));
-  return true;
+  const size_t position = selectedDisplayIndex();
+  if (count <= 1 || (forward && position + 1 == count) || (!forward && position == 1)) {
+    collectionFocused = true;  // the row sits between the last route and the first
+    requestUpdate();
+    return;
+  }
+  selectDisplayIndex(forward ? routeList.nextPosition(position) : routeList.previousPosition(position));
 }
+
+void OnPointActivity::openCollectionPicker() {
+  view = View::CollectionPicker;
+  pickerCursor = region;
+  cleanRefresh = true;
+  requestUpdate();
+}
+
+void OnPointActivity::closeCollectionPicker() {
+  // Back: the list exactly as it was, with the row still focused.
+  view = View::RouteList;
+  collectionFocused = true;
+  cleanRefresh = true;
+  requestUpdate();
+}
+
+void OnPointActivity::selectCollection(const size_t index) {
+  if (index >= on_point::regionCount() || index == region) {
+    closeCollectionPicker();
+    return;
+  }
+  [[maybe_unused]] const auto outcome = store.setActiveRegion(index);  // a failed or read-only save shows NOT SAVED
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "save collection=%u outcome=%d unsaved=%d", static_cast<unsigned>(index), static_cast<int>(outcome),
+          store.hasUnsavedChanges() ? 1 : 0);
+  on_point_bench::logStacks("save");
+#endif
+  region = index;
+  buildRouteList();
+  routeIndex = routeList.pinnedRoute();
+  reversed = false;
+  collectionFocused = routeList.count() == 0;
+  view = View::RouteList;
+  cleanRefresh = true;
+  updateState();
+  requestUpdate();
+}
+
+size_t OnPointActivity::selectedDisplayIndex() const { return routeList.positionOfRoute(routeIndex); }
+
+size_t OnPointActivity::routeListFirstPosition() const { return routeList.pageStart(selectedDisplayIndex()); }
 
 void OnPointActivity::selectDisplayIndex(const size_t displayIndex) {
-  routeIndex = displayRouteIndex(displayIndex);
+  collectionFocused = false;
+  routeIndex = routeList.routeAtPosition(displayIndex);
   reversed = false;
   cleanRefresh = true;
   updateState();
@@ -154,16 +253,21 @@ void OnPointActivity::selectDisplayIndex(const size_t displayIndex) {
 }
 
 void OnPointActivity::setSelectedAsMainRoute() {
-  if (routeIndex == mainRouteIndex()) return;
-  const char* routeId = on_point::routeAt(routeIndex).routeId;
-  strncpy(SETTINGS.onPointMainRouteId, routeId, sizeof(SETTINGS.onPointMainRouteId) - 1);
-  SETTINGS.onPointMainRouteId[sizeof(SETTINGS.onPointMainRouteId) - 1] = '\0';
-  SETTINGS.saveToFile();
+  if (routeList.count() == 0 || routeList.isMainRoute(routeIndex)) return;
+  // This collection's main route, in onpoint.json; a failed or read-only save shows NOT SAVED.
+  [[maybe_unused]] const auto outcome = store.setDefaultRoute(region, on_point::routeAt(routeIndex).routeId);
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "save default collection=%u route=%s outcome=%d unsaved=%d", static_cast<unsigned>(region),
+          on_point::routeAt(routeIndex).routeId, static_cast<int>(outcome), store.hasUnsavedChanges() ? 1 : 0);
+  on_point_bench::logStacks("save");
+#endif
+  buildRouteList();
   cleanRefresh = true;
   requestUpdate();
 }
 
 void OnPointActivity::openSelectedRoute() {
+  if (routeList.count() == 0) return;
   view = View::Departure;
   cleanRefresh = true;
   updateState();
@@ -180,7 +284,8 @@ void OnPointActivity::reverseDirection() {
 void OnPointActivity::updateState() {
   on_point::CivilDateTime nowUtc;
   clockReady = clock.nowUtc(nowUtc);
-  state = clockReady ? on_point::getDepartureState(selectedSchedule(), nowUtc) : on_point::DepartureState{};
+  state = clockReady && routeList.count() > 0 ? on_point::getDepartureState(selectedSchedule(), nowUtc)
+                                              : on_point::DepartureState{};
   scheduleNextRefresh();
 }
 
@@ -215,6 +320,10 @@ void OnPointActivity::loop() {
       requestUpdate();
       return;
     }
+    if (view == View::CollectionPicker) {
+      closeCollectionPicker();
+      return;
+    }
     activityManager.goToApps(AppId::OnPoint);
     return;
   }
@@ -222,70 +331,11 @@ void OnPointActivity::loop() {
   if (RenderLock::peek()) return;
 
   if (view == View::RouteList) {
-    if (mappedInput.wasLongPressed(Button::Confirm, SET_MAIN_HOLD_MS)) {
-      setSelectedAsMainRoute();
-      return;
-    }
-    if (mappedInput.wasPressed(Button::NavNext)) {
-      const size_t routeCount = on_point::routeCount();
-      if (routeCount <= 1) return;
-      const size_t selected = selectedDisplayIndex();
-      const size_t next = selected == 0 || selected + 1 >= routeCount ? 1 : selected + 1;
-      selectDisplayIndex(next);
-      return;
-    }
-    if (mappedInput.wasPressed(Button::NavPrevious)) {
-      const size_t routeCount = on_point::routeCount();
-      if (routeCount <= 1) return;
-      const size_t selected = selectedDisplayIndex();
-      selectDisplayIndex(selected <= 1 ? routeCount - 1 : selected - 1);
-      return;
-    }
-    if (mappedInput.wasReleased(Button::Confirm)) {
-      openSelectedRoute();
-      return;
-    }
-
-    int touchX = 0;
-    int touchY = 0;
-    size_t touchedRoute = 0;
-    if (mappedInput.wasScreenLongPress(touchX, touchY) && routeAtPoint(touchX, touchY, touchedRoute)) {
-      routeIndex = touchedRoute;
-      reversed = false;
-      setSelectedAsMainRoute();
-      return;
-    }
-    if (mappedInput.wasScreenTouchDown(touchX, touchY) && routeAtPoint(touchX, touchY, touchedRoute)) {
-      if (routeIndex != touchedRoute) {
-        routeIndex = touchedRoute;
-        reversed = false;
-        requestUpdate();
-      }
-      return;
-    }
-    if (mappedInput.wasScreenTapped(touchX, touchY) && routeAtPoint(touchX, touchY, touchedRoute)) {
-      routeIndex = touchedRoute;
-      reversed = false;
-      openSelectedRoute();
-      return;
-    }
-
-    const auto swipe = mappedInput.wasSwipe();
-    if (swipe == MappedInputManager::SwipeDir::Up || swipe == MappedInputManager::SwipeDir::Down) {
-      const size_t first = routeListFirstPosition();
-      const size_t otherRouteCount = on_point::routeCount() - 1;
-      if (swipe == MappedInputManager::SwipeDir::Up && first + ROUTE_LIST_VISIBLE_ROWS < otherRouteCount) {
-        routeIndex = displayRouteIndex(1 + first + ROUTE_LIST_VISIBLE_ROWS);
-      } else if (swipe == MappedInputManager::SwipeDir::Down && first >= ROUTE_LIST_VISIBLE_ROWS) {
-        routeIndex = displayRouteIndex(1 + first - ROUTE_LIST_VISIBLE_ROWS);
-      } else {
-        return;
-      }
-      reversed = false;
-      cleanRefresh = true;
-      updateState();
-      requestUpdate();
-    }
+    handleRouteListInput();
+    return;
+  }
+  if (view == View::CollectionPicker) {
+    handleCollectionPickerInput();
     return;
   }
 
@@ -295,8 +345,134 @@ void OnPointActivity::loop() {
     return;
   }
 
-  if (view == View::Departure && static_cast<long>(millis() - nextRefreshAtMs) >= 0) {
+  if (static_cast<long>(millis() - nextRefreshAtMs) >= 0) {
     updateState();
+    requestUpdate();
+  }
+}
+
+void OnPointActivity::handleRouteListInput() {
+  using Button = MappedInputManager::Button;
+  if (mappedInput.wasLongPressed(Button::Confirm, SET_MAIN_HOLD_MS)) {
+    if (!collectionFocused) setSelectedAsMainRoute();
+    return;
+  }
+  if (mappedInput.wasPressed(Button::NavNext)) {
+    moveRouteFocus(true);
+    return;
+  }
+  if (mappedInput.wasPressed(Button::NavPrevious)) {
+    moveRouteFocus(false);
+    return;
+  }
+  if (mappedInput.wasReleased(Button::Confirm)) {
+    if (collectionFocused)
+      openCollectionPicker();
+    else
+      openSelectedRoute();
+    return;
+  }
+
+  int touchX = 0;
+  int touchY = 0;
+  size_t touchedRoute = 0;
+  const int screenWidth = renderer.getScreenWidth();
+  const size_t selected = selectedDisplayIndex();
+  const bool rowShown = hasCollectionRow();
+  if (mappedInput.wasScreenLongPress(touchX, touchY)) {
+    if (rowShown && inCollectionRow(touchX, touchY, screenWidth)) return;
+    if (routeList.routeAtPoint(touchX, touchY, screenWidth, selected, touchedRoute)) {
+      collectionFocused = false;
+      routeIndex = touchedRoute;
+      reversed = false;
+      setSelectedAsMainRoute();
+    }
+    return;
+  }
+  if (mappedInput.wasScreenTouchDown(touchX, touchY)) {
+    if (rowShown && inCollectionRow(touchX, touchY, screenWidth)) {
+      if (!collectionFocused) {
+        collectionFocused = true;
+        requestUpdate();
+      }
+    } else if (routeList.routeAtPoint(touchX, touchY, screenWidth, selected, touchedRoute)) {
+      if (routeIndex != touchedRoute || collectionFocused) {
+        collectionFocused = false;
+        routeIndex = touchedRoute;
+        reversed = false;
+        requestUpdate();
+      }
+    }
+    return;
+  }
+  if (mappedInput.wasScreenTapped(touchX, touchY)) {
+    if (rowShown && inCollectionRow(touchX, touchY, screenWidth)) {
+      openCollectionPicker();
+    } else if (routeList.routeAtPoint(touchX, touchY, screenWidth, selected, touchedRoute)) {
+      collectionFocused = false;
+      routeIndex = touchedRoute;
+      reversed = false;
+      openSelectedRoute();
+    }
+    return;
+  }
+
+  const auto swipe = mappedInput.wasSwipe();
+  if (swipe == MappedInputManager::SwipeDir::Up || swipe == MappedInputManager::SwipeDir::Down) {
+    size_t target = 0;
+    if (!routeList.swipeTarget(selected, swipe == MappedInputManager::SwipeDir::Up, target)) return;
+    collectionFocused = false;
+    routeIndex = routeList.routeAtPosition(target);
+    reversed = false;
+    cleanRefresh = true;
+    updateState();
+    requestUpdate();
+  }
+}
+
+void OnPointActivity::handleCollectionPickerInput() {
+  using Button = MappedInputManager::Button;
+  using on_point::list_geometry::PICKER_VISIBLE_ROWS;
+  const size_t count = on_point::regionCount();
+  if (count == 0) return;
+  if (mappedInput.wasPressed(Button::NavNext)) {
+    pickerCursor = (pickerCursor + 1) % count;
+    requestUpdate();
+    return;
+  }
+  if (mappedInput.wasPressed(Button::NavPrevious)) {
+    pickerCursor = (pickerCursor + count - 1) % count;
+    requestUpdate();
+    return;
+  }
+  if (mappedInput.wasReleased(Button::Confirm)) {
+    selectCollection(pickerCursor);
+    return;
+  }
+
+  int touchX = 0;
+  int touchY = 0;
+  size_t touched = 0;
+  const int screenWidth = renderer.getScreenWidth();
+  if (mappedInput.wasScreenTouchDown(touchX, touchY)) {
+    if (collectionAtPoint(touchX, touchY, screenWidth, pickerCursor, touched) && touched != pickerCursor) {
+      pickerCursor = touched;
+      requestUpdate();
+    }
+    return;
+  }
+  if (mappedInput.wasScreenTapped(touchX, touchY)) {
+    if (collectionAtPoint(touchX, touchY, screenWidth, pickerCursor, touched)) selectCollection(touched);
+    return;
+  }
+
+  const auto swipe = mappedInput.wasSwipe();
+  const size_t first = pickerPageStart(pickerCursor);
+  if (swipe == MappedInputManager::SwipeDir::Up && first + PICKER_VISIBLE_ROWS < count) {
+    pickerCursor = first + PICKER_VISIBLE_ROWS;
+    requestUpdate();
+  } else if (swipe == MappedInputManager::SwipeDir::Down && first >= PICKER_VISIBLE_ROWS) {
+    pickerCursor = first - PICKER_VISIBLE_ROWS;
     requestUpdate();
   }
 }
@@ -419,17 +595,31 @@ void OnPointActivity::drawReverseAffordance() const {
 void OnPointActivity::drawRouteList() const {
   const int width = renderer.getScreenWidth();
   const char* timetableLabel = tr(STR_ON_POINT_P2P_TIMETABLE);
-  const size_t mainIndex = mainRouteIndex();
+  if (routeList.count() == 0) {
+    // No routes to list (never the shipped catalogue): header, a notice, and the row to leave.
+    renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
+    renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
+    renderer.drawText(
+        FOLLOWING_FONT, MARGIN, MAIN_ROUTE_LABEL_Y,
+        on_point::routeCount() == 0 ? tr(STR_ON_POINT_TIMETABLE_UNAVAILABLE) : tr(STR_ON_POINT_NO_ROUTES_IN_COLLECTION),
+        true, EpdFontFamily::BOLD);
+    if (hasCollectionRow()) drawCollectionRow();
+    return;
+  }
+  const size_t pinnedIndex = routeList.pinnedRoute();
+  const char* pinnedLabel = on_point::pinnedHeading(routeList.resolution().state) == on_point::PinnedHeading::MainRoute
+                                ? tr(STR_ON_POINT_MAIN_ROUTE)
+                                : tr(STR_ON_POINT_NO_MAIN_ROUTE);
 
   renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
   renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, timetableLabel), HEADER_META_Y,
                     timetableLabel, true, EpdFontFamily::BOLD);
   renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
-  renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, tr(STR_ON_POINT_MAIN_ROUTE), true, EpdFontFamily::BOLD);
-  drawMainRoute(on_point::scheduleForRoute(mainIndex, false), routeIndex == mainIndex);
+  renderer.drawText(LABEL_FONT, MARGIN, MAIN_ROUTE_LABEL_Y, pinnedLabel, true, EpdFontFamily::BOLD);
+  drawMainRoute(on_point::scheduleForRoute(pinnedIndex, false), !collectionFocused && routeIndex == pinnedIndex);
 
   renderer.drawText(LABEL_FONT, MARGIN, ALL_ROUTES_LABEL_Y, tr(STR_ON_POINT_ALL_ROUTES), true, EpdFontFamily::BOLD);
-  const size_t otherRouteCount = on_point::routeCount() - 1;
+  const size_t otherRouteCount = routeList.count() - 1;
   const size_t pageCount = (otherRouteCount + ROUTE_LIST_VISIBLE_ROWS - 1) / ROUTE_LIST_VISIBLE_ROWS;
   if (pageCount > 1) {
     char page[12];
@@ -441,16 +631,82 @@ void OnPointActivity::drawRouteList() const {
   }
 
   const size_t first = routeListFirstPosition();
-  const size_t visibleCount = routeListVisibleCount();
+  const size_t visibleCount = routeList.visibleRows(first);
   for (size_t row = 0; row < visibleCount; ++row) {
-    const size_t index = displayRouteIndex(1 + first + row);
+    const size_t index = routeList.routeAtPosition(1 + first + row);
     const on_point::Schedule& route = on_point::scheduleForRoute(index, false);
     const int y = ROUTE_LIST_ROW_TOP + static_cast<int>(row) * (ROUTE_LIST_ROW_HEIGHT + ROUTE_LIST_ROW_GAP);
-    drawRouteListRow(route, index == routeIndex, y);
+    drawRouteListRow(route, !collectionFocused && index == routeIndex, y);
   }
 
-  drawFooter(on_point::scheduleForRoute(routeIndex, false),
-             routeIndex == mainIndex ? tr(STR_ON_POINT_MAIN_ROUTE) : tr(STR_ON_POINT_HOLD_SET_MAIN));
+  if (hasCollectionRow()) drawCollectionRow();
+  drawFooter(on_point::scheduleForRoute(routeIndex, false), routeListFooterLabel());
+}
+
+void OnPointActivity::drawCollectionRow() const {
+  using namespace on_point::list_geometry;
+  const int width = renderer.getScreenWidth();
+  constexpr int CHEVRON_WIDTH = 10;
+  constexpr int CHEVRON_GAP = 12;
+  const int textY = COLLECTION_ROW_TOP + 14;
+  renderer.drawLine(MARGIN, COLLECTION_ROW_TOP, width - MARGIN, COLLECTION_ROW_TOP, 2, true);
+  renderer.fillRect(MARGIN, COLLECTION_ROW_TOP + 6, collectionFocused ? 8 : 3, COLLECTION_ROW_HEIGHT - 8, true);
+  renderer.drawText(LABEL_FONT, MARGIN + 24, textY, tr(STR_ON_POINT_COLLECTION), true, EpdFontFamily::BOLD);
+
+  char fallback[32];
+  const char* name = regionLabel(region, fallback, sizeof(fallback));
+  const int chevronX = width - MARGIN - CHEVRON_WIDTH;
+  renderer.drawText(LABEL_FONT, chevronX - CHEVRON_GAP - renderer.getTextWidth(LABEL_FONT, name, EpdFontFamily::BOLD),
+                    textY, name, true, EpdFontFamily::BOLD);
+  const int midY = COLLECTION_ROW_TOP + COLLECTION_ROW_HEIGHT / 2;
+  const int xs[] = {chevronX, chevronX + CHEVRON_WIDTH, chevronX};
+  const int ys[] = {midY - 8, midY, midY + 8};
+  renderer.fillPolygon(xs, ys, 3, true);
+}
+
+void OnPointActivity::drawCollectionPicker() const {
+  using namespace on_point::list_geometry;
+  const int width = renderer.getScreenWidth();
+  const char* title = tr(STR_ON_POINT_COLLECTIONS);
+  renderer.drawText(HEADER_FONT, MARGIN, HEADER_TITLE_Y, tr(STR_ON_POINT), true, EpdFontFamily::BOLD);
+  renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, title), HEADER_META_Y, title, true,
+                    EpdFontFamily::BOLD);
+  renderer.drawLine(MARGIN, HEADER_RULE_Y, width - MARGIN, HEADER_RULE_Y, 5, true);
+
+  const size_t count = on_point::regionCount();
+  const size_t first = pickerPageStart(pickerCursor);
+  const size_t pages = (count + PICKER_VISIBLE_ROWS - 1) / PICKER_VISIBLE_ROWS;
+  if (pages > 1) {
+    char page[12];
+    snprintf(page, sizeof(page), "%u / %u", static_cast<unsigned>(first / PICKER_VISIBLE_ROWS + 1),
+             static_cast<unsigned>(pages));
+    renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, page, EpdFontFamily::BOLD),
+                      MAIN_ROUTE_LABEL_Y, page, true, EpdFontFamily::BOLD);
+  }
+
+  for (size_t index = first; index < count && index < first + PICKER_VISIBLE_ROWS; ++index) {
+    const int y = PICKER_ROW_TOP + static_cast<int>(index - first) * (ROW_HEIGHT + ROW_GAP);
+    const int contentX = MARGIN + 24;
+    renderer.fillRect(MARGIN, y, index == pickerCursor ? 8 : 3, ROW_HEIGHT, true);
+    char fallback[32];
+    renderer.drawText(ROUTE_FONT, contentX, y + 8, regionLabel(index, fallback, sizeof(fallback)), true,
+                      EpdFontFamily::BOLD);
+    const size_t routes = on_point::regionAt(index)->routeCount;
+    char routeCount[48];
+    snprintf(routeCount, sizeof(routeCount), "%u %s", static_cast<unsigned>(routes),
+             routes == 1 ? tr(STR_ON_POINT_ROUTE_COUNT_ONE) : tr(STR_ON_POINT_ROUTE_COUNT_MANY));
+    renderer.drawText(LABEL_FONT, contentX, y + 64, routeCount, true, EpdFontFamily::BOLD);
+    if (index == region) {
+      const char* current = tr(STR_ON_POINT_CURRENT_COLLECTION);
+      renderer.drawText(LABEL_FONT, width - MARGIN - renderer.getTextWidth(LABEL_FONT, current, EpdFontFamily::BOLD),
+                        y + 64, current, true, EpdFontFamily::BOLD);
+    }
+  }
+
+  renderer.drawLine(MARGIN, FOOTER_RULE_Y, width - MARGIN, FOOTER_RULE_Y, 3, true);
+  renderer.drawText(LABEL_FONT, MARGIN, 744,
+                    store.hasUnsavedChanges() ? tr(STR_ON_POINT_NOT_SAVED) : tr(STR_ON_POINT_SELECT_COLLECTION), true,
+                    EpdFontFamily::BOLD);
 }
 
 void OnPointActivity::drawMainRoute(const on_point::Schedule& route, const bool selected) const {
@@ -619,9 +875,14 @@ void OnPointActivity::drawTimetableUnavailableScreen(const on_point::Schedule& s
 }
 
 void OnPointActivity::render(RenderLock&&) {
+#ifdef ON_POINT_BENCH_TIMING
+  const int64_t drawStart = esp_timer_get_time();
+#endif
   renderer.clearScreen();
   if (view == View::RouteList) {
     drawRouteList();
+  } else if (view == View::CollectionPicker) {
+    drawCollectionPicker();
   } else {
     const on_point::Schedule& schedule = selectedSchedule();
     drawHeaderAndRoute(schedule);
@@ -647,5 +908,14 @@ void OnPointActivity::render(RenderLock&&) {
   } else {
     ++fastRefreshCount;
   }
+#ifdef ON_POINT_BENCH_TIMING
+  const int64_t refreshStart = esp_timer_get_time();
+#endif
   renderer.displayBuffer(mode);
+#ifdef ON_POINT_BENCH_TIMING
+  LOG_INF("ONPTB", "render view=%d mode=%d draw_us=%lld refresh_us=%lld", static_cast<int>(view),
+          static_cast<int>(mode), static_cast<long long>(refreshStart - drawStart),
+          static_cast<long long>(esp_timer_get_time() - refreshStart));
+  on_point_bench::logStacks("render");
+#endif
 }

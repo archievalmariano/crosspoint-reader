@@ -64,6 +64,32 @@ inline constexpr std::array<MarkedDate, 22> PHILIPPINES_2026 = {{
     {2026, 12, 31, Kind::SpecialNonWorking, "Last Day of the Year", nullptr},
 }};
 
+// 2027: Proclamation No. 1427 (signed 8 September 2026), the nationwide regular
+// holidays and special days. No regional special days were declared for 2027.
+// Eid'l Fitr and Eid'l Adha are omitted until their own proclamations set the
+// dates (the NCMF recommends them closer to the observance). Sorted by date.
+inline constexpr std::array<MarkedDate, 19> PHILIPPINES_2027 = {{
+    {2027, 1, 1, Kind::RegularHoliday, "New Year's Day", nullptr},
+    {2027, 2, 6, Kind::SpecialNonWorking, "Chinese New Year", nullptr},
+    {2027, 2, 25, Kind::SpecialWorking, "EDSA People Power Anniversary", "Offices and schools stay open."},
+    {2027, 3, 25, Kind::RegularHoliday, "Maundy Thursday", nullptr},
+    {2027, 3, 26, Kind::RegularHoliday, "Good Friday", nullptr},
+    {2027, 3, 27, Kind::SpecialNonWorking, "Black Saturday", nullptr},
+    {2027, 4, 9, Kind::RegularHoliday, "Araw ng Kagitingan", "Day of Valor."},
+    {2027, 5, 1, Kind::RegularHoliday, "Labor Day", nullptr},
+    {2027, 6, 12, Kind::RegularHoliday, "Independence Day", nullptr},
+    {2027, 8, 21, Kind::SpecialNonWorking, "Ninoy Aquino Day", nullptr},
+    {2027, 8, 30, Kind::RegularHoliday, "National Heroes Day", "Last Monday of August."},
+    {2027, 11, 1, Kind::SpecialNonWorking, "All Saints' Day", nullptr},
+    {2027, 11, 2, Kind::SpecialNonWorking, "All Souls' Day", nullptr},
+    {2027, 11, 30, Kind::RegularHoliday, "Bonifacio Day", nullptr},
+    {2027, 12, 8, Kind::SpecialNonWorking, "Feast of the Immaculate Conception", nullptr},
+    {2027, 12, 24, Kind::SpecialNonWorking, "Christmas Eve", nullptr},
+    {2027, 12, 25, Kind::RegularHoliday, "Christmas Day", nullptr},
+    {2027, 12, 30, Kind::RegularHoliday, "Rizal Day", nullptr},
+    {2027, 12, 31, Kind::SpecialNonWorking, "Last Day of the Year", nullptr},
+}};
+
 // Annual observances, kept deliberately selective: a few international days
 // (names as on the UN list of international days) and a small set of popular
 // cultural dates, which make no claim to recognition. Sorted by date.
@@ -105,6 +131,9 @@ constexpr bool matches(const MarkedDate& date, const int year, const int month, 
 inline size_t datesOn(const int year, const int month, const int day, const MarkedDate** out, const size_t max) {
   size_t count = 0;
   for (const MarkedDate& date : PHILIPPINES_2026) {
+    if (count < max && matches(date, year, month, day)) out[count++] = &date;
+  }
+  for (const MarkedDate& date : PHILIPPINES_2027) {
     if (count < max && matches(date, year, month, day)) out[count++] = &date;
   }
   for (const MarkedDate& date : OBSERVANCES) {

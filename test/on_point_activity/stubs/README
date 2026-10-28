@@ -1,0 +1,5 @@
+Host-test stand-ins for the device headers OnPointActivity.cpp includes
+(renderer, display, input, settings, translations, Activity base). They
+record what the real ON POINT activity draws and saves, nothing more. Only
+test/on_point_activity uses them; they shadow the real headers by include
+order.
