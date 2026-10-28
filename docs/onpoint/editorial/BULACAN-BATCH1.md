@@ -160,7 +160,13 @@ only.**
 - **2027 non-working days (18):** Jan 1; Feb 6; Mar 25, 26, 27; Apr 9; May 1; Jun 12; Aug 21, 30; Nov 1, 2, 30; Dec 8,
   24, 25, 30, 31.
 - **Special working day:** EDSA, Feb 25. It keeps the weekday timetable.
-- **Pending:** Eid'l Fitr and Eid'l Adha await their own proclamations (Section 2) and are not listed.
+- **Classification confirmed (owner, 2026-10-28):** checked against the **Supreme Court E-Library** text of Proclamation
+  No. 1427 and **DOLE's 2026-09-30 advisory**.
+  - **Feb 6, Mar 27, Nov 2 and Dec 24, 2027 are additional special non-working days.**
+  - **Feb 25 is a special working day.**
+  - The earlier Lawphil layout discrepancy is **closed**; the implementation was already correct and is unchanged.
+- **Pending:** Eid'l Fitr and Eid'l Adha await their own proclamations (Section 2). No dates are entered or inferred
+  until those are issued.
 - **No amendment found** (search, 2026-10-28).
 
 **Operator policies (owner decision, 2026-10-28):**
@@ -176,8 +182,8 @@ replace this mapping.
 **Tripwire:** `HolidayOverridesFollowEachOperatorsPolicy` now **passes**: every Bulacan P2P direction carries
 Balagtas's 39 dates.
 
-**After 2027-12-31:** no 2028 dates exist, so holidays fall back to day-of-week rules. That needs the 2028
-proclamation.
+**The holiday calendar ends on 2027-12-31.** From 2028-01-01, holidays run their ordinary day-of-week timetables until
+2028 dates are added. That is **future maintenance** after the 2028 proclamation, not a blocker for this release.
 
 ## 5. Release checks (blocking any public release of this batch)
 
@@ -196,12 +202,12 @@ proclamation.
 4. **The PROVISIONAL definition** (§8) appears in the editorial and public release notes.
 5. **The Plaridel ↔ SM North designation**, if it is later chosen to replace `p2p-plaridel-trinoma`. Saved main routes
    would fall to the no-main state. The two boarding locations stay **unmerged** (register §12.1).
-7. **The Proclamation No. 1427 classification check.**
-   - Lawphil's HTML lists Feb 6, Mar 27, Nov 2 and Dec 24 under "Special (Working) Day", against the proclamation's
-     title and recitals and the Palace release, which make them additional special **non-working** days.
-   - The signed PDF wasn't readable here.
-   - Confirm from the PDF before release; if Lawphil is right, those four dates would move to weekday timetables.
-   - Also watch for the **Eid proclamations** and any amendment.
+7. ~~**The Proclamation No. 1427 classification check**~~ **Closed (2026-10-28).** Confirmed against the Supreme Court
+   E-Library and DOLE's 2026-09-30 advisory (§4).
+   - **Still to watch, not blocking:** the Eid proclamations (add their dates when issued), any amendment, and 2028
+     dates (future maintenance).
+8. **Commit attribution before any public push:** `4467604b` carries a personal email. The correction is proposed in
+   the readiness summary and **not yet applied**.
 6. ~~**Device validation**~~ **Done:** image `638a50a9…`, hardware PASS on 2026-10-26.
 
 ## 6. Editorial decisions (confirmed by the owner, 2026-10-28)

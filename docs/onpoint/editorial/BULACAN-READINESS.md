@@ -217,6 +217,7 @@ fixture. BULACAN goes from 2 to 5 routes.
 
 | Date | Change |
 |---|---|
+| 2026-10-28 | The 2027 classification discrepancy is closed (Supreme Court E-Library, DOLE 2026-09-30). |
 | 2026-10-28 | Owner decisions confirmed (BATCH1 §6); 2027 holidays integrated (BATCH1 §4). |
 | 2026-10-28 | Field update added to the current recommendation: the RPF and Precious Grace TriNoma notices, the dispatch observation, the PROVISIONAL definition, and the Guiguinto risk acceptance (gate kept). |
 | 2026-10-26 | Current recommendation added: the six-route batch, owner-approved, Codex PASS WITH CONDITIONS. Passes 4–8 recommendations marked historical. Guiguinto's evidence concerns and release condition retained. |

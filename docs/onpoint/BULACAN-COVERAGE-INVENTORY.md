@@ -187,4 +187,4 @@ See [editorial/BULACAN-BATCH1.md](editorial/BULACAN-BATCH1.md).
 **2026-10-28:** owner decisions confirmed: effective date, Caypombo wording, identities, the first-trip evidence and
 Guiguinto's risk acceptance. **2027 holidays integrated** (`f5a2127f`): every Bulacan P2P direction now follows
 Balagtas's policy, and Precious Grace stays daily. This supersedes the "Holiday coverage ends with 2026" gap in §2.
-**Open:** the Proclamation No. 1427 classification check, and the Eid dates.
+**Closed:** the Proclamation No. 1427 classification check (Supreme Court E-Library; DOLE 2026-09-30). **Pending:** the Eid dates. **2028:** future maintenance; the calendar ends 2027-12-31.
