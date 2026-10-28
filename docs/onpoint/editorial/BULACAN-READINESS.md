@@ -23,6 +23,22 @@ checks are in [BULACAN-BATCH1.md](BULACAN-BATCH1.md).
 - **Approved for a local development build only.** Before any public release, a current terminal timetable or
   operator confirmation is required, or the publication decision goes back to the owner (BATCH1 §5).
 
+**Field update, 2026-10-28** (register §12; owner decisions):
+- **No timetable or status change.** All six pairs keep their fixed arrays and directional labels.
+- **Bulacan P2P's TriNoma notice** gives first and last trips with a **30–45-minute interval range**. It doesn't give
+  exact minutes.
+  - **TriNoma → Guiguinto agrees** with the firmware's endpoints.
+  - **Balagtas, Plaridel and (probably) Pandi** list **earlier first trips** (05:30 / 05:00 / 05:30) than the dated
+    2026-08-30 graphic (06:00). This is the **only material contradiction**, and it is recorded as a release check,
+    not changed.
+- **Precious Grace's TriNoma board** corroborates 06:00–22:30 every 30 minutes, without assigning times to
+  destinations. Its signs show that **TriNoma also boards the Caypombo line**.
+- **Dispatch can depend on loads and vehicles** (anecdotal). PROVISIONAL now has a defined meaning: *estimated times;
+  actual departures can vary* (BATCH1 §8).
+- **Guiguinto:** the **owner accepts the reconstruction as an explicitly PROVISIONAL publication candidate.** That is
+  editorial risk acceptance, not operator verification. **The release gate stays closed** until separate final
+  authorisation.
+
 **Still not in the catalogue:**
 - **Plaridel ↔ SM North EDSA:** a documented candidate, pending SM North boarding-terminal departures.
 - **Angat ↔ Monumento:** excluded ("Route 9", variable interval).
@@ -201,6 +217,7 @@ fixture. BULACAN goes from 2 to 5 routes.
 
 | Date | Change |
 |---|---|
+| 2026-10-28 | Field update added to the current recommendation: the RPF and Precious Grace TriNoma notices, the dispatch observation, the PROVISIONAL definition, and the Guiguinto risk acceptance (gate kept). |
 | 2026-10-26 | Current recommendation added: the six-route batch, owner-approved, Codex PASS WITH CONDITIONS. Passes 4–8 recommendations marked historical. Guiguinto's evidence concerns and release condition retained. |
 | 2026-10-25 | Pass 4: readiness under the owner's standard |
 | 2026-10-25 | **Pass 8:** Guiguinto triangulation. The weekday outbound is documented. The weekend outbound and returns are reconstructed as competing candidates with quantified disagreement. Below the Pandi/Plaridel threshold for the weekend outbound and the weekday return. Recommendation: outside the build. |

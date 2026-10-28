@@ -69,6 +69,10 @@ rule, route entry or firmware was changed.
 | COM-PLR-20250705 | Community-group Q&A: Plaridel P2P → "Dadaan po muna ng Trinoma then SM North" | Commuter comment (non-authoritative) | Owner screenshot `COM-PLR-20250705.png` (`ce997936…`) | Post 2025-07-05 (year shown) |
 | TN-GUI-20250912 | Photo of the printed WalterMart Guiguinto – TriNoma terminal notice (M–F, Saturday + HOLIDAY label, Sunday) | Terminal notice, photographed (primary, historical) | Owner screenshot `TN-GUI-20250912-photo.webp` (`2f5c4bc5…`) | Photo post 2025-09-12 (year shown). Notice effective date unknown. |
 | TN-GUI-0331 | The same notice, with weekday afternoon departures struck and "4 PM ONWARDS MAY BYAHE PA PO", "LAST TRIP 7:30" handwritten | **Possible disruption-period schedule.** Archived, excluded from candidates (owner decision). | Owner screenshot `TN-GUI-0331-POSSIBLE-DISRUPTION.webp` (`61aeea97…`) | Photo post "March 31". **Year not shown** (2026 likely, unconfirmed). |
+| FO-RPF-20261028 | **Riding Public First Joint Venture Inc.** (Bulacan P2P RPF) notice at the TriNoma terminal, "TRINOMA TO BULACAN P2P TRIP SCHEDULE" (owner photo `IMG_0668`) | Operator terminal notice, photographed firsthand | Local copy `FO-RPF-NOTICE-IMG_0668.HEIC` (`4ec016e9…`) | Photo 2026-10-28 (file metadata). **The notice itself is undated.** |
+| FO-PG-BOARD-20261028 | Precious Grace "Schedule" board at the TriNoma terminal (owner photo `IMG_0666`) | Operator terminal board, photographed firsthand | `FO-PG-BOARD-IMG_0666.HEIC` (`8fb0e83b…`) | Photo 2026-10-28. The board is undated. |
+| FO-PG-SIGNS-20261028 | Two Precious Grace "Tara! P2P." boarding signs beside that board (owner photo `IMG_0667`) | Operator signage, photographed firsthand | `FO-PG-SIGNS-IMG_0667.HEIC` (`e22f8077…`) | Photo 2026-10-28 |
+| OBS-20261028 | The owner's firsthand dispatch observation at TriNoma (see §12) | OBS: anecdotal | The owner's statement of 2026-10-28 | 2026-10-28 |
 
 **Inaccessible (INACC):**
 - **Every operator timetable post on Facebook** (login wall). Pass 2 searched for indexed post permalinks with dates
@@ -421,11 +425,92 @@ These can still be offered as PROVISIONAL with first and last trips.
 | Candidates 3–6 | 2026-11-24 (provisional) |
 | Operator intros FB-BP2P and FB-PGT | 2027-01-23 (90 days) |
 
+## 12. TriNoma field observations (2026-10-28)
+
+**Status of these records:**
+- They are recorded by owner decision. The departure arrays and statuses are **unchanged**.
+- The photos were taken on 2026-10-28 (file metadata, about 12:11–12:12 PHT). That proves the notices were displayed
+  that day, not when they took effect.
+
+### 12.1 FO-RPF-20261028: Bulacan P2P (RPF) TriNoma notice
+
+The notice is headed "Riding Public First Joint Venture Inc." and "Trinoma to Bulacan P2P trip schedule", with a
+"Bulacan P2P RPF" Facebook reference. It states **no day types** and **no date**.
+
+| Block, as printed | First trip | Last trip | Trip interval |
+|---|---|---|---|
+| TRINOMA TO GUIGUINTO | 6:00 AM | 9:30 PM | 30–45 MINUTES |
+| TRINOMA TO P… (**glare-obscured**: only "TRINOMA TO P" is legible) | 5:30 AM | 9:30 PM | 30–45 MINUTES |
+| TRINOMA TO BALAGTAS | 5:30 AM | 10:30 PM | 30–45 MINUTES |
+| TRINOMA TO PLARIDEL | 5:00 AM | 9:00 PM | 30–45 MINUTES |
+| SM NORTH TO PLARIDEL | 5:30 AM | 10:30 PM | 30–45 MINUTES |
+
+**The obscured block:** read as **Pandi**, by elimination (Plaridel has its own block) and because its 9:30 PM last
+trip matches BP2P-0830's TriNoma → Pandi. This is **inferred, not read**.
+
+**What the notice establishes:**
+- The services exist, with operating windows and a stated **30–45-minute interval range**.
+- It **does not establish exact departure minutes.**
+- **TriNoma → Plaridel and SM North → Plaridel are distinct operator listings**, with different first and last trips
+  (05:00–21:00 against 05:30–22:30). They are recorded as **two boarding locations, not merged** (owner decision; see
+  also readiness §6.5).
+
+### 12.2 FO-PG-BOARD-20261028 and FO-PG-SIGNS-20261028: Precious Grace at TriNoma
+
+**The board** is headed "Precious Grace Transport, Premium Point to Point Bus, Schedule".
+- **Legible departures:** every 30 minutes, **6:00 AM to 10:30 PM**, 34 slots.
+- **Obscured entries:** a torn sticker covers parts of the left column. 7:30 is partly visible; the four rows after it
+  (8:00–9:30 by sequence) are obscured; 10:00 and 10:30 are partly visible.
+- **No day types, no date.**
+- **No midday gap**, which contradicts P2PBus.ph's undated midday thinning.
+
+**The signs** stand beside the board:
+- "TRINOMA TO ROBINSONS PLACE MALOLOS";
+- "TRINOMA TO BOCAUE / STA. CLARA / CAYPOMBO (beside Brgy. Hall)".
+
+**Attribution:** the board **does not assign any time to a particular destination.** Whether each destination
+departs every 30 minutes, or the slots are shared, is still unstated.
+
+**What the signs add:**
+- **TriNoma is a Precious Grace boarding point for the Caypombo line**, not only for Malolos.
+- **Bocaue and Sta. Clara are stops on the Caypombo line** (identity §5.3).
+- **The Caypombo terminal is "beside Brgy. Hall".**
+
+### 12.3 OBS-20261028: dispatch at TriNoma (anecdotal)
+
+**Owner's firsthand observation:** TriNoma departures can depend on **passenger loads and vehicle availability**. A
+Balagtas bus left about **one-third full** after another vehicle arrived.
+
+**Classification:** **anecdotal operational evidence, not a formal dispatch policy.** It supports treating
+PROVISIONAL times as estimates. It does not alter any timetable.
+
+### 12.4 Contradictions with the current arrays
+
+The firmware arrays are listed in BATCH1 §3.
+
+| Direction | Firmware (from BP2P-0830, dated) | Notice FO-RPF (undated) | Material? |
+|---|---|---|---|
+| TriNoma → Balagtas | First 06:00 Mon–Fri, 06:30 SSH; last 22:30 | First **05:30**; last 22:30 | **Yes:** a possible 05:30 trip the board omits |
+| TriNoma → Plaridel | First 06:00 / 06:30; last 21:00 | First **05:00**; last 21:00 | **Yes:** possible 05:00 and 05:30 trips omitted |
+| TriNoma → Pandi (inferred) | First 06:00 / 06:30; last 21:30 | First **05:30**; last 21:30 | **Yes, if the heading is Pandi** |
+| TriNoma → Guiguinto | 06:00 / 06:30 – 21:30; weekday every 30, weekend every 45 | 06:00–21:30, every 30–45 | **No:** the endpoints agree and both reconstructions sit inside the stated range |
+| Every Bulacan P2P direction | Fixed 30-minute interior (weekend Guiguinto 45) | 30–45-minute range | **Not material by itself.** The known PROVISIONAL uncertainty: some listed 30-minute departures may not run. No specific minute is contradicted. |
+| SM North → Caypombo, TriNoma → Malolos | 06:00–22:30 every 30 (34) | FO-PG board: 06:00–22:30 every 30 (34) | **No:** it corroborates. Destination attribution and the TriNoma/SM North boarding question remain open. |
+
+**About the first-trip conflict:**
+- It is **dated online graphic against undated physical notice.** The 2026-08-30 graphic is the newer *dated* source,
+  but the notice was on display on 2026-10-28. Neither proves the other stale.
+- It affects only the **first trip**. The firmware may **under-state** early departures from TriNoma; it does not show
+  trips that don't exist at those times.
+- **Resolution needs** the operator's current first trips by day type, or a field check at TriNoma before 06:00.
+- **No array is changed** (owner decision, 2026-10-28).
+
 ## 11. Change log
 
 | Date | Change |
 |---|---|
 | 2026-10-25 | Register created (research pass 1). Sources accessed on 2026-10-25. |
+| 2026-10-28 | TriNoma field observations recorded (§12): the RPF notice (30–45-minute intervals; first-trip conflicts), the Precious Grace board and signs, and the anecdotal dispatch observation. No array or status changed. |
 | 2026-10-25 | Batch 1 implemented (`1aaedbf4`). Per-departure provenance classes and release checks are in [BULACAN-BATCH1.md](BULACAN-BATCH1.md). |
 | 2026-10-25 | Pass 7: TN-GUI-20250912 and TN-GUI-0331 added. See BULACAN-READINESS.md §7. |
 | 2026-10-25 | Pass 6: TN-GUI-20250625 and COM-PLR-20250705 added. See BULACAN-READINESS.md §6. |

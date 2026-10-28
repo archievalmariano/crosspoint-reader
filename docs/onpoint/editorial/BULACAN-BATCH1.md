@@ -168,13 +168,22 @@ only.**
 
 ## 5. Release checks (blocking any public release of this batch)
 
-1. **Guiguinto, both directions:** a current terminal timetable or operator confirmation, or an explicit owner
-   publication decision (§3.6).
+1. **Guiguinto, both directions:** the **owner's editorial risk acceptance is recorded (2026-10-28)**. The documented
+   reconstruction is accepted as an **explicitly PROVISIONAL publication candidate**, although no current exact
+   timetable exists.
+   - This is **not operator verification.**
+   - The terminal notice FO-RPF-20261028 corroborates only TriNoma → Guiguinto's first and last trips, and gives a
+     30–45-minute range.
+   - **The gate stays closed:** Guiguinto ships publicly only with the owner's **separate final release
+     authorisation**.
 2. **2027 holidays** for every Bulacan P2P direction (§4), before 2027-01-01 service is relied on.
-3. **The Plaridel ↔ SM North designation**, if it is later chosen to replace `p2p-plaridel-trinoma`. Saved main routes
-   would fall to the no-main state.
-4. **Device validation:** a v1.2.1-integrated development image and hardware check on the X4 Pro (BULACAN's two-page
-   list, label fit). That needs separate approval.
+3. **TriNoma first trips (register §12.4):** decide whether the undated terminal notice's earlier first trips
+   (Balagtas 05:30, Plaridel 05:00, Pandi probably 05:30) or the 2026-08-30 graphic's 06:00 stand at release. Any
+   change needs separate authorisation.
+4. **The PROVISIONAL definition** (§8) appears in the editorial and public release notes.
+5. **The Plaridel ↔ SM North designation**, if it is later chosen to replace `p2p-plaridel-trinoma`. Saved main routes
+   would fall to the no-main state. The two boarding locations stay **unmerged** (register §12.1).
+6. ~~**Device validation**~~ **Done:** image `638a50a9…`, hardware PASS on 2026-10-26.
 
 ## 6. Decision defaults applied (owner to confirm)
 
@@ -242,3 +251,15 @@ only).
 2. **The capacity post-link growth check.** Its fixed 4 KB allowance for the replaced shipped catalogue was too small
    for 11 routes. It is now measured from the baseline ELF's on_point data symbols (5,405 B) plus 4 KB for strings
    (`61a29187`). Margin: 2,871 B. A negative control that is 4 KB short still fails.
+
+## 8. What PROVISIONAL means (editorial and public notes)
+
+For release notes and editorial copy. **The device UI is unchanged**: it still shows the word PROVISIONAL.
+
+> **PROVISIONAL** departures are **estimated times**. They are built from the operator's published first and last
+> trips and the best available timetable pattern. Actual departures can vary: buses may leave earlier or later, or be
+> held for passengers or vehicles. **PUBLISHED** departures follow an operator-stated timetable pattern.
+
+**Basis:**
+- the operators' stated interval ranges (Bulacan P2P: 30–45 minutes, FO-RPF-20261028);
+- the anecdotal dispatch observation OBS-20261028.
