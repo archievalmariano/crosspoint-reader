@@ -273,6 +273,18 @@ fails because the 2027 branch gives Balagtas 2027 holidays but not Pandi, Plarid
 when the 2027 reconciliation adds their dates. Its failure message says so (`dac79426`, a comment and message change
 only).
 
+**V0–V3 matrix (run 3, 2026-10-28, on `c2a63e8a`: 2027 holidays integrated)**
+
+| Run | Builds | Host tests | Notes |
+|---|---|---|---|
+| V0 | 9/9; scans and controls OK | 707/707 | Post-link check passes |
+| V1 (+ v1.2.1) | 5/5 | 711/711 | Clean merge |
+| V2 (+ 2027 branch, already contained) | 5/5 | 707/707 | Clean |
+| V3 (+ both) | 5/5 | 711/711 | Clean merges |
+
+**`HolidayOverridesFollowEachOperatorsPolicy` passes in all four** (no failures in any `junit.xml`). REFCHECK OK
+throughout. The only commit after `c2a63e8a` (`4a9a9c5c`) is documentation.
+
 **Run 1 (on `1aaedbf4`) found two problems, both fixed:**
 1. **A one-comment conflict with the 2027 branch.** Fixed by keeping the Precious Grace comment's first line unchanged
    (`d54640d0`).
