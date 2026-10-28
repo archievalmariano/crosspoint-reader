@@ -135,7 +135,10 @@ class PackageLetters(unittest.TestCase):
 # ---- platformio.ini: which envs carry DOGEAR --------------------------------
 
 DOGEAR_ENVS = {"default", "x4pro", "x4-goto-dogear-gh_release", "x4pro-goto-dogear-gh_release",
-               "x4pro-onpoint-dogear-gh_release", "x4pro-all-gh_release"}
+               "x4pro-onpoint-dogear-gh_release", "x4pro-all-gh_release",
+               # ON POINT dev-only builds of the x4pro-all-gh_release flagship; never released.
+               "x4pro-all-capacity", "x4pro-all-capacity-bench", "x4pro-all-devtest",
+               "x4pro-all-capacity-devtest"}
 
 
 class Ini:
