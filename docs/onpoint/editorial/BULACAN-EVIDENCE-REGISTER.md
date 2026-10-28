@@ -72,7 +72,8 @@ rule, route entry or firmware was changed.
 | FO-RPF-20261028 | **Riding Public First Joint Venture Inc.** (Bulacan P2P RPF) notice at the TriNoma terminal, "TRINOMA TO BULACAN P2P TRIP SCHEDULE" (owner photo `IMG_0668`) | Operator terminal notice, photographed firsthand | Local copy `FO-RPF-NOTICE-IMG_0668.HEIC` (`4ec016e9…`) | Photo 2026-10-28 (file metadata). **The notice itself is undated.** |
 | FO-PG-BOARD-20261028 | Precious Grace "Schedule" board at the TriNoma terminal (owner photo `IMG_0666`) | Operator terminal board, photographed firsthand | `FO-PG-BOARD-IMG_0666.HEIC` (`8fb0e83b…`) | Photo 2026-10-28. The board is undated. |
 | FO-PG-SIGNS-20261028 | Two Precious Grace "Tara! P2P." boarding signs beside that board (owner photo `IMG_0667`) | Operator signage, photographed firsthand | `FO-PG-SIGNS-IMG_0667.HEIC` (`e22f8077…`) | Photo 2026-10-28 |
-| OBS-20261028 | The owner's firsthand dispatch observation at TriNoma (see §12) | OBS: anecdotal | The owner's statement of 2026-10-28 | 2026-10-28 |
+| OBS-20261028 | The owner's firsthand dispatch observation at TriNoma (see §12) | OBS: anecdotal | The owner's statement of 2026-10-28 | 2026-10-28 | Owner decisions confirmed (BATCH1 §6). 2027 holidays integrated for every Bulacan P2P direction (BATCH1 §4); the classification check on Proclamation No. 1427 is open. |
+| 2026-10-28 |
 
 **Inaccessible (INACC):**
 - **Every operator timetable post on Facebook** (login wall). Pass 2 searched for indexed post permalinks with dates

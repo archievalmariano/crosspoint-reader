@@ -153,18 +153,31 @@ only.**
 - If it is still unavailable at relaunch, the publication decision goes back to the owner.
 - Recorded in §5 as a release-blocking item.
 
-## 4. Holidays
+## 4. Holidays (2027 integrated 2026-10-28)
 
-- **Bulacan P2P directions** (Balagtas, Pandi, Plaridel and Guiguinto, both ways) override the **21 2026 non-working
-  days** with their SSH array.
-  - New pairs use a `holidays2026()` helper over the existing `HOLIDAYS_2026` list.
-  - Balagtas's hand-written overrides are untouched. They are what the 2027 branch edits.
-- **Precious Grace** (DAILY): no overrides.
-- **2027 gap, kept open:**
-  - The unreleased `feature/ph-holidays-2027` branch adds 2027 overrides for **Balagtas only**.
-  - After it merges, Pandi, Plaridel and Guiguinto would still fall back to weekday timetables on 2027 holidays.
-  - Reconciling 2027 means adding their 2027 overrides and confirming the operator's 2027 holiday policy. That is
-    separate work.
+**Calendar source: Proclamation No. 1427** (signed 2026-09-08; Official Gazette, uploaded 2026-09-09), merged from
+`feature/ph-holidays-2027` (`4467604b`) at `a86bbce8`.
+- **2027 non-working days (18):** Jan 1; Feb 6; Mar 25, 26, 27; Apr 9; May 1; Jun 12; Aug 21, 30; Nov 1, 2, 30; Dec 8,
+  24, 25, 30, 31.
+- **Special working day:** EDSA, Feb 25. It keeps the weekday timetable.
+- **Pending:** Eid'l Fitr and Eid'l Adha await their own proclamations (Section 2) and are not listed.
+- **No amendment found** (search, 2026-10-28).
+
+**Operator policies (owner decision, 2026-10-28):**
+
+| Operator | Routes | Holiday handling |
+|---|---|---|
+| **Bulacan P2P (RPF)** | Balagtas, Pandi, Plaridel, Guiguinto, both ways | One override per 2026 and 2027 non-working day, running **each route's own** Saturday/Sunday/holiday departures. Balagtas keeps its hand-written overrides; the others use `bulacanP2pHolidays()`. A Monday holiday replaces Pandi's and Plaridel's Monday rule. |
+| **Precious Grace** | Caypombo, Malolos, both ways | **None.** The DAILY timetable runs on holidays. |
+
+**Holiday policy basis:** the operator's 2026 "Saturday/Sunday/Holiday" graphics. A 2027 operator advisory would
+replace this mapping.
+
+**Tripwire:** `HolidayOverridesFollowEachOperatorsPolicy` now **passes**: every Bulacan P2P direction carries
+Balagtas's 39 dates.
+
+**After 2027-12-31:** no 2028 dates exist, so holidays fall back to day-of-week rules. That needs the 2028
+proclamation.
 
 ## 5. Release checks (blocking any public release of this batch)
 
@@ -176,22 +189,31 @@ only.**
      30–45-minute range.
    - **The gate stays closed:** Guiguinto ships publicly only with the owner's **separate final release
      authorisation**.
-2. **2027 holidays** for every Bulacan P2P direction (§4), before 2027-01-01 service is relied on.
+2. ~~**2027 holidays**~~ **Integrated** (§4, `f5a2127f`). The residual check is item 7.
 3. **TriNoma first trips (register §12.4):** decide whether the undated terminal notice's earlier first trips
    (Balagtas 05:30, Plaridel 05:00, Pandi probably 05:30) or the 2026-08-30 graphic's 06:00 stand at release. Any
    change needs separate authorisation.
 4. **The PROVISIONAL definition** (§8) appears in the editorial and public release notes.
 5. **The Plaridel ↔ SM North designation**, if it is later chosen to replace `p2p-plaridel-trinoma`. Saved main routes
    would fall to the no-main state. The two boarding locations stay **unmerged** (register §12.1).
+7. **The Proclamation No. 1427 classification check.**
+   - Lawphil's HTML lists Feb 6, Mar 27, Nov 2 and Dec 24 under "Special (Working) Day", against the proclamation's
+     title and recitals and the Palace release, which make them additional special **non-working** days.
+   - The signed PDF wasn't readable here.
+   - Confirm from the PDF before release; if Lawphil is right, those four dates would move to weekday timetables.
+   - Also watch for the **Eid proclamations** and any amendment.
 6. ~~**Device validation**~~ **Done:** image `638a50a9…`, hardware PASS on 2026-10-26.
 
-## 6. Decision defaults applied (owner to confirm)
+## 6. Editorial decisions (confirmed by the owner, 2026-10-28)
 
-| Open decision | Default applied | Alternative |
-|---|---|---|
-| Catalogue `effectiveDate` | 2026-09-01 for all six pairs | Each route's post date |
-| "May shift with ridership" wording | Removed (no source contains it) | Restore it in the Caypombo note |
-| 2027 holiday gap | Documented, not fixed (§4) | Add 2027 overrides once the 2027 branch is reconciled |
+| Decision | Confirmed |
+|---|---|
+| Catalogue `effectiveDate` | **2026-09-01** for all six pairs: a catalogue applicability date, **not** the operators' effective date |
+| Caypombo wording | The unsupported "may shift with ridership" statement stays **removed** |
+| Route identities | The six pairs and their stable IDs are retained. Caypombo ↔ SM North EDSA keeps its label, with **TriNoma documented as another boarding point** (register §12.2). No Plaridel ↔ SM North entry yet. |
+| TriNoma first trips | Both the dated 2026-08-30 graphics and the undated terminal notice are kept as evidence. **No earlier departures are prepended and no arrays change.** An earlier first trip may also imply other frequency differences (register §12.4). |
+| Guiguinto | Accepted as a **PROVISIONAL public-release candidate**, limitations stated: an editorial risk acceptance, **not operator verification**. **Publication still needs separate final authorisation.** No special evidence trip is required. |
+| PROVISIONAL in release notes | **"Estimated departures; actual times may vary."** No device UI change in this batch. |
 
 ## 7. Verification (local)
 
@@ -256,9 +278,11 @@ only).
 
 For release notes and editorial copy. **The device UI is unchanged**: it still shows the word PROVISIONAL.
 
-> **PROVISIONAL** departures are **estimated times**. They are built from the operator's published first and last
-> trips and the best available timetable pattern. Actual departures can vary: buses may leave earlier or later, or be
-> held for passengers or vehicles. **PUBLISHED** departures follow an operator-stated timetable pattern.
+> **PROVISIONAL:** estimated departures; actual times may vary.
+
+The release-note wording is as confirmed by the owner (2026-10-28). Background for the editorial copy: PROVISIONAL times
+come from the operators' published first and last trips and the best available pattern, and buses may be held for
+passengers or vehicles. **PUBLISHED** departures follow an operator-stated timetable pattern.
 
 **Basis:**
 - the operators' stated interval ranges (Bulacan P2P: 30–45 minutes, FO-RPF-20261028);
