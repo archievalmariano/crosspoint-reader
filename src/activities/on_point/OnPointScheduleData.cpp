@@ -62,11 +62,9 @@ static_assert(HOLIDAYS_2026.size() == 21, "each holiday needs a BALAGTAS_HOLIDAY
 // same Saturday/Sunday/holiday timetable. EDSA (a special working day) is
 // excluded and keeps the weekday timetable, as in 2026.
 //
-// PROVISIONAL — unlike the 2026 entries, these reuse the operator's published
-// 2026 weekend/holiday timetable for 2027 dates. The operator's 2027 timetable
-// and any holiday-specific advisories MUST be confirmed with the source before
-// release (HANDOFF.md §20.5). The schedule's SourceStatus stays Verified for the
-// 2026 timetable it was validated against; this 2027 reuse is the open item.
+// The operator's 2026 Saturday/Sunday/holiday timetable is carried into 2027
+// by owner decision (BULACAN-BATCH1.md §4); a 2027 operator advisory would
+// replace it. Eid'l Fitr and Eid'l Adha await their own proclamations.
 constexpr auto HOLIDAYS_2027 = [] {
   std::array<CivilDate, marked_dates::countNonWorking(marked_dates::PHILIPPINES_2027)> dates{};
   size_t count = 0;
@@ -324,22 +322,25 @@ constexpr uint16_t TRINOMA_TO_GUIGUINTO_WEEKENDS[] = {
     390, 435, 480, 525, 570, 615, 660, 705, 750, 795, 840, 885, 930, 975, 1020, 1065, 1110, 1155, 1200, 1245, 1290,
 };
 
-// One override per 2026 non-working holiday, running the given departures.
+// Bulacan P2P's holiday policy, as for Balagtas: one override per 2026 and 2027
+// non-working holiday, in that order, running the route's own holiday departures.
+constexpr size_t BULACAN_P2P_HOLIDAY_COUNT = HOLIDAYS_2026.size() + HOLIDAYS_2027.size();
+
 template <size_t N>
-constexpr std::array<DateOverride, HOLIDAYS_2026.size()> holidays2026(const uint16_t (&departures)[N]) {
-  std::array<DateOverride, HOLIDAYS_2026.size()> overrides{};
-  for (size_t index = 0; index < HOLIDAYS_2026.size(); ++index) {
-    overrides[index] = DateOverride{HOLIDAYS_2026[index], {departures, N}};
-  }
+constexpr std::array<DateOverride, BULACAN_P2P_HOLIDAY_COUNT> bulacanP2pHolidays(const uint16_t (&departures)[N]) {
+  std::array<DateOverride, BULACAN_P2P_HOLIDAY_COUNT> overrides{};
+  size_t index = 0;
+  for (const CivilDate& date : HOLIDAYS_2026) overrides[index++] = DateOverride{date, {departures, N}};
+  for (const CivilDate& date : HOLIDAYS_2027) overrides[index++] = DateOverride{date, {departures, N}};
   return overrides;
 }
 
-constexpr auto PANDI_HOLIDAYS = holidays2026(PANDI_TO_TRINOMA);
-constexpr auto TRINOMA_PANDI_HOLIDAYS = holidays2026(TRINOMA_TO_PANDI_WEEKENDS);
-constexpr auto PLARIDEL_HOLIDAYS = holidays2026(PLARIDEL_TO_TRINOMA_WEEKENDS);
-constexpr auto TRINOMA_PLARIDEL_HOLIDAYS = holidays2026(TRINOMA_TO_PLARIDEL_WEEKENDS);
-constexpr auto GUIGUINTO_HOLIDAYS = holidays2026(GUIGUINTO_TO_TRINOMA_WEEKENDS);
-constexpr auto TRINOMA_GUIGUINTO_HOLIDAYS = holidays2026(TRINOMA_TO_GUIGUINTO_WEEKENDS);
+constexpr auto PANDI_HOLIDAYS = bulacanP2pHolidays(PANDI_TO_TRINOMA);
+constexpr auto TRINOMA_PANDI_HOLIDAYS = bulacanP2pHolidays(TRINOMA_TO_PANDI_WEEKENDS);
+constexpr auto PLARIDEL_HOLIDAYS = bulacanP2pHolidays(PLARIDEL_TO_TRINOMA_WEEKENDS);
+constexpr auto TRINOMA_PLARIDEL_HOLIDAYS = bulacanP2pHolidays(TRINOMA_TO_PLARIDEL_WEEKENDS);
+constexpr auto GUIGUINTO_HOLIDAYS = bulacanP2pHolidays(GUIGUINTO_TO_TRINOMA_WEEKENDS);
+constexpr auto TRINOMA_GUIGUINTO_HOLIDAYS = bulacanP2pHolidays(TRINOMA_TO_GUIGUINTO_WEEKENDS);
 
 constexpr ServiceRule BALAGTAS_RULES[] = {
     {WEEKDAYS, {BALAGTAS_TO_TRINOMA_WEEKDAYS, std::size(BALAGTAS_TO_TRINOMA_WEEKDAYS)}},

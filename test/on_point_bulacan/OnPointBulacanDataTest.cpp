@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <cstring>
 #include <iterator>
 #include <string>
@@ -239,6 +240,134 @@ TEST(OnPointBulacanData, DayTypesResolveOnTheDevice) {
   EXPECT_EQ(nextMinute("p2p-trinoma-guiguinto", manila(10, 25, 6, 31)), 7 * 60 + 15);
   // Caypombo runs its added 20:30 last trip.
   EXPECT_EQ(nextMinute("p2p-caypombo-sm-north-edsa", manila(10, 27, 20, 1)), 20 * 60 + 30);
+}
+
+// ---- 2027 holidays (Proclamation No. 1427) across the batch ----
+
+// Manila local time as UTC, across month and year boundaries.
+CivilDateTime manilaAt(const int year, const int month, const int day, const int hour, const int minute) {
+  // Days from civil (Howard Hinnant), shifted by UTC+8.
+  const auto toDays = [](int y, const unsigned m, const unsigned d) {
+    y -= m <= 2;
+    const int era = (y >= 0 ? y : y - 399) / 400;
+    const unsigned yoe = static_cast<unsigned>(y - era * 400);
+    const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + static_cast<int>(doe) - 719468;
+  };
+  const long minutes = static_cast<long>(toDays(year, month, day)) * 1440 + hour * 60 + minute - 8 * 60;
+  const int days = static_cast<int>(minutes >= 0 ? minutes / 1440 : (minutes - 1439) / 1440);
+  const int minuteOfDay = static_cast<int>(minutes - static_cast<long>(days) * 1440);
+  const int z = days + 719468;
+  const int era = (z >= 0 ? z : z - 146096) / 146097;
+  const unsigned doe = static_cast<unsigned>(z - era * 146097);
+  const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  const unsigned mp = (5 * doy + 2) / 153;
+  const unsigned d = doy - (153 * mp + 2) / 5 + 1;
+  const unsigned m = mp < 10 ? mp + 3 : mp - 9;
+  const int y = static_cast<int>(yoe) + era * 400 + (m <= 2);
+  return {static_cast<int16_t>(y),
+          static_cast<uint8_t>(m),
+          static_cast<uint8_t>(d),
+          static_cast<uint8_t>(minuteOfDay / 60),
+          static_cast<uint8_t>(minuteOfDay % 60),
+          0};
+}
+
+struct HolidayCase {
+  const char* id;
+  int year, month, day, hour, minute;  // local query time
+  int nextYear, nextMonth, nextDay;    // expected next departure (local)
+  const char* nextTime;
+};
+
+std::string describe(const HolidayCase& c) {
+  return std::string(c.id) + " @ " + std::to_string(c.year) + "-" + std::to_string(c.month) + "-" +
+         std::to_string(c.day) + " " + std::to_string(c.hour) + ":" + std::to_string(c.minute);
+}
+
+void expectNext(const HolidayCase& c) {
+  SCOPED_TRACE(describe(c));
+  const Schedule* s = scheduleById(c.id);
+  ASSERT_NE(s, nullptr);
+  const DepartureState state = on_point::getDepartureState(*s, manilaAt(c.year, c.month, c.day, c.hour, c.minute));
+  char next[6];
+  snprintf(next, sizeof(next), "%02u:%02u", state.next.local.hour, state.next.local.minute);
+  EXPECT_EQ(state.next.local.year, c.nextYear);
+  EXPECT_EQ(state.next.local.month, c.nextMonth);
+  EXPECT_EQ(state.next.local.day, c.nextDay);
+  EXPECT_STREQ(next, c.nextTime);
+}
+
+// Feast of the Immaculate Conception, Wednesday 2027-12-08: every Bulacan P2P
+// direction runs its own Saturday/Sunday/holiday first trip; Precious Grace
+// keeps its daily timetable.
+TEST(OnPointBulacanData, WeekdayHoliday2027UsesEachOperatorsPolicy) {
+  const HolidayCase cases[] = {
+      {"p2p-balagtas-trinoma", 2027, 12, 8, 3, 0, 2027, 12, 8, "05:00"},
+      {"p2p-trinoma-balagtas", 2027, 12, 8, 5, 0, 2027, 12, 8, "06:30"},
+      {"p2p-pandi-trinoma", 2027, 12, 8, 3, 0, 2027, 12, 8, "04:30"},
+      {"p2p-trinoma-pandi", 2027, 12, 8, 5, 0, 2027, 12, 8, "06:30"},
+      {"p2p-plaridel-trinoma", 2027, 12, 8, 3, 0, 2027, 12, 8, "04:30"},
+      {"p2p-trinoma-plaridel", 2027, 12, 8, 5, 0, 2027, 12, 8, "06:30"},
+      {"p2p-guiguinto-trinoma", 2027, 12, 8, 3, 0, 2027, 12, 8, "05:00"},
+      {"p2p-trinoma-guiguinto", 2027, 12, 8, 5, 0, 2027, 12, 8, "06:30"},
+      {"p2p-caypombo-sm-north-edsa", 2027, 12, 8, 3, 0, 2027, 12, 8, "05:00"},
+      {"p2p-sm-north-edsa-caypombo", 2027, 12, 8, 5, 0, 2027, 12, 8, "06:00"},
+      {"p2p-malolos-trinoma", 2027, 12, 8, 3, 0, 2027, 12, 8, "05:00"},
+      {"p2p-trinoma-malolos", 2027, 12, 8, 5, 0, 2027, 12, 8, "06:00"},
+  };
+  for (const HolidayCase& c : cases) expectNext(c);
+  // The day before is an ordinary Tuesday.
+  expectNext({"p2p-plaridel-trinoma", 2027, 12, 7, 3, 0, 2027, 12, 7, "04:00"});
+  expectNext({"p2p-trinoma-guiguinto", 2027, 12, 7, 5, 0, 2027, 12, 7, "06:00"});
+}
+
+// National Heroes Day and All Saints' Day 2027 fall on Mondays: the holiday
+// timetable replaces Pandi's and Plaridel's 03:30 Monday first trip.
+TEST(OnPointBulacanData, MondayHolidays2027ReplaceTheMondayRule) {
+  for (const int month : {8, 11}) {
+    const int day = month == 8 ? 30 : 1;
+    expectNext({"p2p-pandi-trinoma", 2027, month, day, 3, 0, 2027, month, day, "04:30"});
+    expectNext({"p2p-plaridel-trinoma", 2027, month, day, 3, 0, 2027, month, day, "04:30"});
+  }
+  // An ordinary Monday keeps 03:30.
+  expectNext({"p2p-pandi-trinoma", 2027, 8, 23, 3, 0, 2027, 8, 23, "03:30"});
+}
+
+// Chinese New Year, Saturday 2027-02-06: a weekend holiday stays on the
+// Saturday/Sunday/holiday timetable.
+TEST(OnPointBulacanData, WeekendHoliday2027KeepsTheWeekendTimetable) {
+  expectNext({"p2p-plaridel-trinoma", 2027, 2, 6, 3, 0, 2027, 2, 6, "04:30"});
+  expectNext({"p2p-guiguinto-trinoma", 2027, 2, 6, 3, 0, 2027, 2, 6, "05:00"});
+  expectNext({"p2p-guiguinto-trinoma", 2027, 2, 6, 5, 1, 2027, 2, 6, "05:30"});
+  expectNext({"p2p-trinoma-pandi", 2027, 2, 6, 5, 0, 2027, 2, 6, "06:30"});
+}
+
+// EDSA anniversary, Thursday 2027-02-25: a special working day keeps the
+// weekday timetable.
+TEST(OnPointBulacanData, SpecialWorkingDay2027KeepsTheWeekdayTimetable) {
+  expectNext({"p2p-balagtas-trinoma", 2027, 2, 25, 3, 0, 2027, 2, 25, "04:30"});
+  expectNext({"p2p-plaridel-trinoma", 2027, 2, 25, 3, 0, 2027, 2, 25, "04:00"});
+  expectNext({"p2p-guiguinto-trinoma", 2027, 2, 25, 3, 0, 2027, 2, 25, "04:30"});
+  expectNext({"p2p-trinoma-pandi", 2027, 2, 25, 5, 0, 2027, 2, 25, "06:00"});
+  expectNext({"p2p-trinoma-guiguinto", 2027, 2, 25, 5, 0, 2027, 2, 25, "06:00"});
+}
+
+// The 2026/2027 boundary: Rizal Day eve and New Year's Day are holidays, the
+// next service after a last trip crosses into the new year, and the first
+// ordinary Monday runs the Monday rule.
+TEST(OnPointBulacanData, HolidaysAcrossThe2026To2027Boundary) {
+  expectNext({"p2p-plaridel-trinoma", 2026, 12, 31, 3, 0, 2026, 12, 31, "04:30"});
+  expectNext({"p2p-plaridel-trinoma", 2026, 12, 31, 21, 0, 2027, 1, 1, "04:30"});
+  expectNext({"p2p-guiguinto-trinoma", 2026, 12, 31, 20, 0, 2027, 1, 1, "05:00"});
+  expectNext({"p2p-trinoma-guiguinto", 2027, 1, 1, 5, 0, 2027, 1, 1, "06:30"});
+  expectNext({"p2p-trinoma-pandi", 2026, 12, 31, 22, 0, 2027, 1, 1, "06:30"});
+  expectNext({"p2p-pandi-trinoma", 2027, 1, 3, 20, 0, 2027, 1, 4, "03:30"});
+  expectNext({"p2p-plaridel-trinoma", 2027, 1, 4, 3, 0, 2027, 1, 4, "03:30"});
+  expectNext({"p2p-guiguinto-trinoma", 2027, 1, 4, 3, 0, 2027, 1, 4, "04:30"});
+  expectNext({"p2p-malolos-trinoma", 2026, 12, 31, 21, 0, 2027, 1, 1, "05:00"});
 }
 
 }  // namespace
