@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import candidate as c  # noqa: E402
@@ -1648,6 +1649,184 @@ class MaintenancePublishTests(PublishBase):
         record["approvedOn"] = "2026-10-23"
         self.acceptance.write_text(json.dumps(record, indent=2))
         self.assertIn("different acceptance record", self.refused())
+
+
+def amended_record(candidate: Path) -> dict:
+    """A complete, valid v1.3.0 amendment record of the candidate (valid only while
+    AMENDED_CANDIDATE names it): the maintenance record with no fixtures, the
+    owner's decision, and the eight fixture checks under notPerformed."""
+    record = maintenance_record(candidate)
+    del record["fixtures"]
+    record.update(schema=c.AMENDED, amendment=c.AMENDMENT, contractEligible=False)
+    for name in c.FLAGSHIPS:
+        e = entry(record, name)
+        e["checks"] = {k: v for k, v in e["checks"].items() if k not in c.NOT_PERFORMED}
+        e["notPerformed"] = list(c.NOT_PERFORMED)
+    return record
+
+
+def pinned_to(candidate: Path, **change):
+    """AMENDED_CANDIDATE temporarily naming this test candidate (with `change`)."""
+    prov = json.loads((candidate / c.PROVENANCE).read_text())
+    pin = {"repository": prov["repository"], "tag": "v1.2.0", "commit": prov["commit"],
+           "candidateRun": prov["runId"], "sumsSha256": prov["sumsSha256"]}
+    pin.update(change)
+    return mock.patch.dict(c.AMENDED_CANDIDATE, pin)
+
+
+class AmendedAcceptanceTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.assertEqual(self.assemble()[0], 0)
+        self.record = amended_record(self.out)
+        self.path = self.root / "ACCEPTANCE.json"
+
+    def digest(self, record=None, **pin):
+        self.path.write_text(json.dumps(self.record if record is None else record, indent=2))
+        with pinned_to(self.out, **pin):
+            return c.acceptance_digest(self.path, self.out)
+
+    def refused(self, mutate=None, match=None, **pin):
+        record = copy.deepcopy(self.record)
+        if mutate:
+            mutate(record)
+        with self.assertRaises(c.Problem) as ctx:
+            self.digest(record, **pin)
+        if match:
+            self.assertIn(match, str(ctx.exception))
+        return str(ctx.exception)
+
+    def test_the_shipped_amendment_names_exactly_this_v1_3_0_candidate(self):
+        self.assertEqual(c.AMENDED_CANDIDATE, {
+            "repository": "archievalmariano/crosspoint-reader", "tag": "v1.3.0",
+            "commit": "ff8df71461839e5b9c6ed00904fc4004f145f746", "candidateRun": 40715904821,
+            "sumsSha256": "05cf4b40553a568e2d2519d7c02bee8eb9f51417a8b2cee58ddc409f1869180c"})
+        for value in ("ff8df71461839e5b9c6ed00904fc4004f145f746", "40715904821",
+                      "05cf4b40553a568e2d2519d7c02bee8eb9f51417a8b2cee58ddc409f1869180c", "NOT PERFORMED",
+                      "neither as PASS nor as CARRIED", "No DOGEAR publication-contract eligibility"):
+            self.assertIn(value, c.AMENDMENT)
+        m = c.load_maintenance_schema()
+        for name in c.FLAGSHIPS:  # exactly the fixture checks: everything after dogear-online-current
+            checks = m["packages"][name]["checks"]
+            self.assertEqual(list(c.NOT_PERFORMED), checks[checks.index(c.ONLINE_CURRENT) + 1:])
+
+    def test_the_amended_record_passes_for_its_own_candidate_and_says_what_was_not_performed(self):
+        digest = self.digest()
+        self.assertEqual(digest, hashlib.sha256(c.canonical(self.record)).hexdigest())
+        with pinned_to(self.out):
+            self.assertEqual(c.checked_acceptance(self.path, self.out), (digest, c.MAINTENANCE_POLICY))
+            code, out, err = run("acceptance", "--record", self.path, "--candidate-dir", self.out,
+                                 "--flash-support", self.support)
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"NOT PERFORMED on each: {' '.join(c.NOT_PERFORMED)}", out)
+        self.assertIn("not DOGEAR contract-eligible", out)
+        self.assertIn(f"acceptance-policy: {c.MAINTENANCE_POLICY}", out)
+        self.assertIn(f"acceptance-sha256: {digest}", out)
+
+    def test_any_other_candidate_refuses_the_amendment(self):
+        # The shipped pin (the real v1.3.0 candidate) refuses this test candidate outright.
+        self.path.write_text(json.dumps(self.record))
+        with self.assertRaisesRegex(c.Problem, "v1.3.0 amendment holds only for"):
+            c.acceptance_digest(self.path, self.out)
+        # Each pinned identity on its own: the record must name the pin, and so must the candidate on disk.
+        for key, other in (("repository", "x/y"), ("tag", "v1.3.1"), ("commit", "c" * 40), ("candidateRun", 43),
+                           ("sumsSha256", "0" * 64)):
+            self.refused(match="v1.3.0 amendment holds only for", **{key: other})
+            self.refused(lambda r, k=key, o=other: r.update({k: o}), match="holds only for")
+            # Record and pin agree, but the candidate on disk is another.
+            self.refused(lambda r, k=key, o=other: r.update({k: o}), **{key: other})
+        msg = self.refused(lambda r: r.update(commit="c" * 40), commit="c" * 40)
+        self.assertIn("this candidate is another", msg)
+
+    def test_the_eight_checks_are_never_recorded_with_any_result(self):
+        for name in c.FLAGSHIPS:
+            for check in c.NOT_PERFORMED:
+                for result in ("PASS", "CARRIED", "NOT PERFORMED", "FAIL"):
+                    self.refused(lambda r, n=name, k=check, v=result: entry(r, n)["checks"].update({k: v}),
+                                 match="were not performed on v1.3.0")
+            # notPerformed is exactly the eight, in order.
+            for change in (lambda e: e.pop("notPerformed"), lambda e: e.update(notPerformed=[]),
+                           lambda e: e["notPerformed"].pop(), lambda e: e["notPerformed"].reverse(),
+                           lambda e: e["notPerformed"].append(c.ONLINE_CURRENT),
+                           lambda e: e.update(notPerformed=" ".join(c.NOT_PERFORMED))):
+                self.refused(lambda r, n=name, f=change: f(entry(r, n)))
+            # A performed check can't move to notPerformed, go missing, or be anything but PASS.
+            self.refused(lambda r, n=name: (entry(r, n)["checks"].pop(c.ONLINE_CURRENT),
+                                            entry(r, n)["notPerformed"].insert(0, c.ONLINE_CURRENT)))
+            for check in ("install-bytes", c.ONLINE_CURRENT, "dogear-opens"):
+                self.refused(lambda r, n=name, k=check: entry(r, n)["checks"].pop(k))
+                self.refused(lambda r, n=name, k=check: entry(r, n)["checks"].update({k: "CARRIED"}),
+                             match="not PASS")
+        for name in CI_ONLY:
+            self.refused(lambda r, n=name: entry(r, n).update(notPerformed=list(c.NOT_PERFORMED)),
+                         match="CI-verified only")
+
+    def test_the_decision_is_the_owners_fixed_wording_with_no_fixtures_or_contract(self):
+        self.refused(lambda r: r.update(amendment=c.AMENDMENT + " "), match="owner's fixed v1.3.0 decision")
+        self.refused(lambda r: r.update(amendment=c.AMENDMENT.replace("NOT PERFORMED", "CARRIED")))
+        self.refused(lambda r: r.pop("amendment"))
+        for value in (True, "false", 0, None):
+            self.refused(lambda r, v=value: r.update(contractEligible=v))
+        self.refused(lambda r: r.pop("contractEligible"))
+        self.refused(lambda r: r.update(fixtures=copy.deepcopy(FIXTURES)))
+        self.refused(lambda r: r.update(policy="full"))
+        self.refused(lambda r: r.update(authorization=c.MAINTENANCE_AUTHORIZATION + " "))
+        self.refused(lambda r: r.update(schema=c.MAINTENANCE))  # a /1 record needs fixtures and all checks
+        self.refused(lambda r: r.update(approvedBy="claude"))
+        # The candidate's own evidence and bytes still bind, exactly as in 2a.
+        self.refused(lambda r: entry(r, "x4-gd").update(sha256="0" * 64))
+        self.refused(lambda r: r["hostCovered"].pop(c.POST_LAUNCH))
+
+    def test_a_maintenance_record_of_the_pinned_candidate_is_unchanged(self):
+        record = maintenance_record(self.out)
+        self.assertEqual(self.digest(record), hashlib.sha256(c.canonical(record)).hexdigest())
+        for name in c.FLAGSHIPS:
+            changed = copy.deepcopy(record)
+            entry(changed, name)["notPerformed"] = list(c.NOT_PERFORMED)
+            with self.assertRaises(c.Problem):
+                self.digest(changed)
+            changed = copy.deepcopy(record)
+            entry(changed, name)["checks"].pop(c.NOT_PERFORMED[0])
+            with self.assertRaises(c.Problem):
+                self.digest(changed)
+
+
+class AmendedPublishTests(PublishBase):
+    def setUp(self):
+        super().setUp()
+        self.pin = pinned_to(self.out)
+        self.pin.start()
+        self.addCleanup(self.pin.stop)
+        self.acceptance.write_text(json.dumps(amended_record(self.out), indent=2))
+        self.amended_sha = c.acceptance_digest(self.acceptance, self.out)
+
+    def tag_text(self, message):
+        self.gets[f"repos/o/r/git/tags/{'t' * 40}"]["message"] = message
+
+    def test_the_unchanged_maintenance_tag_publishes_the_amended_record(self):
+        self.tag_text(maintenance_tag(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                      acceptance=self.amended_sha, title=self.TAG))
+        gh = FakeGitHub(self.gets)
+        self.assertIn("dry run", self.publish(gh, publish=False))
+        self.assertEqual(gh.patches, [])
+        gh = FakeGitHub(self.gets)
+        self.assertIn("published v1.2.0 as latest", self.publish(gh))
+        self.assertEqual(len(gh.patches), 1)
+
+    def test_a_full_tag_or_another_record_refuses(self):
+        self.tag_text(tag_message(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                  acceptance=self.amended_sha, title=self.TAG))
+        self.assertIn("acceptance policy", self.refused())
+        self.tag_text(maintenance_tag(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                      acceptance="f" * 64, title=self.TAG))
+        self.assertIn("different acceptance record", self.refused())
+
+    def test_without_its_pin_the_amended_record_cannot_publish(self):
+        self.tag_text(maintenance_tag(run_id=self.RUN_ID, commit=self.COMMIT, sums=self.sums_sha(),
+                                      acceptance=self.amended_sha, title=self.TAG))
+        self.pin.stop()
+        self.assertIn("v1.3.0 amendment holds only for", self.refused())
+        self.pin.start()
 
 
 if __name__ == "__main__":

@@ -180,6 +180,42 @@ applies to any release that uses it.
   ```
   `parse-tag` refuses any other lists, and `publish` refuses a tag whose policy is not its record's. The draft's notes name the physically accepted and the CI-verified packages.
 
+## 2c. The v1.3.0 acceptance amendment (one candidate only)
+
+The owner's bounded decision for v1.3.0. It isn't a general exception, and it doesn't carry over to any other release. §2 and §2a are unchanged.
+
+**What it covers:** exactly one candidate (`AMENDED_CANDIDATE` in `candidate.py`):
+- repository `archievalmariano/crosspoint-reader`, tag `v1.3.0`;
+- commit `ff8df71461839e5b9c6ed00904fc4004f145f746`, run `40715904821`;
+- the artifacts listed in its `SHA256SUMS.txt` (sha256 `05cf4b40553a568e2d2519d7c02bee8eb9f51417a8b2cee58ddc409f1869180c`).
+
+The record must name all of these, and the candidate on disk must be that candidate. Anything else refuses.
+
+**The decision** is pinned word for word (`AMENDMENT`):
+- DOGEAR's eight fixture checks were **not performed** on v1.3.0:
+  - `dogear-v2-cache-offline` (R);
+  - the Q1 and Q2 `cover`, `pages` and `navigation` checks;
+  - `dogear-no-writes-offline`.
+- They are recorded neither as PASS nor as CARRIED.
+- The owner accepts the residual DOGEAR visual and offline no-writes regression risk for this release.
+- No DOGEAR publication-contract eligibility is authorized.
+
+**The record** (`schema: crosspoint-acceptance-maintenance-v1.3.0/1`) is the §2a record, with these differences:
+- no `fixtures`;
+- the fixed `amendment` wording, and `contractEligible: false`;
+- each flagship's `checks` hold every other §2a check, each `PASS`, and its `notPerformed` lists exactly the eight, in §2a order.
+
+**Refused:** any of the eight under `checks`, with any result; a CI-only package claiming `notPerformed`; and anything §2a refuses.
+
+`candidate.py acceptance` prints the checks not performed.
+
+**The tag and workflow are unchanged.** The tag is §2a's: `acceptance-policy: post-launch-maintenance`, the two flagships under `physically-accepted`, and the other six under `ci-verified`. Here, "physically accepted" means accepted under this amendment. The record, bound by `acceptance-sha256`, states what was not performed.
+
+**The draft's notes:** before `publish`, add this sentence:
+> DOGEAR's R, Q1, Q2 and offline no-writes fixture checks were not performed on v1.3.0 hardware. The owner accepted the residual risk for this release, based on v1.2.0's completed acceptance and reviewed source comparisons. DOGEAR's live-download and offline-cache checks were performed on both v1.3.0 devices.
+
+**Not a contract input:** DOGEAR's contract sync reads only `crosspoint-acceptance/1` records, so this record can never feed it.
+
 ## 3. Tag, draft, publish
 
 1. Only after every package passes and the owner has approved the record, create an

@@ -171,6 +171,34 @@ POST_LAUNCH_HOST_TESTS = {
 }
 POST_LAUNCH_TESTS = tuple(sorted({t for tests in POST_LAUNCH_HOST_TESTS.values() for t in tests}))
 
+# The v1.3.0 acceptance amendment (docs/RELEASING.md 2c): the owner's bounded
+# decision for exactly one candidate, never a general exception. Its record is a
+# post-launch maintenance record, except that each flagship lists the DOGEAR
+# fixture checks under notPerformed instead of checks, and it names no fixtures.
+# Any candidate other than AMENDED_CANDIDATE refuses it.
+AMENDED = "crosspoint-acceptance-maintenance-v1.3.0/1"
+AMENDED_CANDIDATE = {
+    "repository": "archievalmariano/crosspoint-reader",
+    "tag": "v1.3.0",
+    "commit": "ff8df71461839e5b9c6ed00904fc4004f145f746",
+    "candidateRun": 40715904821,
+    "sumsSha256": "05cf4b40553a568e2d2519d7c02bee8eb9f51417a8b2cee58ddc409f1869180c",
+}
+NOT_PERFORMED = ("dogear-v2-cache-offline", "dogear-v3-q1-cover", "dogear-v3-q1-pages", "dogear-v3-q1-navigation",
+                 "dogear-v3-q2-cover", "dogear-v3-q2-pages", "dogear-v3-q2-navigation", NO_WRITES_OFFLINE)
+# Pinned word for word: the owner's decision, recorded in the amended record.
+AMENDMENT = (
+    "The owner amends post-launch maintenance acceptance for v1.3.0 only: commit "
+    "ff8df71461839e5b9c6ed00904fc4004f145f746, candidate run 40715904821, and the candidate artifacts listed in its "
+    "SHA256SUMS.txt (sha256 05cf4b40553a568e2d2519d7c02bee8eb9f51417a8b2cee58ddc409f1869180c). The eight DOGEAR "
+    "fixture checks listed under each flagship's notPerformed were NOT PERFORMED on v1.3.0; they are recorded neither "
+    "as PASS nor as CARRIED. Historical acceptance and successful current smoke tests cannot prove that those checks "
+    "would pass on the candidate's bytes. The owner accepts the residual DOGEAR visual and offline no-writes "
+    "regression risk for this exact release, based on the completed v1.2.0 acceptance (acceptance-sha256 "
+    "3922e7e807261bff060f0176aa45e137b32aefb8e31e5c0c81bed6e6612642ab), the v1.2.1 reviews, existing source "
+    "comparisons, successful v1.3.0 hardware tests and the lack of an identified DOGEAR rendering regression. No "
+    "DOGEAR publication-contract eligibility is authorized.")
+
 
 class Problem(Exception):
     pass
@@ -721,15 +749,40 @@ MAINTENANCE_RECORD_KEYS = ("schema", "policy", "authorization", "repository", "t
 PHYSICAL_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification", "install", "date", "checks",
                        "onlineIssue")
 CI_ENTRY_KEYS = ("package", "env", "board", "file", "sha256", "verification")
+AMENDED_RECORD_KEYS = tuple(k for k in MAINTENANCE_RECORD_KEYS if k != "fixtures") + ("amendment",
+                                                                                      "contractEligible")
 
 
-def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, prov: dict) -> None:
+def check_amended_candidate(record, prov: dict, sums_bytes: bytes) -> None:
+    """An amended record, and the candidate on disk, are exactly AMENDED_CANDIDATE."""
+    for key, value in AMENDED_CANDIDATE.items():
+        require(isinstance(record, dict) and record.get(key) == value,
+                f"the v1.3.0 amendment holds only for {key} {value!r}, not {record.get(key)!r}")
+    require(prov.get("repository") == AMENDED_CANDIDATE["repository"]
+            and prov.get("commit") == AMENDED_CANDIDATE["commit"]
+            and prov.get("runId") == AMENDED_CANDIDATE["candidateRun"]
+            and sha256(sums_bytes) == AMENDED_CANDIDATE["sumsSha256"],
+            "the v1.3.0 amendment holds only for its own candidate; this candidate is another")
+
+
+def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, prov: dict,
+                                 amended: bool = False) -> None:
     """A crosspoint-acceptance-maintenance/1 record: bound to the candidate like a
     v1 record; the flagships physically accepted with exactly their maintenance
     checks, each PASS; the other six CI-verified only, claiming no physical check;
-    and the candidate's own E3 and post-launch host evidence."""
-    exact_keys(record, MAINTENANCE_RECORD_KEYS, "acceptance record")
-    require(record["schema"] == MAINTENANCE, f"record schema is not {MAINTENANCE}")
+    and the candidate's own E3 and post-launch host evidence. `amended` checks a
+    v1.3.0 amendment record instead (RELEASING 2c): only for AMENDED_CANDIDATE,
+    with the owner's pinned decision, no fixtures, and each flagship's
+    NOT_PERFORMED checks listed under notPerformed and absent from its checks."""
+    if amended:
+        check_amended_candidate(record, prov, sums_bytes)
+        exact_keys(record, AMENDED_RECORD_KEYS, "acceptance record")
+        require(record["schema"] == AMENDED, f"record schema is not {AMENDED}")
+        require(record["amendment"] == AMENDMENT, "record amendment is not the owner's fixed v1.3.0 decision")
+        require(record["contractEligible"] is False, "an amended record is never DOGEAR contract-eligible")
+    else:
+        exact_keys(record, MAINTENANCE_RECORD_KEYS, "acceptance record")
+        require(record["schema"] == MAINTENANCE, f"record schema is not {MAINTENANCE}")
     require(record["policy"] == MAINTENANCE_POLICY, f"record policy is not {MAINTENANCE_POLICY}")
     require(record["authorization"] == MAINTENANCE_AUTHORIZATION, "record authorization is not the fixed wording")
     require(record["repository"] == prov.get("repository"), "record names another repository")
@@ -741,7 +794,8 @@ def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, p
     require(is_int(record["candidateRun"]) and record["candidateRun"] == prov.get("runId"),
             "record candidateRun is not the candidate's run")
     require(record["sumsSha256"] == sha256(sums_bytes), f"record sumsSha256 is not this {SUMS}")
-    check_fixtures(record["fixtures"], v1)
+    if not amended:  # an amended record ran no fixtures and names none
+        check_fixtures(record["fixtures"], v1)
     sums = read_sums(sums_bytes)
     host = record["hostCovered"]
     require(isinstance(host, dict), "record hostCovered is missing; host evidence is mandatory")
@@ -766,9 +820,11 @@ def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, p
                 f"{name} must be recorded as {spec['verification']!r}" +
                 ("" if physical else ": it is CI-verified only and not physically accepted"))
         if not physical:
-            claimed = sorted(k for k in ("checks", "install", "date", "level", "onlineIssue") if k in entry)
+            claimed = sorted(k for k in ("checks", "install", "date", "level", "onlineIssue", "notPerformed")
+                             if k in entry)
             require(not claimed, f"{name} is CI-verified only: it cannot claim physical {claimed}")
-        exact_keys(entry, (PHYSICAL_ENTRY_KEYS if physical else CI_ENTRY_KEYS) + (("pieces",) if factory else ()), name)
+        keys = PHYSICAL_ENTRY_KEYS + (("notPerformed",) if amended else ()) if physical else CI_ENTRY_KEYS
+        exact_keys(entry, keys + (("pieces",) if factory else ()), name)
         require(entry["env"] == env, f"{name} was not built by {env}")
         require(entry["board"] == spec["board"], f"{name}: board must be {spec['board']!r}")
         require(entry["file"] == f"{stem}.bin" and entry["sha256"] == sums[f"{stem}.bin"],
@@ -781,7 +837,17 @@ def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, p
                                  if isinstance(checks, dict) and c in checks)
             require(not substituted, f"{name}: {substituted} cannot be physical checks under {MAINTENANCE_POLICY} "
                                      "(host-covered, or replaced by dogear-no-writes-offline)")
-            exact_keys(checks, spec["checks"], f"{name} checks")
+            required = spec["checks"]
+            if amended:
+                omitted = [c for c in spec["checks"] if c in NOT_PERFORMED]
+                require(omitted == list(NOT_PERFORMED), f"{name}: the amendment's checks are not all {name}'s")
+                require(entry["notPerformed"] == omitted,
+                        f"{name}: notPerformed must be exactly {omitted}, in that order")
+                listed = sorted(c for c in NOT_PERFORMED if isinstance(checks, dict) and c in checks)
+                require(not listed, f"{name}: {listed} were not performed on v1.3.0 and cannot be recorded with "
+                                    "any result")
+                required = [c for c in spec["checks"] if c not in NOT_PERFORMED]
+            exact_keys(checks, required, f"{name} checks")
             failed = sorted(c for c, result in checks.items() if result != "PASS")
             require(not failed, f"{name}: {failed} not PASS")
             # What dogear-online-current verified on hardware: the published issue it downloaded.
@@ -803,7 +869,8 @@ def check_maintenance_acceptance(record, m: dict, v1: dict, sums_bytes: bytes, p
 def record_policy(record) -> str:
     """The acceptance policy a record was checked under (crosspoint-acceptance/1 is full)."""
     schema = record.get("schema") if isinstance(record, dict) else None
-    require(schema in ("crosspoint-acceptance/1", MAINTENANCE), f"unknown acceptance record schema {schema!r}")
+    require(schema in ("crosspoint-acceptance/1", MAINTENANCE, AMENDED), f"unknown acceptance record schema {schema!r}")
+    # An amended record is a post-launch maintenance record: its tag fields are exactly §2a's.
     return FULL_POLICY if schema == "crosspoint-acceptance/1" else MAINTENANCE_POLICY
 
 
@@ -818,7 +885,8 @@ def checked_acceptance(record_path, candidate_dir) -> tuple:
     if policy == FULL_POLICY:
         check_acceptance(record, v1, sums_bytes, prov)
     else:
-        check_maintenance_acceptance(record, load_maintenance_schema(v1=v1), v1, sums_bytes, prov)
+        check_maintenance_acceptance(record, load_maintenance_schema(v1=v1), v1, sums_bytes, prov,
+                                     amended=record["schema"] == AMENDED)
     return sha256(canonical(record)), policy
 
 
@@ -833,6 +901,10 @@ def acceptance(args) -> None:
     digest, policy = checked_acceptance(args.record, args.candidate_dir)
     if policy == FULL_POLICY:
         print(f"acceptance OK: {len(packages())} packages, every required check PASS")
+    elif strict_json(Path(args.record).read_bytes())["schema"] == AMENDED:
+        print(f"acceptance OK ({MAINTENANCE_POLICY}, v1.3.0 amendment): physically accepted {' '.join(FLAGSHIPS)}, "
+              f"every performed check PASS; NOT PERFORMED on each: {' '.join(NOT_PERFORMED)}; CI-verified only "
+              f"{' '.join(p for p in packages() if p not in FLAGSHIPS)}; not DOGEAR contract-eligible")
     else:
         print(f"acceptance OK ({MAINTENANCE_POLICY}): physically accepted {' '.join(FLAGSHIPS)}, every required "
               f"check PASS; CI-verified only {' '.join(p for p in packages() if p not in FLAGSHIPS)}")
