@@ -17,6 +17,10 @@
 #include "DogearTls.h"
 #include "DogearTrustRoots.h"
 
+#ifndef HAVE_MAX_FRAGMENT
+#error "DOGEAR needs -DHAVE_MAX_FRAGMENT (2 KB TLS records; see [base] in platformio.ini)"
+#endif
+
 namespace dogear_https {
 namespace {
 

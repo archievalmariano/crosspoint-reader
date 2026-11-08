@@ -13,6 +13,7 @@
 
 #include "GotoEditionSource.h"
 #include "MappedInputManager.h"
+#include "SuiteSerifFonts.h"  // NOTOSERIF_*_FONT_ID
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/reader/ReaderUtils.h"
 #include "fontIds.h"

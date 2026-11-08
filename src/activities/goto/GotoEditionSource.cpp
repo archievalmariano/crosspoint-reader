@@ -12,6 +12,12 @@
 #include "GotoLimits.h"
 #include "network/HttpDownloader.h"
 
+// SecureClient only asks for 2 KB TLS records with this flag; without it the
+// edition download can fail with MEMORY_E on the C3.
+#ifndef HAVE_MAX_FRAGMENT
+#error "GOTO needs -DHAVE_MAX_FRAGMENT (see [base] in platformio.ini)"
+#endif
+
 // Base URL of the GOTO publication runtime. Production is the hosted Cloudflare
 // Pages endpoint; the device resolves the active edition through
 // <base>/current.json -> <base>/e/<opaque-token>/edition.json (never a
