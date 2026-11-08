@@ -28,8 +28,8 @@ enum MenuItem {
 };
 
 const StrId menuNames[ClockSettingsActivity::ITEM_COUNT] = {
-    StrId::STR_TIMEZONE,        StrId::STR_CLOCK_DST,      StrId::STR_CLOCK_FORMAT,
-    StrId::STR_CLOCK_IN_HEADER, StrId::STR_CLOCK_DATE,     StrId::STR_CLOCK_SYNC_NOW,
+    StrId::STR_TIMEZONE,        StrId::STR_CLOCK_DST,  StrId::STR_CLOCK_FORMAT,
+    StrId::STR_CLOCK_IN_HEADER, StrId::STR_CLOCK_DATE, StrId::STR_CLOCK_SYNC_NOW,
 };
 
 const StrId dstNames[CrossPointSettings::CLOCK_DST_MODE_COUNT] = {StrId::STR_CLOCK_DST_AUTO, StrId::STR_STATE_ON,
@@ -99,8 +99,8 @@ void ClockSettingsActivity::buildScreen(UiScreen& screen) {
   const uint8_t dst = SETTINGS.clockDst < CrossPointSettings::CLOCK_DST_MODE_COUNT ? SETTINGS.clockDst : uint8_t{0};
   rowItems_[ITEM_DST].value = I18N.get(dstNames[dst]);
   rowItems_[ITEM_FORMAT].value = SETTINGS.clockFormat == 1 ? tr(STR_CLOCK_FORMAT_12H) : tr(STR_CLOCK_FORMAT_24H);
-  rowItems_[ITEM_SHOW_ON_HOME].value = SETTINGS.clockShowInHeader ? tr(STR_SHOW) : tr(STR_HIDE);
-  rowItems_[ITEM_DATE].value = SETTINGS.clockShowDate ? tr(STR_SHOW) : tr(STR_HIDE);
+  GUI.setCheckboxRow(rowItems_[ITEM_SHOW_ON_HOME], SETTINGS.clockShowInHeader);
+  GUI.setCheckboxRow(rowItems_[ITEM_DATE], SETTINGS.clockShowDate);
   // The sync row's value is the current time itself: it confirms the sync,
   // previews format/zone changes, and reads "Not Set" until the first sync.
   rowItems_[ITEM_SYNC].value =

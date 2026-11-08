@@ -13,6 +13,7 @@
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
 #include "apps/AppRegistry.h"
+#include "settings/SettingsSection.h"
 #include "util/ScreenshotInfo.h"
 
 class Activity;    // forward declaration
@@ -47,7 +48,7 @@ class ActivityManager {
 
   // Pending activity to be launched on next loop iteration
   std::unique_ptr<Activity> pendingActivity;
-  enum class PendingAction { None, Push, Pop, Replace };
+  enum class PendingAction { None, Push, Pop, Replace, ReplaceForSleep };
   PendingAction pendingAction = PendingAction::None;
 
   // Task to render and display the activity
@@ -67,13 +68,15 @@ class ActivityManager {
   // This variable must only be set by the main loop, to avoid race conditions
   std::atomic<bool> requestedUpdate{false};
 
+  // Counts screen changes, so the Bluetooth page turner can tell one visit of a book from the next.
+  // Written by the main loop under RenderLock; the render task captures it under that lock.
+  uint32_t screenVisit = 0;
+  // The screen visit whose frame the render task painted last.
+  std::atomic<uint32_t> paintedVisit{0};
+
  public:
-  explicit ActivityManager(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : renderer(renderer), mappedInput(mappedInput), renderingMutex(xSemaphoreCreateMutex()) {
-    assert(renderingMutex != nullptr && "Failed to create rendering mutex");
-    stackActivities.reserve(10);
-  }
-  ~ActivityManager() { assert(false); /* should never be called */ };
+  explicit ActivityManager(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  ~ActivityManager();
 
   void begin();
   void loop();
@@ -83,8 +86,10 @@ class ActivityManager {
 
   // goTo... functions are convenient wrapper for replaceActivity()
   void goToFileTransfer();
+  void goToJoinNetwork();  // File Transfer straight into Join Network (post heap-defrag reboot)
   void goToUsbDrive();
-  void goToSettings();
+  // openSection jumps straight into one group (End = the section list).
+  void goToSettings(SettingsSection openSection = SettingsSection::End);
   void goToFileBrowser(std::string path = {});
   void goToLibrary();
   void goToBrowser();
@@ -103,6 +108,7 @@ class ActivityManager {
   void goToClock();
   // Custom-app launcher; `focus` selects that app's row (first row when None or absent).
   void goToApps(AppId focus = AppId::None);
+  void goToPlugins(bool showOpds);
   void goToReader(std::string path, bool allowFastInitialRefresh = false);
   void goToSleep(bool fromTimeout = false);
   void goToBoot();
@@ -120,9 +126,21 @@ class ActivityManager {
   bool preventAutoSleep() const;
   bool requiresExclusiveStorageLoop() const;
   bool isReaderActivity() const;
+  // Bluetooth page turner (lib/BlePageTurner): the book in front, whether it has painted a page, and
+  // a page or chapter turn from a remote. False when no book in front took the turn.
+  bool isForegroundReader() const;
+  bool isRemoteReaderContext() const;
+  bool remoteClick(RemoteButton button);
+  // Home is in front and has painted a frame of its own (not one left from the screen before).
+  bool isForegroundHomeShown() const;
+  uint32_t visit() const { return screenVisit; }
+  bool remoteTurn(bool forward, bool chapter);
+  // A remote button mapped to the reader menu (true) or to a new clipping (false).
+  bool remoteShortcut(bool readerMenu);
   bool handleForcedRefresh();
   bool skipLoopDelay() const;
   ScreenshotInfo getScreenshotInfo() const;
+  void prepareForSleep();
 
   // If immediate is true, the update will be triggered immediately.
   // Otherwise, it will be deferred until the end of the current loop iteration.
