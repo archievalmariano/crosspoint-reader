@@ -1,6 +1,8 @@
 # DOGEAR's TLS policy and issue parsing, run against the same libraries the
 # firmware uses (platformio.ini lib_deps): the PlatformIO registry tarballs of
-# Arduino-wolfSSL 5.7.2 and ArduinoJson 7.4.2, pinned by SHA-256, with
+# Arduino-wolfSSL 5.7.2 and ArduinoJson 7.4.2, pinned by SHA-256. They are
+# downloaded from this fork's ci-deps branch, because the registry now answers
+# 403 to direct downloads. The bytes are the registry's, as the pins prove. With
 # CrossPoint's wolfSSL overrides applied by scripts/patch_wolfssl.py exactly as
 # a firmware build applies them. Test certificates are generated in the build
 # tree by make_certs.py, with the hash-pinned `cryptography` in requirements.txt.
@@ -21,10 +23,10 @@ endmacro()
 set(DOGEAR_DEPS "${CMAKE_CURRENT_BINARY_DIR}/deps")
 set(DOGEAR_DEP_NAMES wolfssl arduinojson)
 set(DOGEAR_DEP_URL_wolfssl
-    "https://dl.registry.platformio.org/download/wolfssl/library/Arduino-wolfSSL/5.7.2/Arduino-wolfSSL-5.7.2.tar.gz")
+    "https://raw.githubusercontent.com/archievalmariano/crosspoint-reader/ci-deps/Arduino-wolfSSL-5.7.2.tar.gz")
 set(DOGEAR_DEP_SHA_wolfssl 860a2b63adb25a3acb778f20e094449418150558b6f809c6564176b8f3babf3e)
 set(DOGEAR_DEP_URL_arduinojson
-    "https://dl.registry.platformio.org/download/bblanchon/library/ArduinoJson/7.4.2/ArduinoJson-7.4.2.tar.gz")
+    "https://raw.githubusercontent.com/archievalmariano/crosspoint-reader/ci-deps/ArduinoJson-7.4.2.tar.gz")
 set(DOGEAR_DEP_SHA_arduinojson 64fcea6e0e19a049054d47cae5b69baedbe1dcd44d46fab7f7415559127b7f34)
 foreach(dep IN LISTS DOGEAR_DEP_NAMES)
   set(tarball "${DOGEAR_DEPS}/${dep}.tar.gz")
