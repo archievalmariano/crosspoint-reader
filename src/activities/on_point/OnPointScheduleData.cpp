@@ -14,6 +14,8 @@ constexpr uint8_t WEEKDAYS = 0b0111110;  // Monday through Friday.
 constexpr uint8_t WEEKENDS = 0b1000001;  // Saturday and Sunday.
 constexpr uint8_t MONDAY = 0b0000010;
 constexpr uint8_t TUESDAY_TO_FRIDAY = 0b0111100;
+constexpr uint8_t THURSDAY_TO_MONDAY = 0b1110011;
+constexpr uint8_t TUESDAY_WEDNESDAY = 0b0001100;
 
 // Timetables are Verified (shown as PUBLISHED) when they come from the
 // operator's own published schedule; anything else must stay Provisional
@@ -177,7 +179,7 @@ constexpr uint16_t SM_NORTH_EDSA_TO_CAYPOMBO[] = {
     870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290, 1320, 1350,
 };
 
-// Genesis Transport official trip schedules as of 2026-08-18 (via TriNoma and
+// Genesis Transport official trip schedules as of 2026-09-29 (via TriNoma and
 // SM City Clark). The posted 1:10 AM Cubao trip is read as 1:10 PM: it sits
 // between 11:10 AM and 3:10 PM and reaches TriNoma at 2:00 PM.
 constexpr uint16_t CUBAO_TO_CLARK_AIRPORT[] = {
@@ -188,12 +190,13 @@ constexpr uint16_t CLARK_AIRPORT_TO_CUBAO[] = {
     270, 360, 480, 600, 720, 840, 960, 1020, 1080, 1140, 1230,
 };
 
-// Genesis Transport official trip schedules as of 2026-08-18. Clark to NAIA
-// continues to NAIA Terminals 2 and 1; NAIA T3 departures include the PITX
-// trips that pass through Terminal 3.
+// Genesis Transport official trip schedules as of 2026-11-03. Clark to NAIA
+// continues to NAIA Terminals 2 and 1, and also lists the eight PITX-bound
+// trips of the 2026-11-04 Clark to PITX board, which stop at NAIA Terminal 3.
+// NAIA T3 departures include the PITX trips that pass through Terminal 3.
 constexpr uint16_t CLARK_AIRPORT_TO_NAIA_T3[] = {
-    30,  120, 225, 315, 360, 405,  480,  510,  570,  600,  690,  750,
-    780, 825, 870, 900, 960, 1005, 1050, 1095, 1200, 1260, 1350,
+    30,  120, 180, 225, 270, 315, 360, 405, 450,  480,  510,  540,  570,  600,  645,  690,
+    720, 750, 780, 825, 870, 900, 930, 960, 1005, 1050, 1095, 1140, 1200, 1260, 1350,
 };
 
 constexpr uint16_t NAIA_T3_TO_CLARK_AIRPORT[] = {
@@ -201,7 +204,7 @@ constexpr uint16_t NAIA_T3_TO_CLARK_AIRPORT[] = {
     690, 720, 750, 780, 840, 900, 930, 960, 1020, 1080, 1140, 1170, 1230, 1290, 1350,
 };
 
-// Genesis Transport official trip schedules as of 2026-08-18 (TriNoma trips
+// Genesis Transport official trip schedules as of 2026-09-29 (TriNoma trips
 // include the Cubao departures passing through TriNoma).
 constexpr uint16_t TRINOMA_TO_CLARK_AIRPORT[] = {
     270, 360, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200, 1290, 1380,
@@ -222,13 +225,62 @@ constexpr uint16_t BAGUIO_TO_CLARK_AIRPORT[] = {
 
 // UBE Express (Airport Transport Express) daily trip schedule as of
 // 2026-05-01: NAIA Terminal 3 to the NAIA-PITX loop, and back to NAIA
-// Terminals 1, 2 and 3.
+// Terminals 1, 2 and 3. Provisional: later lists differ and dispatch may vary.
 constexpr uint16_t NAIA_T3_TO_PITX[] = {
     270, 375, 495, 630, 780, 885, 1005, 1125,
 };
 
 constexpr uint16_t PITX_TO_NAIA[] = {
     285, 405, 525, 660, 855, 990, 1110,
+};
+
+// Genesis Transport official trip schedules as of 2026-11-04 (via NAIA T3 and
+// SM City Clark, in that order towards Clark).
+constexpr uint16_t PITX_TO_CLARK_AIRPORT[] = {
+    270, 330, 450, 570, 720, 870, 990, 1110,
+};
+
+constexpr uint16_t CLARK_AIRPORT_TO_PITX[] = {
+    180, 270, 450, 540, 645, 720, 930, 1140,
+};
+
+// Genesis JoyBus and Deluxe trip schedules as of 2026-09-18, classes combined.
+// The Thursday-to-Monday lists include the Deluxe trips the boards mark
+// "Only available from Thurs to Mon"; Tuesday and Wednesday omit them.
+constexpr uint16_t CUBAO_TO_BAGUIO_THURSDAY_TO_MONDAY[] = {
+    60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1050, 1170, 1290, 1410,
+};
+
+constexpr uint16_t CUBAO_TO_BAGUIO_TUESDAY_WEDNESDAY[] = {
+    60, 120, 180, 300, 360, 420, 540, 600, 660, 780, 840, 900, 1050, 1170, 1290, 1410,
+};
+
+constexpr uint16_t BAGUIO_TO_CUBAO[] = {
+    120, 240, 390, 510, 630, 750, 870, 930, 990, 1050, 1080, 1200, 1320,
+};
+
+constexpr uint16_t PASAY_TO_BAGUIO_THURSDAY_TO_MONDAY[] = {
+    60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1140, 1260, 1380,
+};
+
+constexpr uint16_t PASAY_TO_BAGUIO_TUESDAY_WEDNESDAY[] = {
+    60, 180, 240, 300, 420, 540, 600, 660, 780, 840, 900, 960, 1020, 1140, 1260, 1380,
+};
+
+// Baguio to Pasay combines the boards titled "NAIA 3 / Pasay", "NAIA 3, 2, 1 /
+// Pasay" and the Avenida panel; every trip names Pasay as a destination.
+constexpr uint16_t BAGUIO_TO_PASAY[] = {
+    0,   60,  150, 240, 300,  360,  420,  480,  540,  600,  660,  720,
+    780, 840, 900, 960, 1020, 1080, 1140, 1200, 1260, 1320, 1380,
+};
+
+// Genesis Transport official trip schedules as of 2026-09-23.
+constexpr uint16_t CLARK_AIRPORT_TO_BALANGA[] = {
+    300, 510, 570, 690, 750, 870, 930, 1020, 1080,
+};
+
+constexpr uint16_t BALANGA_TO_CLARK_AIRPORT[] = {
+    300, 360, 420, 540, 630, 750, 870, 930, 1050,
 };
 
 // Bulacan P2P (2026-08-30 post) for Pandi and Plaridel: first/last trips for
@@ -439,6 +491,40 @@ constexpr ServiceRule TRINOMA_GUIGUINTO_RULES[] = {
     {WEEKENDS, {TRINOMA_TO_GUIGUINTO_WEEKENDS, std::size(TRINOMA_TO_GUIGUINTO_WEEKENDS)}},
 };
 
+constexpr ServiceRule PITX_CLARK_AIRPORT_RULES[] = {
+    {DAILY, {PITX_TO_CLARK_AIRPORT, std::size(PITX_TO_CLARK_AIRPORT)}},
+};
+
+constexpr ServiceRule CLARK_AIRPORT_PITX_RULES[] = {
+    {DAILY, {CLARK_AIRPORT_TO_PITX, std::size(CLARK_AIRPORT_TO_PITX)}},
+};
+
+constexpr ServiceRule CUBAO_BAGUIO_RULES[] = {
+    {THURSDAY_TO_MONDAY, {CUBAO_TO_BAGUIO_THURSDAY_TO_MONDAY, std::size(CUBAO_TO_BAGUIO_THURSDAY_TO_MONDAY)}},
+    {TUESDAY_WEDNESDAY, {CUBAO_TO_BAGUIO_TUESDAY_WEDNESDAY, std::size(CUBAO_TO_BAGUIO_TUESDAY_WEDNESDAY)}},
+};
+
+constexpr ServiceRule BAGUIO_CUBAO_RULES[] = {
+    {DAILY, {BAGUIO_TO_CUBAO, std::size(BAGUIO_TO_CUBAO)}},
+};
+
+constexpr ServiceRule PASAY_BAGUIO_RULES[] = {
+    {THURSDAY_TO_MONDAY, {PASAY_TO_BAGUIO_THURSDAY_TO_MONDAY, std::size(PASAY_TO_BAGUIO_THURSDAY_TO_MONDAY)}},
+    {TUESDAY_WEDNESDAY, {PASAY_TO_BAGUIO_TUESDAY_WEDNESDAY, std::size(PASAY_TO_BAGUIO_TUESDAY_WEDNESDAY)}},
+};
+
+constexpr ServiceRule BAGUIO_PASAY_RULES[] = {
+    {DAILY, {BAGUIO_TO_PASAY, std::size(BAGUIO_TO_PASAY)}},
+};
+
+constexpr ServiceRule CLARK_AIRPORT_BALANGA_RULES[] = {
+    {DAILY, {CLARK_AIRPORT_TO_BALANGA, std::size(CLARK_AIRPORT_TO_BALANGA)}},
+};
+
+constexpr ServiceRule BALANGA_CLARK_AIRPORT_RULES[] = {
+    {DAILY, {BALANGA_TO_CLARK_AIRPORT, std::size(BALANGA_TO_CLARK_AIRPORT)}},
+};
+
 constexpr Schedule SCHEDULES[] = {
     {"p2p-balagtas-trinoma",
      "Bulacan P2P",
@@ -503,7 +589,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(CUBAO_CLARK_RULES),
      nullptr,
      0,
-     "Genesis Transport trip schedule as of 2026-08-18.",
+     "Genesis Transport trip schedule as of 2026-09-29; printed 1:10 AM read as 1:10 PM.",
      SourceStatus::Verified},
     {"p2p-clark-airport-cubao",
      "Genesis",
@@ -516,7 +602,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(CLARK_AIRPORT_CUBAO_RULES),
      nullptr,
      0,
-     "Genesis Transport trip schedule as of 2026-08-18.",
+     "Genesis Transport trip schedule as of 2026-09-29.",
      SourceStatus::Verified},
     {"p2p-clark-airport-naia-t3",
      "Genesis",
@@ -529,7 +615,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(CLARK_AIRPORT_NAIA_RULES),
      nullptr,
      0,
-     "Genesis Transport trip schedule as of 2026-08-18.",
+     "Genesis Transport trip schedule as of 2026-11-03; PITX trips via NAIA T3 as of 2026-11-04.",
      SourceStatus::Verified},
     {"p2p-naia-t3-clark-airport",
      "Genesis",
@@ -542,7 +628,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(NAIA_T3_RULES),
      nullptr,
      0,
-     "Genesis Transport trip schedule as of 2026-08-18.",
+     "Genesis Transport trip schedule as of 2026-11-03, including trips from PITX.",
      SourceStatus::Verified},
     {"p2p-trinoma-clark-airport",
      "Genesis",
@@ -555,7 +641,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(TRINOMA_CLARK_RULES),
      nullptr,
      0,
-     "Genesis Transport trip schedule as of 2026-08-18.",
+     "Genesis Transport trip schedule as of 2026-09-29.",
      SourceStatus::Verified},
     {"p2p-clark-airport-trinoma",
      "Genesis",
@@ -568,7 +654,7 @@ constexpr Schedule SCHEDULES[] = {
      std::size(CLARK_AIRPORT_TRINOMA_RULES),
      nullptr,
      0,
-     "Genesis Transport trip schedule as of 2026-08-18.",
+     "Genesis Transport trip schedule as of 2026-09-29.",
      SourceStatus::Verified},
     {"p2p-clark-airport-baguio",
      "Genesis",
@@ -607,8 +693,8 @@ constexpr Schedule SCHEDULES[] = {
      std::size(NAIA_PITX_RULES),
      nullptr,
      0,
-     "UBE Express trip schedule as of 2026-05-01.",
-     SourceStatus::Verified},
+     "UBE Express trip schedule as of 2026-05-01; later lists differ and dispatch may vary.",
+     SourceStatus::Provisional},
     {"p2p-pitx-naia",
      "UBE Express",
      "PITX",
@@ -620,8 +706,8 @@ constexpr Schedule SCHEDULES[] = {
      std::size(PITX_RULES),
      nullptr,
      0,
-     "UBE Express trip schedule as of 2026-05-01.",
-     SourceStatus::Verified},
+     "UBE Express trip schedule as of 2026-05-01; later lists differ and dispatch may vary.",
+     SourceStatus::Provisional},
     {"p2p-pandi-trinoma",
      "Bulacan P2P",
      "PANDI",
@@ -726,6 +812,110 @@ constexpr Schedule SCHEDULES[] = {
      TRINOMA_GUIGUINTO_HOLIDAYS.size(),
      "Development reconstruction: inferred departures within 2026-08-30 first/last trips.",
      SourceStatus::Provisional},
+    {"p2p-pitx-clark-airport",
+     "Genesis",
+     "PITX",
+     "CLARK AIRPORT",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 4},
+     PITX_CLARK_AIRPORT_RULES,
+     std::size(PITX_CLARK_AIRPORT_RULES),
+     nullptr,
+     0,
+     "Genesis Transport trip schedule as of 2026-11-04, via NAIA T3 and SM City Clark.",
+     SourceStatus::Verified},
+    {"p2p-clark-airport-pitx",
+     "Genesis",
+     "CLARK AIRPORT",
+     "PITX",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 4},
+     CLARK_AIRPORT_PITX_RULES,
+     std::size(CLARK_AIRPORT_PITX_RULES),
+     nullptr,
+     0,
+     "Genesis Transport trip schedule as of 2026-11-04, via SM City Clark and NAIA T3.",
+     SourceStatus::Verified},
+    {"genesis-cubao-baguio",
+     "Genesis",
+     "CUBAO",
+     "BAGUIO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 18},
+     CUBAO_BAGUIO_RULES,
+     std::size(CUBAO_BAGUIO_RULES),
+     nullptr,
+     0,
+     "Genesis JoyBus and Deluxe trip schedules as of 2026-09-18; classes combined.",
+     SourceStatus::Verified},
+    {"genesis-baguio-cubao",
+     "Genesis",
+     "BAGUIO",
+     "CUBAO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 18},
+     BAGUIO_CUBAO_RULES,
+     std::size(BAGUIO_CUBAO_RULES),
+     nullptr,
+     0,
+     "Genesis JoyBus and Deluxe trip schedules as of 2026-09-18; classes combined.",
+     SourceStatus::Verified},
+    {"genesis-pasay-baguio",
+     "Genesis",
+     "PASAY",
+     "BAGUIO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 18},
+     PASAY_BAGUIO_RULES,
+     std::size(PASAY_BAGUIO_RULES),
+     nullptr,
+     0,
+     "Genesis JoyBus and Deluxe trip schedules as of 2026-09-18; classes combined.",
+     SourceStatus::Verified},
+    {"genesis-baguio-pasay",
+     "Genesis",
+     "BAGUIO",
+     "PASAY",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 18},
+     BAGUIO_PASAY_RULES,
+     std::size(BAGUIO_PASAY_RULES),
+     nullptr,
+     0,
+     "Genesis posters as of 2026-09-18; the Baguio to NAIA/Pasay lists combined.",
+     SourceStatus::Verified},
+    {"p2p-clark-airport-balanga",
+     "Genesis",
+     "CLARK AIRPORT",
+     "BALANGA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     CLARK_AIRPORT_BALANGA_RULES,
+     std::size(CLARK_AIRPORT_BALANGA_RULES),
+     nullptr,
+     0,
+     "Genesis Transport trip schedule as of 2026-09-23.",
+     SourceStatus::Verified},
+    {"p2p-balanga-clark-airport",
+     "Genesis",
+     "BALANGA",
+     "CLARK AIRPORT",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 23},
+     BALANGA_CLARK_AIRPORT_RULES,
+     std::size(BALANGA_CLARK_AIRPORT_RULES),
+     nullptr,
+     0,
+     "Genesis Transport trip schedule as of 2026-09-23.",
+     SourceStatus::Verified},
 };
 
 constexpr RoutePair ROUTES[] = {
@@ -740,6 +930,10 @@ constexpr RoutePair ROUTES[] = {
     {"p2p-plaridel-trinoma", 16, 17, "PLARIDEL, BULACAN", "QUEZON CITY"},
     {"p2p-malolos-trinoma", 18, 19, "MALOLOS, BULACAN", "QUEZON CITY"},
     {"p2p-guiguinto-trinoma", 20, 21, "GUIGUINTO, BULACAN", "QUEZON CITY"},
+    {"p2p-pitx-clark-airport", 22, 23, "PARAÑAQUE", "PAMPANGA"},
+    {"genesis-cubao-baguio", 24, 25, "QUEZON CITY", "BAGUIO"},
+    {"genesis-pasay-baguio", 26, 27, "PASAY", "BAGUIO"},
+    {"p2p-clark-airport-balanga", 28, 29, "PAMPANGA", "BATAAN"},
 };
 
 static_assert(std::size(SCHEDULES) == SCHEDULE_COUNT);

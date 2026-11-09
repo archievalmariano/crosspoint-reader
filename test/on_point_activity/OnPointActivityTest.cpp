@@ -1,8 +1,9 @@
 // The production OnPointActivity over the shipped catalogue and collections (Stage 2):
 // direct launch, the route list, the SELECT COLLECTION row and picker, and persistence through
 // OnPointStore. Collections: bulacan {BALAGTAS, CAYPOMBO, GUIGUINTO, MALOLOS, PANDI, PLARIDEL in
-// list order; two pages}, north-luzon {CUBAO, TRINOMA->CLARK, CLARK->BAGUIO}, airport-transfers
-// {CLARK->NAIA T3, NAIA T3->PITX}.
+// list order; two pages}, north-luzon {CUBAO, then in list order CLARK->BAGUIO, CLARK->BALANGA,
+// CUBAO->BAGUIO, PASAY->BAGUIO, TRINOMA->CLARK; two pages}, airport-transfers {CLARK->NAIA T3,
+// NAIA T3->PITX, PITX->CLARK}.
 
 #include <ArduinoJson.h>
 
@@ -146,7 +147,7 @@ TEST_F(OnPointActivityTest, HoldingConfirmSetsThisCollectionsMainRouteInTheStore
 
 TEST_F(OnPointActivityTest, TouchSelectsOpensAndSetsWithGapsIgnored) {
   strcpy(SETTINGS.onPointMainRouteId, "p2p-cubao-clark-airport");
-  enterList();                              // north-luzon: CUBAO pinned; rows CLARK->BAGUIO, TRINOMA
+  enterList();                              // north-luzon: CUBAO pinned; rows CLARK->BAGUIO, CLARK->BALANGA
   touch(Event::ScreenTouchDown, 200, 330);  // row 0
   EXPECT_EQ(selectedRow(), 0);
   EXPECT_FALSE(inDepartureView());
@@ -155,10 +156,10 @@ TEST_F(OnPointActivityTest, TouchSelectsOpensAndSetsWithGapsIgnored) {
   touch(Event::ScreenTap, -5, 330);  // off screen
   EXPECT_FALSE(inDepartureView());
   touch(Event::ScreenLongPress, 200, 500);  // row 1 becomes the main route
-  EXPECT_EQ(storedField("defaults", "north-luzon"), "p2p-trinoma-clark-airport");
+  EXPECT_EQ(storedField("defaults", "north-luzon"), "p2p-clark-airport-balanga");
   touch(Event::ScreenTap, 200, 150);  // pinned card opens it
   EXPECT_TRUE(inDepartureView());
-  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "TRINOMA");
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "CLARK AIRPORT");
 }
 
 TEST_F(OnPointActivityTest, InputWaitsWhileARenderIsInProgressExceptBack) {
@@ -203,7 +204,7 @@ TEST_F(OnPointActivityTest, ButtonsCycleThroughTheRoutesAndTheCollectionRow) {
 
 TEST_F(OnPointActivityTest, NavPreviousFromThePinnedRouteStillGoesToTheLastRoute) {
   strcpy(SETTINGS.onPointMainRouteId, "p2p-cubao-clark-airport");
-  enterList();  // north-luzon: CUBAO pinned, then CLARK (BAGUIO), TRINOMA
+  enterList();  // north-luzon: CUBAO pinned, last route TRINOMA (second row of page 2)
   send(Event::Pressed, Button::NavPrevious);
   EXPECT_EQ(selectedRow(), 1);
   EXPECT_FALSE(collectionRowSelected());
@@ -232,7 +233,7 @@ TEST_F(OnPointActivityTest, ConfirmOnTheRowOpensThePickerAndBackRestoresTheList)
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_NORTH_LUZON", PICKER_ROW_Y[1] + 8));
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_AIRPORT_TRANSFERS", PICKER_ROW_Y[2] + 8));
   EXPECT_TRUE(drewAt("6 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[0] + 64));
-  EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[1] + 64));
+  EXPECT_TRUE(drewAt("6 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[1] + 64));
   EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
   EXPECT_EQ(selectedPickerRow(), 0);
   EXPECT_EQ(textAt(FOOTER_Y), "STR_ON_POINT_SELECT_COLLECTION");
@@ -319,11 +320,12 @@ TEST_F(OnPointActivityTest, DefaultsAreKeptPerCollection) {
 }
 
 TEST_F(OnPointActivityTest, SwipeFromTheRowReturnsFocusToARoute) {
-  // airport-transfers: one page (CLARK AIRPORT pinned, NAIA T3 the only row).
+  // airport-transfers: one page (CLARK AIRPORT pinned, rows NAIA T3 and PITX).
   storage.files[ON_POINT_STORE_PATH] = R"({"version":1,"activeRegion":"airport-transfers"})";
   enterList();
   send(Event::Pressed, Button::NavNext);
-  send(Event::Pressed, Button::NavNext);  // the only route -> the row
+  send(Event::Pressed, Button::NavNext);
+  send(Event::Pressed, Button::NavNext);  // the last route -> the row
   ASSERT_TRUE(collectionRowSelected());
   swipe(SwipeDir::Up);  // one page: no target, focus stays
   EXPECT_TRUE(collectionRowSelected());

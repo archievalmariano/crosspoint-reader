@@ -5,12 +5,24 @@
 
 namespace on_point {
 namespace {
-constexpr const char* IDS[ROUTE_COUNT] = {
-    "p2p-balagtas-trinoma",      "p2p-caypombo-sm-north-edsa", "p2p-cubao-clark-airport", "p2p-clark-airport-naia-t3",
-    "p2p-trinoma-clark-airport", "p2p-clark-airport-baguio",   "p2p-naia-pitx",           "p2p-pandi-trinoma",
-    "p2p-plaridel-trinoma",      "p2p-malolos-trinoma",        "p2p-guiguinto-trinoma"};
-constexpr const char* ORIGINS[ROUTE_COUNT] = {"BALAGTAS", "CAYPOMBO", "CUBAO",    "CLARK",   "TRINOMA",  "CLARK B",
-                                              "NAIA",     "PANDI",    "PLARIDEL", "MALOLOS", "GUIGUINTO"};
+constexpr const char* IDS[ROUTE_COUNT] = {"p2p-balagtas-trinoma",
+                                          "p2p-caypombo-sm-north-edsa",
+                                          "p2p-cubao-clark-airport",
+                                          "p2p-clark-airport-naia-t3",
+                                          "p2p-trinoma-clark-airport",
+                                          "p2p-clark-airport-baguio",
+                                          "p2p-naia-pitx",
+                                          "p2p-pandi-trinoma",
+                                          "p2p-plaridel-trinoma",
+                                          "p2p-malolos-trinoma",
+                                          "p2p-guiguinto-trinoma",
+                                          "p2p-pitx-clark-airport",
+                                          "genesis-cubao-baguio",
+                                          "genesis-pasay-baguio",
+                                          "p2p-clark-airport-balanga"};
+constexpr const char* ORIGINS[ROUTE_COUNT] = {"BALAGTAS",  "CAYPOMBO", "CUBAO",   "CLARK",    "TRINOMA",
+                                              "CLARK B",   "NAIA",     "PANDI",   "PLARIDEL", "MALOLOS",
+                                              "GUIGUINTO", "PITX",     "CUBAO B", "PASAY",    "CLARK C"};
 Schedule schedules[SCHEDULE_COUNT];
 RoutePair routes[ROUTE_COUNT];
 bool ready = false;
