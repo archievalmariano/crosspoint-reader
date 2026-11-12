@@ -232,8 +232,13 @@ TEST_F(OnPointActivityTest, ConfirmOnTheRowOpensThePickerAndBackRestoresTheList)
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_BULACAN", PICKER_ROW_Y[0] + 8));
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_NORTH_LUZON", PICKER_ROW_Y[1] + 8));
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_AIRPORT_TRANSFERS", PICKER_ROW_Y[2] + 8));
+  EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_METRO_MANILA", PICKER_ROW_Y[3] + 8));  // appended: fourth row
   EXPECT_TRUE(drewAt("6 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[0] + 64));
   EXPECT_TRUE(drewAt("6 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[1] + 64));
+  EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[2] + 64));
+  EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[3] + 64));
+  EXPECT_FALSE(drew("1 / 1"));  // four collections fit one page: no page label
+  EXPECT_FALSE(drew("1 / 2"));
   EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
   EXPECT_EQ(selectedPickerRow(), 0);
   EXPECT_EQ(textAt(FOOTER_Y), "STR_ON_POINT_SELECT_COLLECTION");
@@ -256,7 +261,12 @@ TEST_F(OnPointActivityTest, PickerWrapsAndSelectsWithButtons) {
   send(Event::Pressed, Button::NavNext);
   send(Event::Pressed, Button::NavPrevious);  // the row
   send(Event::Released, Button::Confirm);
-  send(Event::Pressed, Button::NavPrevious);  // wraps to AIRPORT TRANSFERS
+  send(Event::Pressed, Button::NavPrevious);  // wraps to METRO MANILA, the last row
+  EXPECT_EQ(selectedPickerRow(), 3);
+  send(Event::Pressed, Button::NavNext);  // and wraps back to BULACAN
+  EXPECT_EQ(selectedPickerRow(), 0);
+  send(Event::Pressed, Button::NavPrevious);
+  send(Event::Pressed, Button::NavPrevious);  // AIRPORT TRANSFERS
   EXPECT_EQ(selectedPickerRow(), 2);
   send(Event::Released, Button::Confirm);
   EXPECT_FALSE(inPicker());
@@ -281,14 +291,39 @@ TEST_F(OnPointActivityTest, TouchOpensThePickerAndSelectsACollection) {
   EXPECT_EQ(selectedPickerRow(), 1);
   touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 104 + 10);  // the gap below row 1
   EXPECT_TRUE(inPicker());
-  touch(Event::ScreenTap, 200, PICKER_ROW_Y[3] + 30);  // no fourth collection
+  touch(Event::ScreenTap, 200, PICKER_ROW_Y[3] + 104 + 22 + 30);  // no fifth row on the page
   EXPECT_TRUE(inPicker());
-  swipe(SwipeDir::Up);  // one page only
+  EXPECT_EQ(selectedPickerRow(), 1);
+  swipe(SwipeDir::Up);  // four collections: one page only
   EXPECT_EQ(selectedPickerRow(), 1);
   touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 30);
   EXPECT_FALSE(inPicker());
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_NORTH_LUZON", COLLECTION_TEXT_Y));
   EXPECT_EQ(textAt(PINNED_ORIGIN_Y), "CUBAO");
+}
+
+TEST_F(OnPointActivityTest, MetroManilaOpensOnItsShippedDefault) {
+  enterList();
+  touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);
+  ASSERT_TRUE(inPicker());
+  touch(Event::ScreenTap, 200, PICKER_ROW_Y[3] + 30);  // METRO MANILA
+  EXPECT_FALSE(inPicker());
+  EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_METRO_MANILA", COLLECTION_TEXT_Y));
+  // ATC ALABANG > GREENBELT pinned; the others in alphabetical order, all on page 1.
+  EXPECT_EQ(textAt(PINNED_ORIGIN_Y), "ATC ALABANG");
+  EXPECT_TRUE(pinnedSelected());
+  EXPECT_EQ(textAt(ROW_Y[0] + 8), "ATC ALABANG");  // > SM MEGAMALL
+  EXPECT_EQ(textAt(ROW_Y[1] + 8), "VTX ALABANG");  // > STARMALL SHAW
+  EXPECT_EQ(textAt(ROW_Y[2] + 8), "");
+  EXPECT_EQ(storedField("activeRegion"), "metro-manila");
+  EXPECT_EQ(storedField("defaults", "metro-manila"), "<null>");  // nothing set: the shipped default is used
+
+  enter();  // the next launch opens the collection's default board
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "ATC ALABANG");
+  EXPECT_TRUE(drewAt("2026-10-21", FOOTER_Y));  // the footer shows today's date, as on every board
+  EXPECT_TRUE(drew("STR_ON_POINT_PROVISIONAL"));
+  send(Event::Pressed, Button::NavNext);  // reverse direction
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "GREENBELT");
 }
 
 TEST_F(OnPointActivityTest, SelectingTheCurrentCollectionChangesNothing) {

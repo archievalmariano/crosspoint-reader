@@ -9,7 +9,7 @@
 // Golden route-list behaviour for the shipped routes, produced by the v1.2.0
 // implementation (test/fixtures/on_point/LegacyRouteList.h) and kept as
 // literal tables: captured for the seven v1.2.0 routes before the refactor,
-// regenerated from the same reference when the BULACAN and M2 routes were added.
+// regenerated from the same reference when the BULACAN, M2 and M3-A routes were added.
 
 namespace {
 
@@ -17,13 +17,13 @@ using on_point::RouteListModel;
 using on_point::RouteResolution;
 using on_point::RouteResolutionState;
 
-constexpr size_t N = 15;
+constexpr size_t N = 18;
 constexpr int SCREEN_WIDTH = 480;
 
-// Comparator order (BALAGTAS, CAYPOMBO, CLARK AIRPORT > BAGUIO, BALANGA, NAIA T3,
-// CUBAO > BAGUIO, CLARK AIRPORT, GUIGUINTO, MALOLOS, NAIA T3, PANDI, PASAY, PITX,
-// PLARIDEL, TRINOMA).
-constexpr size_t SORTED[N] = {0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4};
+// Comparator order (ATC ALABANG > GREENBELT, SM MEGAMALL, BALAGTAS, CAYPOMBO,
+// CLARK AIRPORT > BAGUIO, BALANGA, NAIA T3, CUBAO > BAGUIO, CLARK AIRPORT, GUIGUINTO,
+// MALOLOS, NAIA T3, PANDI, PASAY, PITX, PLARIDEL, TRINOMA, VTX ALABANG).
+constexpr size_t SORTED[N] = {15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16};
 
 struct Golden {
   size_t display[N];     // route at each display position (0 = pinned)
@@ -36,172 +36,205 @@ struct Golden {
   int swipeDown[N];      // route selected by swiping to the earlier page (-1: none)
 };
 
-// One entry per main route index 0..14.
+// One entry per main route index 0..17.
 constexpr Golden GOLDEN[N] = {
     {
         /* main 0 p2p-balagtas-trinoma */
-        {0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4},    // display order
-        {0, 1, 6, 4, 14, 2, 9, 10, 13, 8, 7, 12, 5, 11, 3},    // position of route
-        {0, 0, 3, 3, 12, 0, 6, 9, 12, 6, 6, 9, 3, 9, 0},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {1, 2, 7, 5, 1, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4},    // NavNext position by route
-        {14, 14, 5, 3, 13, 1, 8, 9, 12, 7, 6, 11, 4, 10, 2},   // NavPrevious position by route
-        {3, 3, 10, 10, -1, 3, 7, 8, -1, 7, 7, 8, 10, 8, 3},    // swipe up route (-1 none)
-        {-1, -1, 1, 1, 7, -1, 3, 10, 7, 3, 3, 10, 1, 10, -1},  // swipe down route (-1 none)
+        {0, 15, 17, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {0, 3, 8, 6, 16, 4, 11, 12, 15, 10, 9, 14, 7, 13, 5, 1, 17, 2},      // position of route
+        {0, 0, 6, 3, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {1, 4, 9, 7, 17, 5, 12, 13, 16, 11, 10, 15, 8, 14, 6, 2, 1, 3},      // NavNext position by route
+        {17, 2, 7, 5, 15, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4, 17, 16, 1},     // NavPrevious position by route
+        {5, 5, 9, 12, -1, 12, 13, 13, 4, 13, 9, 4, 9, 4, 12, 5, -1, 5},      // swipe up route (-1 none)
+        {-1, -1, 5, 15, 13, 15, 12, 12, 9, 12, 5, 9, 5, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 1 p2p-caypombo-sm-north-edsa */
-        {1, 0, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4},    // display order
-        {1, 0, 6, 4, 14, 2, 9, 10, 13, 8, 7, 12, 5, 11, 3},    // position of route
-        {0, 0, 3, 3, 12, 0, 6, 9, 12, 6, 6, 9, 3, 9, 0},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 1, 7, 5, 1, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4},    // NavNext position by route
-        {14, 14, 5, 3, 13, 1, 8, 9, 12, 7, 6, 11, 4, 10, 2},   // NavPrevious position by route
-        {3, 3, 10, 10, -1, 3, 7, 8, -1, 7, 7, 8, 10, 8, 3},    // swipe up route (-1 none)
-        {-1, -1, 0, 0, 7, -1, 3, 10, 7, 3, 3, 10, 0, 10, -1},  // swipe down route (-1 none)
+        {1, 15, 17, 0, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {3, 0, 8, 6, 16, 4, 11, 12, 15, 10, 9, 14, 7, 13, 5, 1, 17, 2},      // position of route
+        {0, 0, 6, 3, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 1, 9, 7, 17, 5, 12, 13, 16, 11, 10, 15, 8, 14, 6, 2, 1, 3},      // NavNext position by route
+        {2, 17, 7, 5, 15, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4, 17, 16, 1},     // NavPrevious position by route
+        {5, 5, 9, 12, -1, 12, 13, 13, 4, 13, 9, 4, 9, 4, 12, 5, -1, 5},      // swipe up route (-1 none)
+        {-1, -1, 5, 15, 13, 15, 12, 12, 9, 12, 5, 9, 5, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 2 p2p-cubao-clark-airport */
-        {2, 0, 1, 5, 14, 3, 12, 10, 9, 6, 7, 13, 11, 8, 4},       // display order
-        {1, 2, 0, 5, 14, 3, 9, 10, 13, 8, 7, 12, 6, 11, 4},       // position of route
-        {0, 0, 0, 3, 12, 0, 6, 9, 12, 6, 6, 9, 3, 9, 3},          // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},            // visible rows by route
-        {2, 3, 1, 6, 1, 4, 10, 11, 14, 9, 8, 13, 7, 12, 5},       // NavNext position by route
-        {14, 1, 14, 4, 13, 2, 8, 9, 12, 7, 6, 11, 5, 10, 3},      // NavPrevious position by route
-        {14, 14, 14, 10, -1, 14, 7, 8, -1, 7, 7, 8, 10, 8, 10},   // swipe up route (-1 none)
-        {-1, -1, -1, 0, 7, -1, 14, 10, 7, 14, 14, 10, 0, 10, 0},  // swipe down route (-1 none)
+        {2, 15, 17, 0, 1, 5, 14, 3, 12, 10, 9, 6, 7, 13, 11, 8, 4, 16},   // display order
+        {3, 4, 0, 7, 16, 5, 11, 12, 15, 10, 9, 14, 8, 13, 6, 1, 17, 2},   // position of route
+        {0, 3, 0, 6, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},      // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},           // visible rows by route
+        {4, 5, 1, 8, 17, 6, 12, 13, 16, 11, 10, 15, 9, 14, 7, 2, 1, 3},   // NavNext position by route
+        {2, 3, 17, 6, 15, 4, 10, 11, 14, 9, 8, 13, 7, 12, 5, 17, 16, 1},  // NavPrevious position by route
+        {1, 3, 1, 9, -1, 3, 13, 13, 4, 13, 9, 4, 9, 4, 3, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, -1, 1, 13, 15, 3, 3, 9, 3, 1, 9, 1, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 3 p2p-clark-airport-naia-t3 */
-        {3, 0, 1, 5, 14, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4},       // display order
-        {1, 2, 6, 0, 14, 3, 9, 10, 13, 8, 7, 12, 5, 11, 4},       // position of route
-        {0, 0, 3, 0, 12, 0, 6, 9, 12, 6, 6, 9, 3, 9, 3},          // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},            // visible rows by route
-        {2, 3, 7, 1, 1, 4, 10, 11, 14, 9, 8, 13, 6, 12, 5},       // NavNext position by route
-        {14, 1, 5, 14, 13, 2, 8, 9, 12, 7, 6, 11, 4, 10, 3},      // NavPrevious position by route
-        {14, 14, 10, 14, -1, 14, 7, 8, -1, 7, 7, 8, 10, 8, 10},   // swipe up route (-1 none)
-        {-1, -1, 0, -1, 7, -1, 14, 10, 7, 14, 14, 10, 0, 10, 0},  // swipe down route (-1 none)
+        {3, 15, 17, 0, 1, 5, 14, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {3, 4, 8, 0, 16, 5, 11, 12, 15, 10, 9, 14, 7, 13, 6, 1, 17, 2},      // position of route
+        {0, 3, 6, 0, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 5, 9, 1, 17, 6, 12, 13, 16, 11, 10, 15, 8, 14, 7, 2, 1, 3},      // NavNext position by route
+        {2, 3, 7, 17, 15, 4, 10, 11, 14, 9, 8, 13, 6, 12, 5, 17, 16, 1},     // NavPrevious position by route
+        {1, 12, 9, 1, -1, 12, 13, 13, 4, 13, 9, 4, 9, 4, 12, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, -1, 13, 15, 12, 12, 9, 12, 1, 9, 1, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 4 p2p-trinoma-clark-airport */
-        {4, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8},      // display order
-        {1, 2, 7, 5, 0, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4},      // position of route
-        {0, 0, 6, 3, 0, 0, 9, 9, 12, 6, 6, 12, 3, 9, 3},         // page start by route
-        {3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, 2, 3, 3, 3},           // visible rows by route
-        {2, 3, 8, 6, 1, 4, 11, 12, 1, 10, 9, 14, 7, 13, 5},      // NavNext position by route
-        {14, 1, 6, 4, 14, 2, 9, 10, 13, 8, 7, 12, 5, 11, 3},     // NavPrevious position by route
-        {14, 14, 6, 2, 14, 14, 11, 11, -1, 6, 6, -1, 2, 11, 2},  // swipe up route (-1 none)
-        {-1, -1, 14, 0, -1, -1, 2, 2, 6, 14, 14, 6, 0, 2, 0},    // swipe down route (-1 none)
+        {4, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 16},    // display order
+        {3, 4, 9, 7, 0, 5, 12, 13, 16, 11, 10, 15, 8, 14, 6, 1, 17, 2},    // position of route
+        {0, 3, 6, 6, 0, 3, 9, 12, 15, 9, 9, 12, 6, 12, 3, 0, 15, 0},       // page start by route
+        {3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 2, 3},            // visible rows by route
+        {4, 5, 10, 8, 1, 6, 13, 14, 17, 12, 11, 16, 9, 15, 7, 2, 1, 3},    // NavNext position by route
+        {2, 3, 8, 6, 17, 4, 11, 12, 15, 10, 9, 14, 7, 13, 5, 17, 16, 1},   // NavPrevious position by route
+        {1, 3, 10, 10, 1, 3, 7, 8, -1, 7, 7, 8, 10, 8, 3, 1, -1, 1},       // swipe up route (-1 none)
+        {-1, 15, 1, 1, -1, 15, 3, 10, 7, 3, 3, 10, 1, 10, 15, -1, 7, -1},  // swipe down route (-1 none)
     },
     {
         /* main 5 p2p-clark-airport-baguio */
-        {5, 0, 1, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4},    // display order
-        {1, 2, 6, 4, 14, 0, 9, 10, 13, 8, 7, 12, 5, 11, 3},    // position of route
-        {0, 0, 3, 3, 12, 0, 6, 9, 12, 6, 6, 9, 3, 9, 0},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 7, 5, 1, 1, 10, 11, 14, 9, 8, 13, 6, 12, 4},    // NavNext position by route
-        {14, 1, 5, 3, 13, 14, 8, 9, 12, 7, 6, 11, 4, 10, 2},   // NavPrevious position by route
-        {3, 3, 10, 10, -1, 3, 7, 8, -1, 7, 7, 8, 10, 8, 3},    // swipe up route (-1 none)
-        {-1, -1, 0, 0, 7, -1, 3, 10, 7, 3, 3, 10, 0, 10, -1},  // swipe down route (-1 none)
+        {5, 15, 17, 0, 1, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {3, 4, 8, 6, 16, 0, 11, 12, 15, 10, 9, 14, 7, 13, 5, 1, 17, 2},      // position of route
+        {0, 3, 6, 3, 15, 0, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 5, 9, 7, 17, 1, 12, 13, 16, 11, 10, 15, 8, 14, 6, 2, 1, 3},      // NavNext position by route
+        {2, 3, 7, 5, 15, 17, 10, 11, 14, 9, 8, 13, 6, 12, 4, 17, 16, 1},     // NavPrevious position by route
+        {1, 12, 9, 12, -1, 1, 13, 13, 4, 13, 9, 4, 9, 4, 12, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 15, 13, -1, 12, 12, 9, 12, 1, 9, 1, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 6 p2p-naia-pitx */
-        {6, 0, 1, 5, 14, 3, 12, 2, 10, 9, 7, 13, 11, 8, 4},    // display order
-        {1, 2, 7, 5, 14, 3, 0, 10, 13, 9, 8, 12, 6, 11, 4},    // position of route
-        {0, 0, 6, 3, 12, 0, 0, 9, 12, 6, 6, 9, 3, 9, 3},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 8, 6, 1, 4, 1, 11, 14, 10, 9, 13, 7, 12, 5},    // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 14, 9, 12, 8, 7, 11, 5, 10, 3},   // NavPrevious position by route
-        {14, 14, 7, 2, -1, 14, 14, 8, -1, 7, 7, 8, 2, 8, 2},   // swipe up route (-1 none)
-        {-1, -1, 14, 0, 7, -1, -1, 2, 7, 14, 14, 2, 0, 2, 0},  // swipe down route (-1 none)
+        {6, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 7, 13, 11, 8, 4, 16},      // display order
+        {3, 4, 9, 7, 16, 5, 0, 12, 15, 11, 10, 14, 8, 13, 6, 1, 17, 2},      // position of route
+        {0, 3, 6, 6, 15, 3, 0, 9, 12, 9, 9, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 5, 10, 8, 17, 6, 1, 13, 16, 12, 11, 15, 9, 14, 7, 2, 1, 3},      // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 17, 11, 14, 10, 9, 13, 7, 12, 5, 17, 16, 1},     // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 1, 13, 4, 13, 13, 4, 10, 4, 3, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 1, 13, 15, -1, 3, 10, 3, 3, 10, 1, 10, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 7 p2p-pandi-trinoma */
-        {7, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 13, 11, 8, 4},    // display order
-        {1, 2, 7, 5, 14, 3, 10, 0, 13, 9, 8, 12, 6, 11, 4},    // position of route
-        {0, 0, 6, 3, 12, 0, 9, 0, 12, 6, 6, 9, 3, 9, 3},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 8, 6, 1, 4, 11, 1, 14, 10, 9, 13, 7, 12, 5},    // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 9, 14, 12, 8, 7, 11, 5, 10, 3},   // NavPrevious position by route
-        {14, 14, 6, 2, -1, 14, 8, 14, -1, 6, 6, 8, 2, 8, 2},   // swipe up route (-1 none)
-        {-1, -1, 14, 0, 6, -1, 2, -1, 6, 14, 14, 2, 0, 2, 0},  // swipe down route (-1 none)
+        {7, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 13, 11, 8, 4, 16},      // display order
+        {3, 4, 9, 7, 16, 5, 12, 0, 15, 11, 10, 14, 8, 13, 6, 1, 17, 2},      // position of route
+        {0, 3, 6, 6, 15, 3, 9, 0, 12, 9, 9, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 5, 10, 8, 17, 6, 13, 1, 16, 12, 11, 15, 9, 14, 7, 2, 1, 3},      // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 11, 17, 14, 10, 9, 13, 7, 12, 5, 17, 16, 1},     // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 13, 1, 4, 13, 13, 4, 10, 4, 3, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 1, 13, 15, 3, -1, 10, 3, 3, 10, 1, 10, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 8 p2p-plaridel-trinoma */
-        {8, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 4},      // display order
-        {1, 2, 7, 5, 14, 3, 10, 11, 0, 9, 8, 13, 6, 12, 4},      // position of route
-        {0, 0, 6, 3, 12, 0, 9, 9, 0, 6, 6, 12, 3, 9, 3},         // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 2, 3, 3, 3},           // visible rows by route
-        {2, 3, 8, 6, 1, 4, 11, 12, 1, 10, 9, 14, 7, 13, 5},      // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 9, 10, 14, 8, 7, 12, 5, 11, 3},     // NavPrevious position by route
-        {14, 14, 6, 2, -1, 14, 11, 11, 14, 6, 6, -1, 2, 11, 2},  // swipe up route (-1 none)
-        {-1, -1, 14, 0, 6, -1, 2, 2, -1, 14, 14, 6, 0, 2, 0},    // swipe down route (-1 none)
+        {8, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 4, 16},    // display order
+        {3, 4, 9, 7, 16, 5, 12, 13, 0, 11, 10, 15, 8, 14, 6, 1, 17, 2},    // position of route
+        {0, 3, 6, 6, 15, 3, 9, 12, 0, 9, 9, 12, 6, 12, 3, 0, 15, 0},       // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},            // visible rows by route
+        {4, 5, 10, 8, 17, 6, 13, 14, 1, 12, 11, 16, 9, 15, 7, 2, 1, 3},    // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 11, 12, 17, 10, 9, 14, 7, 13, 5, 17, 16, 1},   // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 7, 4, 1, 7, 7, 4, 10, 4, 3, 1, -1, 1},       // swipe up route (-1 none)
+        {-1, 15, 1, 1, 7, 15, 3, 10, -1, 3, 3, 10, 1, 10, 15, -1, 7, -1},  // swipe down route (-1 none)
     },
     {
         /* main 9 p2p-malolos-trinoma */
-        {9, 0, 1, 5, 14, 3, 12, 2, 10, 6, 7, 13, 11, 8, 4},    // display order
-        {1, 2, 7, 5, 14, 3, 9, 10, 13, 0, 8, 12, 6, 11, 4},    // position of route
-        {0, 0, 6, 3, 12, 0, 6, 9, 12, 0, 6, 9, 3, 9, 3},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 8, 6, 1, 4, 10, 11, 14, 1, 9, 13, 7, 12, 5},    // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 8, 9, 12, 14, 7, 11, 5, 10, 3},   // NavPrevious position by route
-        {14, 14, 7, 2, -1, 14, 7, 8, -1, 14, 7, 8, 2, 8, 2},   // swipe up route (-1 none)
-        {-1, -1, 14, 0, 7, -1, 14, 2, 7, -1, 14, 2, 0, 2, 0},  // swipe down route (-1 none)
+        {9, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {3, 4, 9, 7, 16, 5, 11, 12, 15, 0, 10, 14, 8, 13, 6, 1, 17, 2},      // position of route
+        {0, 3, 6, 6, 15, 3, 9, 9, 12, 0, 9, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 5, 10, 8, 17, 6, 12, 13, 16, 1, 11, 15, 9, 14, 7, 2, 1, 3},      // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 10, 11, 14, 17, 9, 13, 7, 12, 5, 17, 16, 1},     // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 13, 13, 4, 1, 13, 4, 10, 4, 3, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 1, 13, 15, 3, 3, 10, -1, 3, 10, 1, 10, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 10 p2p-guiguinto-trinoma */
-        {10, 0, 1, 5, 14, 3, 12, 2, 9, 6, 7, 13, 11, 8, 4},    // display order
-        {1, 2, 7, 5, 14, 3, 9, 10, 13, 8, 0, 12, 6, 11, 4},    // position of route
-        {0, 0, 6, 3, 12, 0, 6, 9, 12, 6, 0, 9, 3, 9, 3},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 8, 6, 1, 4, 10, 11, 14, 9, 1, 13, 7, 12, 5},    // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 8, 9, 12, 7, 14, 11, 5, 10, 3},   // NavPrevious position by route
-        {14, 14, 7, 2, -1, 14, 7, 8, -1, 7, 14, 8, 2, 8, 2},   // swipe up route (-1 none)
-        {-1, -1, 14, 0, 7, -1, 14, 2, 7, 14, -1, 2, 0, 2, 0},  // swipe down route (-1 none)
+        {10, 15, 17, 0, 1, 5, 14, 3, 12, 2, 9, 6, 7, 13, 11, 8, 4, 16},   // display order
+        {3, 4, 9, 7, 16, 5, 11, 12, 15, 10, 0, 14, 8, 13, 6, 1, 17, 2},   // position of route
+        {0, 3, 6, 6, 15, 3, 9, 9, 12, 9, 0, 12, 6, 12, 3, 0, 15, 0},      // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},           // visible rows by route
+        {4, 5, 10, 8, 17, 6, 12, 13, 16, 11, 1, 15, 9, 14, 7, 2, 1, 3},   // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 10, 11, 14, 9, 17, 13, 7, 12, 5, 17, 16, 1},  // NavPrevious position by route
+        {1, 3, 9, 9, -1, 3, 13, 13, 4, 13, 1, 4, 9, 4, 3, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 1, 13, 15, 3, 3, 9, 3, -1, 9, 1, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 11 p2p-pitx-clark-airport */
-        {11, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 8, 4},    // display order
-        {1, 2, 7, 5, 14, 3, 10, 11, 13, 9, 8, 0, 6, 12, 4},    // position of route
-        {0, 0, 6, 3, 12, 0, 9, 9, 12, 6, 6, 0, 3, 9, 3},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 8, 6, 1, 4, 11, 12, 14, 10, 9, 1, 7, 13, 5},    // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 9, 10, 12, 8, 7, 14, 5, 11, 3},   // NavPrevious position by route
-        {14, 14, 6, 2, -1, 14, 8, 8, -1, 6, 6, 14, 2, 8, 2},   // swipe up route (-1 none)
-        {-1, -1, 14, 0, 6, -1, 2, 2, 6, 14, 14, -1, 0, 2, 0},  // swipe down route (-1 none)
+        {11, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 8, 4, 16},    // display order
+        {3, 4, 9, 7, 16, 5, 12, 13, 15, 11, 10, 0, 8, 14, 6, 1, 17, 2},    // position of route
+        {0, 3, 6, 6, 15, 3, 9, 12, 12, 9, 9, 0, 6, 12, 3, 0, 15, 0},       // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},            // visible rows by route
+        {4, 5, 10, 8, 17, 6, 13, 14, 16, 12, 11, 1, 9, 15, 7, 2, 1, 3},    // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 11, 12, 14, 10, 9, 17, 7, 13, 5, 17, 16, 1},   // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 7, 4, 4, 7, 7, 1, 10, 4, 3, 1, -1, 1},       // swipe up route (-1 none)
+        {-1, 15, 1, 1, 7, 15, 3, 10, 10, 3, 3, -1, 1, 10, 15, -1, 7, -1},  // swipe down route (-1 none)
     },
     {
         /* main 12 genesis-cubao-baguio */
-        {12, 0, 1, 5, 14, 3, 2, 10, 9, 6, 7, 13, 11, 8, 4},       // display order
-        {1, 2, 6, 5, 14, 3, 9, 10, 13, 8, 7, 12, 0, 11, 4},       // position of route
-        {0, 0, 3, 3, 12, 0, 6, 9, 12, 6, 6, 9, 0, 9, 3},          // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},            // visible rows by route
-        {2, 3, 7, 6, 1, 4, 10, 11, 14, 9, 8, 13, 1, 12, 5},       // NavNext position by route
-        {14, 1, 5, 4, 13, 2, 8, 9, 12, 7, 6, 11, 14, 10, 3},      // NavPrevious position by route
-        {14, 14, 10, 10, -1, 14, 7, 8, -1, 7, 7, 8, 14, 8, 10},   // swipe up route (-1 none)
-        {-1, -1, 0, 0, 7, -1, 14, 10, 7, 14, 14, 10, -1, 10, 0},  // swipe down route (-1 none)
+        {12, 15, 17, 0, 1, 5, 14, 3, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},   // display order
+        {3, 4, 8, 7, 16, 5, 11, 12, 15, 10, 9, 14, 0, 13, 6, 1, 17, 2},   // position of route
+        {0, 3, 6, 6, 15, 3, 9, 9, 12, 9, 6, 12, 0, 12, 3, 0, 15, 0},      // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},           // visible rows by route
+        {4, 5, 9, 8, 17, 6, 12, 13, 16, 11, 10, 15, 1, 14, 7, 2, 1, 3},   // NavNext position by route
+        {2, 3, 7, 6, 15, 4, 10, 11, 14, 9, 8, 13, 17, 12, 5, 17, 16, 1},  // NavPrevious position by route
+        {1, 3, 9, 9, -1, 3, 13, 13, 4, 13, 9, 4, 1, 4, 3, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 1, 13, 15, 3, 3, 9, 3, 1, 9, -1, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
     {
         /* main 13 genesis-pasay-baguio */
-        {13, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 11, 8, 4},    // display order
-        {1, 2, 7, 5, 14, 3, 10, 11, 13, 9, 8, 12, 6, 0, 4},    // position of route
-        {0, 0, 6, 3, 12, 0, 9, 9, 12, 6, 6, 9, 3, 0, 3},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 8, 6, 1, 4, 11, 12, 14, 10, 9, 13, 7, 1, 5},    // NavNext position by route
-        {14, 1, 6, 4, 13, 2, 9, 10, 12, 8, 7, 11, 5, 14, 3},   // NavPrevious position by route
-        {14, 14, 6, 2, -1, 14, 8, 8, -1, 6, 6, 8, 2, 14, 2},   // swipe up route (-1 none)
-        {-1, -1, 14, 0, 6, -1, 2, 2, 6, 14, 14, 2, 0, -1, 0},  // swipe down route (-1 none)
+        {13, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 11, 8, 4, 16},    // display order
+        {3, 4, 9, 7, 16, 5, 12, 13, 15, 11, 10, 14, 8, 0, 6, 1, 17, 2},    // position of route
+        {0, 3, 6, 6, 15, 3, 9, 12, 12, 9, 9, 12, 6, 0, 3, 0, 15, 0},       // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},            // visible rows by route
+        {4, 5, 10, 8, 17, 6, 13, 14, 16, 12, 11, 15, 9, 1, 7, 2, 1, 3},    // NavNext position by route
+        {2, 3, 8, 6, 15, 4, 11, 12, 14, 10, 9, 13, 7, 17, 5, 17, 16, 1},   // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 7, 4, 4, 7, 7, 4, 10, 1, 3, 1, -1, 1},       // swipe up route (-1 none)
+        {-1, 15, 1, 1, 7, 15, 3, 10, 10, 3, 3, 10, 1, -1, 15, -1, 7, -1},  // swipe down route (-1 none)
     },
     {
         /* main 14 p2p-clark-airport-balanga */
-        {14, 0, 1, 5, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4},    // display order
-        {1, 2, 6, 4, 14, 3, 9, 10, 13, 8, 7, 12, 5, 11, 0},    // position of route
-        {0, 0, 3, 3, 12, 0, 6, 9, 12, 6, 6, 9, 3, 9, 0},       // page start by route
-        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3},         // visible rows by route
-        {2, 3, 7, 5, 1, 4, 10, 11, 14, 9, 8, 13, 6, 12, 1},    // NavNext position by route
-        {14, 1, 5, 3, 13, 2, 8, 9, 12, 7, 6, 11, 4, 10, 14},   // NavPrevious position by route
-        {3, 3, 10, 10, -1, 3, 7, 8, -1, 7, 7, 8, 10, 8, 3},    // swipe up route (-1 none)
-        {-1, -1, 0, 0, 7, -1, 3, 10, 7, 3, 3, 10, 0, 10, -1},  // swipe down route (-1 none)
+        {14, 15, 17, 0, 1, 5, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {3, 4, 8, 6, 16, 5, 11, 12, 15, 10, 9, 14, 7, 13, 0, 1, 17, 2},      // position of route
+        {0, 3, 6, 3, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 0, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {4, 5, 9, 7, 17, 6, 12, 13, 16, 11, 10, 15, 8, 14, 1, 2, 1, 3},      // NavNext position by route
+        {2, 3, 7, 5, 15, 4, 10, 11, 14, 9, 8, 13, 6, 12, 17, 17, 16, 1},     // NavPrevious position by route
+        {1, 12, 9, 12, -1, 12, 13, 13, 4, 13, 9, 4, 9, 4, 1, 1, -1, 1},      // swipe up route (-1 none)
+        {-1, 15, 1, 15, 13, 15, 12, 12, 9, 12, 1, 9, 1, 9, -1, -1, 13, -1},  // swipe down route (-1 none)
+    },
+    {
+        /* main 15 p2p-atc-greenbelt */
+        {15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {2, 3, 8, 6, 16, 4, 11, 12, 15, 10, 9, 14, 7, 13, 5, 0, 17, 1},      // position of route
+        {0, 0, 6, 3, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {3, 4, 9, 7, 17, 5, 12, 13, 16, 11, 10, 15, 8, 14, 6, 1, 1, 2},      // NavNext position by route
+        {1, 2, 7, 5, 15, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4, 17, 16, 17},     // NavPrevious position by route
+        {5, 5, 9, 12, -1, 12, 13, 13, 4, 13, 9, 4, 9, 4, 12, 5, -1, 5},      // swipe up route (-1 none)
+        {-1, -1, 5, 17, 13, 17, 12, 12, 9, 12, 5, 9, 5, 9, 17, -1, 13, -1},  // swipe down route (-1 none)
+    },
+    {
+        /* main 16 p2p-starmall-alabang-starmall-shaw */
+        {16, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4},    // display order
+        {3, 4, 9, 7, 17, 5, 12, 13, 16, 11, 10, 15, 8, 14, 6, 1, 0, 2},    // position of route
+        {0, 3, 6, 6, 15, 3, 9, 12, 15, 9, 9, 12, 6, 12, 3, 0, 0, 0},       // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3},            // visible rows by route
+        {4, 5, 10, 8, 1, 6, 13, 14, 17, 12, 11, 16, 9, 15, 7, 2, 1, 3},    // NavNext position by route
+        {2, 3, 8, 6, 16, 4, 11, 12, 15, 10, 9, 14, 7, 13, 5, 17, 17, 1},   // NavPrevious position by route
+        {1, 3, 10, 10, -1, 3, 7, 8, -1, 7, 7, 8, 10, 8, 3, 1, 1, 1},       // swipe up route (-1 none)
+        {-1, 15, 1, 1, 7, 15, 3, 10, 7, 3, 3, 10, 1, 10, 15, -1, -1, -1},  // swipe down route (-1 none)
+    },
+    {
+        /* main 17 p2p-atc-sm-megamall */
+        {17, 15, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 7, 13, 11, 8, 4, 16},      // display order
+        {2, 3, 8, 6, 16, 4, 11, 12, 15, 10, 9, 14, 7, 13, 5, 1, 17, 0},      // position of route
+        {0, 0, 6, 3, 15, 3, 9, 9, 12, 9, 6, 12, 6, 12, 3, 0, 15, 0},         // page start by route
+        {3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3},              // visible rows by route
+        {3, 4, 9, 7, 17, 5, 12, 13, 16, 11, 10, 15, 8, 14, 6, 2, 1, 1},      // NavNext position by route
+        {1, 2, 7, 5, 15, 3, 10, 11, 14, 9, 8, 13, 6, 12, 4, 17, 16, 17},     // NavPrevious position by route
+        {5, 5, 9, 12, -1, 12, 13, 13, 4, 13, 9, 4, 9, 4, 12, 5, -1, 5},      // swipe up route (-1 none)
+        {-1, -1, 5, 15, 13, 15, 12, 12, 9, 12, 5, 9, 5, 9, 15, -1, 13, -1},  // swipe down route (-1 none)
     },
 };
 
@@ -272,7 +305,7 @@ TEST(OnPointRouteList, AliasedMainRouteBehavesAsItsTarget) {
   EXPECT_EQ(on_point::pinnedHeading(RouteResolutionState::Aliased), on_point::PinnedHeading::MainRoute);
 }
 
-// No main route: BALAGTAS > TRINOMA (first in sort order) fills the pinned
+// No main route: ATC ALABANG > GREENBELT (first in sort order) fills the pinned
 // slot, the list keeps the same order and paging, and no route is the main.
 TEST(OnPointRouteList, NoMainRouteStatePinsTheFirstSortedRouteWithoutMakingItMain) {
   for (const auto state : {RouteResolutionState::Unknown, RouteResolutionState::Unset}) {
@@ -281,7 +314,7 @@ TEST(OnPointRouteList, NoMainRouteStatePinsTheFirstSortedRouteWithoutMakingItMai
     model.build({state, 4});  // a stale index must be ignored
     EXPECT_FALSE(model.hasMainRoute());
     EXPECT_EQ(model.pinnedRoute(), SORTED[0]);
-    EXPECT_EQ(model.pinnedRoute(), on_point::routeIndexForId("p2p-balagtas-trinoma"));
+    EXPECT_EQ(model.pinnedRoute(), on_point::routeIndexForId("p2p-atc-greenbelt"));
     expectMatchesGolden(model, GOLDEN[SORTED[0]]);
     for (size_t route = 0; route < N; ++route) EXPECT_FALSE(model.isMainRoute(route)) << route;
     EXPECT_EQ(on_point::pinnedHeading(state), on_point::PinnedHeading::NoMainRoute);

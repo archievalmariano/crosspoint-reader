@@ -16,6 +16,8 @@ constexpr uint8_t MONDAY = 0b0000010;
 constexpr uint8_t TUESDAY_TO_FRIDAY = 0b0111100;
 constexpr uint8_t THURSDAY_TO_MONDAY = 0b1110011;
 constexpr uint8_t TUESDAY_WEDNESDAY = 0b0001100;
+constexpr uint8_t SATURDAY = 0b1000000;
+constexpr uint8_t SUNDAY = 0b0000001;
 
 // Timetables are Verified (shown as PUBLISHED) when they come from the
 // operator's own published schedule; anything else must stay Provisional
@@ -394,6 +396,66 @@ constexpr auto TRINOMA_PLARIDEL_HOLIDAYS = bulacanP2pHolidays(TRINOMA_TO_PLARIDE
 constexpr auto GUIGUINTO_HOLIDAYS = bulacanP2pHolidays(GUIGUINTO_TO_TRINOMA_WEEKENDS);
 constexpr auto TRINOMA_GUIGUINTO_HOLIDAYS = bulacanP2pHolidays(TRINOMA_TO_GUIGUINTO_WEEKENDS);
 
+// RRCG (METRO MANILA), from RRCG's own website schedule feed (rrcgbus.ph/wp-json/data/trips), retrieved
+// 2026-11-13 and undated, so every direction stays Provisional. Weekday, Saturday and Sunday lists are the
+// feed's own. ATC <-> Makati uses Greenbelt 1 on weekdays and Greenbelt 5 at weekends (labelled GREENBELT).
+// Starmall Alabang is labelled by its terminal name, VTX ALABANG. ATC <-> SM Megamall has no Sunday trips.
+// No holiday overrides: RRCG announces holiday operations case by case.
+constexpr uint16_t RRCG_ATC_TO_GREENBELT_WEEKDAYS[] = {
+    330, 360, 390, 420, 450, 480, 510,  540,  570,  600,  630,  660,  690,  720,  750,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290,
+};
+constexpr uint16_t RRCG_ATC_TO_GREENBELT_SATURDAYS[] = {
+    330, 360, 420, 480, 510, 540, 570,  600,  630,  660,  690,  720,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1260,
+};
+constexpr uint16_t RRCG_ATC_TO_GREENBELT_SUNDAYS[] = {
+    360, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200, 1260,
+};
+constexpr uint16_t RRCG_GREENBELT_TO_ATC_WEEKDAYS[] = {
+    390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,  780,  810,  840,
+    870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290, 1320,
+};
+constexpr uint16_t RRCG_GREENBELT_TO_ATC_SATURDAYS[] = {
+    390, 420, 480, 540, 570,  600,  630,  660,  690,  720,  750,  780,  840,  870,
+    900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1320,
+};
+constexpr uint16_t RRCG_GREENBELT_TO_ATC_SUNDAYS[] = {
+    420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200, 1260, 1320,
+};
+constexpr uint16_t RRCG_VTX_TO_STARMALL_SHAW_WEEKDAYS[] = {
+    330, 360, 390, 420, 450, 480, 510,  540,  570,  600,  630,  660,  690,  720,  750,  780,  810,
+    840, 870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290,
+};
+constexpr uint16_t RRCG_VTX_TO_STARMALL_SHAW_SATURDAYS[] = {
+    330, 360, 420, 480, 510, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1260,
+};
+constexpr uint16_t RRCG_VTX_TO_STARMALL_SHAW_SUNDAYS[] = {
+    360, 420, 480, 510, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
+};
+constexpr uint16_t RRCG_STARMALL_SHAW_TO_VTX_WEEKDAYS[] = {
+    390, 420, 450, 480, 510, 540,  570,  600,  630,  660,  690,  720,  750,  780,  810,  840,
+    870, 900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1290, 1320,
+};
+constexpr uint16_t RRCG_STARMALL_SHAW_TO_VTX_SATURDAYS[] = {
+    390, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1320,
+};
+constexpr uint16_t RRCG_STARMALL_SHAW_TO_VTX_SUNDAYS[] = {
+    420, 480, 540, 570, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1110, 1140, 1170, 1200, 1260, 1290,
+};
+constexpr uint16_t RRCG_ATC_TO_SM_MEGAMALL_WEEKDAYS[] = {
+    360, 405, 435, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1065, 1110, 1170, 1230,
+};
+constexpr uint16_t RRCG_ATC_TO_SM_MEGAMALL_SATURDAYS[] = {
+    360, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200,
+};
+constexpr uint16_t RRCG_SM_MEGAMALL_TO_ATC_WEEKDAYS[] = {
+    420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1065, 1110, 1170, 1230, 1290, 1320,
+};
+constexpr uint16_t RRCG_SM_MEGAMALL_TO_ATC_SATURDAYS[] = {
+    420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200, 1260,
+};
+
 constexpr ServiceRule BALAGTAS_RULES[] = {
     {WEEKDAYS, {BALAGTAS_TO_TRINOMA_WEEKDAYS, std::size(BALAGTAS_TO_TRINOMA_WEEKDAYS)}},
     {WEEKENDS, {BALAGTAS_TO_TRINOMA_WEEKENDS, std::size(BALAGTAS_TO_TRINOMA_WEEKENDS)}},
@@ -523,6 +585,35 @@ constexpr ServiceRule CLARK_AIRPORT_BALANGA_RULES[] = {
 
 constexpr ServiceRule BALANGA_CLARK_AIRPORT_RULES[] = {
     {DAILY, {BALANGA_TO_CLARK_AIRPORT, std::size(BALANGA_TO_CLARK_AIRPORT)}},
+};
+
+constexpr ServiceRule RRCG_ATC_TO_GREENBELT_RULES[] = {
+    {WEEKDAYS, {RRCG_ATC_TO_GREENBELT_WEEKDAYS, std::size(RRCG_ATC_TO_GREENBELT_WEEKDAYS)}},
+    {SATURDAY, {RRCG_ATC_TO_GREENBELT_SATURDAYS, std::size(RRCG_ATC_TO_GREENBELT_SATURDAYS)}},
+    {SUNDAY, {RRCG_ATC_TO_GREENBELT_SUNDAYS, std::size(RRCG_ATC_TO_GREENBELT_SUNDAYS)}},
+};
+constexpr ServiceRule RRCG_GREENBELT_TO_ATC_RULES[] = {
+    {WEEKDAYS, {RRCG_GREENBELT_TO_ATC_WEEKDAYS, std::size(RRCG_GREENBELT_TO_ATC_WEEKDAYS)}},
+    {SATURDAY, {RRCG_GREENBELT_TO_ATC_SATURDAYS, std::size(RRCG_GREENBELT_TO_ATC_SATURDAYS)}},
+    {SUNDAY, {RRCG_GREENBELT_TO_ATC_SUNDAYS, std::size(RRCG_GREENBELT_TO_ATC_SUNDAYS)}},
+};
+constexpr ServiceRule RRCG_VTX_TO_STARMALL_SHAW_RULES[] = {
+    {WEEKDAYS, {RRCG_VTX_TO_STARMALL_SHAW_WEEKDAYS, std::size(RRCG_VTX_TO_STARMALL_SHAW_WEEKDAYS)}},
+    {SATURDAY, {RRCG_VTX_TO_STARMALL_SHAW_SATURDAYS, std::size(RRCG_VTX_TO_STARMALL_SHAW_SATURDAYS)}},
+    {SUNDAY, {RRCG_VTX_TO_STARMALL_SHAW_SUNDAYS, std::size(RRCG_VTX_TO_STARMALL_SHAW_SUNDAYS)}},
+};
+constexpr ServiceRule RRCG_STARMALL_SHAW_TO_VTX_RULES[] = {
+    {WEEKDAYS, {RRCG_STARMALL_SHAW_TO_VTX_WEEKDAYS, std::size(RRCG_STARMALL_SHAW_TO_VTX_WEEKDAYS)}},
+    {SATURDAY, {RRCG_STARMALL_SHAW_TO_VTX_SATURDAYS, std::size(RRCG_STARMALL_SHAW_TO_VTX_SATURDAYS)}},
+    {SUNDAY, {RRCG_STARMALL_SHAW_TO_VTX_SUNDAYS, std::size(RRCG_STARMALL_SHAW_TO_VTX_SUNDAYS)}},
+};
+constexpr ServiceRule RRCG_ATC_TO_SM_MEGAMALL_RULES[] = {
+    {WEEKDAYS, {RRCG_ATC_TO_SM_MEGAMALL_WEEKDAYS, std::size(RRCG_ATC_TO_SM_MEGAMALL_WEEKDAYS)}},
+    {SATURDAY, {RRCG_ATC_TO_SM_MEGAMALL_SATURDAYS, std::size(RRCG_ATC_TO_SM_MEGAMALL_SATURDAYS)}},
+};
+constexpr ServiceRule RRCG_SM_MEGAMALL_TO_ATC_RULES[] = {
+    {WEEKDAYS, {RRCG_SM_MEGAMALL_TO_ATC_WEEKDAYS, std::size(RRCG_SM_MEGAMALL_TO_ATC_WEEKDAYS)}},
+    {SATURDAY, {RRCG_SM_MEGAMALL_TO_ATC_SATURDAYS, std::size(RRCG_SM_MEGAMALL_TO_ATC_SATURDAYS)}},
 };
 
 constexpr Schedule SCHEDULES[] = {
@@ -916,6 +1007,88 @@ constexpr Schedule SCHEDULES[] = {
      0,
      "Genesis Transport trip schedule as of 2026-09-23.",
      SourceStatus::Verified},
+    {"p2p-atc-greenbelt",
+     "RRCG",
+     "ATC ALABANG",
+     "GREENBELT",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 13},
+     RRCG_ATC_TO_GREENBELT_RULES,
+     std::size(RRCG_ATC_TO_GREENBELT_RULES),
+     nullptr,
+     0,
+     "RRCG website schedule, retrieved 2026-11-13; undated. Weekdays: Greenbelt 1; weekends: Greenbelt 5. Holiday "
+     "service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-greenbelt-atc",
+     "RRCG",
+     "GREENBELT",
+     "ATC ALABANG",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 13},
+     RRCG_GREENBELT_TO_ATC_RULES,
+     std::size(RRCG_GREENBELT_TO_ATC_RULES),
+     nullptr,
+     0,
+     "RRCG website schedule, retrieved 2026-11-13; undated. Weekdays: Greenbelt 1; weekends: Greenbelt 5. Holiday "
+     "service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-starmall-alabang-starmall-shaw",
+     "RRCG",
+     "VTX ALABANG",
+     "STARMALL SHAW",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 13},
+     RRCG_VTX_TO_STARMALL_SHAW_RULES,
+     std::size(RRCG_VTX_TO_STARMALL_SHAW_RULES),
+     nullptr,
+     0,
+     "RRCG website schedule, retrieved 2026-11-13; undated. Starmall Alabang (VTX) to Starmall EDSA-Shaw. Holiday "
+     "service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-starmall-shaw-starmall-alabang",
+     "RRCG",
+     "STARMALL SHAW",
+     "VTX ALABANG",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 13},
+     RRCG_STARMALL_SHAW_TO_VTX_RULES,
+     std::size(RRCG_STARMALL_SHAW_TO_VTX_RULES),
+     nullptr,
+     0,
+     "RRCG website schedule, retrieved 2026-11-13; undated. Starmall EDSA-Shaw to Starmall Alabang (VTX). Holiday "
+     "service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-atc-sm-megamall",
+     "RRCG",
+     "ATC ALABANG",
+     "SM MEGAMALL",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 13},
+     RRCG_ATC_TO_SM_MEGAMALL_RULES,
+     std::size(RRCG_ATC_TO_SM_MEGAMALL_RULES),
+     nullptr,
+     0,
+     "RRCG website schedule, retrieved 2026-11-13; undated. No Sunday service. Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-sm-megamall-atc",
+     "RRCG",
+     "SM MEGAMALL",
+     "ATC ALABANG",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 13},
+     RRCG_SM_MEGAMALL_TO_ATC_RULES,
+     std::size(RRCG_SM_MEGAMALL_TO_ATC_RULES),
+     nullptr,
+     0,
+     "RRCG website schedule, retrieved 2026-11-13; undated. No Sunday service. Holiday service may differ.",
+     SourceStatus::Provisional},
 };
 
 constexpr RoutePair ROUTES[] = {
@@ -934,6 +1107,9 @@ constexpr RoutePair ROUTES[] = {
     {"genesis-cubao-baguio", 24, 25, "QUEZON CITY", "BAGUIO"},
     {"genesis-pasay-baguio", 26, 27, "PASAY", "BAGUIO"},
     {"p2p-clark-airport-balanga", 28, 29, "PAMPANGA", "BATAAN"},
+    {"p2p-atc-greenbelt", 30, 31, "MUNTINLUPA", "MAKATI"},
+    {"p2p-starmall-alabang-starmall-shaw", 32, 33, "MUNTINLUPA", "MANDALUYONG"},
+    {"p2p-atc-sm-megamall", 34, 35, "MUNTINLUPA", "MANDALUYONG"},
 };
 
 static_assert(std::size(SCHEDULES) == SCHEDULE_COUNT);

@@ -1,6 +1,6 @@
 // Shipped route collections over the catalogue in OnPointScheduleData.cpp (indices into its
 // ROUTES; test/on_point_regions pins each index to its route ID). Only populated collections
-// ship: RIZAL, CAVITE, LAGUNA and SOUTH LUZON are future categories with no entry here.
+// ship: LAGUNA and SOUTH LUZON (including Rizal) are planned collections with no entry here yet.
 
 #include <cstdint>
 #include <iterator>
@@ -18,11 +18,14 @@ constexpr uint8_t NORTH_LUZON[] = {2 /* p2p-cubao-clark-airport */,  4 /* p2p-tr
                                    13 /* genesis-pasay-baguio */,    14 /* p2p-clark-airport-balanga */};
 constexpr uint8_t AIRPORT_TRANSFERS[] = {3 /* p2p-clark-airport-naia-t3 */, 6 /* p2p-naia-pitx */,
                                          11 /* p2p-pitx-clark-airport */};
+constexpr uint8_t METRO_MANILA[] = {15 /* p2p-atc-greenbelt */, 16 /* p2p-starmall-alabang-starmall-shaw */,
+                                    17 /* p2p-atc-sm-megamall */};
 
 constexpr Region REGIONS[] = {
     {"bulacan", BULACAN, std::size(BULACAN), "p2p-balagtas-trinoma"},
     {"north-luzon", NORTH_LUZON, std::size(NORTH_LUZON), "p2p-cubao-clark-airport"},
     {"airport-transfers", AIRPORT_TRANSFERS, std::size(AIRPORT_TRANSFERS), "p2p-clark-airport-naia-t3"},
+    {"metro-manila", METRO_MANILA, std::size(METRO_MANILA), "p2p-atc-greenbelt"},
 };
 
 }  // namespace

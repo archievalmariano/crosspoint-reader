@@ -344,7 +344,7 @@ TEST(OnPointM2Data, TheCatalogueIsAppendOnly) {
 }
 
 TEST(OnPointM2Data, EachNewRouteJoinsExactlyOneExistingCollection) {
-  EXPECT_EQ(on_point::regionCount(), 3u);
+  EXPECT_EQ(on_point::regionCount(), 4u);  // M3-A appended metro-manila; the three M2 collections are unchanged
   const auto members = [](const char* id) {
     std::vector<int> out;
     const on_point::Region* region = on_point::regionAt(on_point::regionIndexForId(id));

@@ -84,7 +84,7 @@ TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
 }
 
 TEST(OnPointScheduleData, EveryRoutePairIsValidAndMirrored) {
-  ASSERT_EQ(on_point::ROUTE_COUNT, 15u);
+  ASSERT_EQ(on_point::ROUTE_COUNT, 18u);
   ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
   for (size_t index = 0; index < on_point::ROUTE_COUNT; ++index) {
     const on_point::Schedule& outbound = on_point::scheduleForRoute(index, false);
@@ -167,13 +167,28 @@ TEST(OnPointScheduleData, GenesisRoutesFollowTheOperatorSchedule) {
 
 // PUBLISHED only where the operator states the departure pattern itself
 // (docs/onpoint/editorial/BULACAN-BATCH1.md); every other BULACAN direction is
-// PROVISIONAL, as is NAIA T3 <-> PITX (its trip list may no longer be complete).
+// PROVISIONAL, as is NAIA T3 <-> PITX (its trip list may no longer be complete) and every
+// RRCG METRO MANILA direction (its website schedule is undated).
 TEST(OnPointScheduleData, EveryScheduleCarriesItsEditorialStatus) {
   const char* const provisional[] = {
-      "p2p-balagtas-trinoma",  "p2p-trinoma-balagtas", "p2p-sm-north-edsa-caypombo",
-      "p2p-pandi-trinoma",     "p2p-trinoma-pandi",    "p2p-plaridel-trinoma",
-      "p2p-trinoma-plaridel",  "p2p-trinoma-malolos",  "p2p-guiguinto-trinoma",
-      "p2p-trinoma-guiguinto", "p2p-naia-pitx",        "p2p-pitx-naia",
+      "p2p-balagtas-trinoma",
+      "p2p-trinoma-balagtas",
+      "p2p-sm-north-edsa-caypombo",
+      "p2p-pandi-trinoma",
+      "p2p-trinoma-pandi",
+      "p2p-plaridel-trinoma",
+      "p2p-trinoma-plaridel",
+      "p2p-trinoma-malolos",
+      "p2p-guiguinto-trinoma",
+      "p2p-trinoma-guiguinto",
+      "p2p-naia-pitx",
+      "p2p-pitx-naia",
+      "p2p-atc-greenbelt",
+      "p2p-greenbelt-atc",
+      "p2p-starmall-alabang-starmall-shaw",
+      "p2p-starmall-shaw-starmall-alabang",
+      "p2p-atc-sm-megamall",
+      "p2p-sm-megamall-atc",
   };
   size_t provisionalCount = 0;
   for (size_t index = 0; index < on_point::SCHEDULE_COUNT; ++index) {
@@ -329,17 +344,25 @@ TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrd
   EXPECT_EQ(on_point::routeIndexForId("genesis-cubao-baguio"), 12u);
   EXPECT_EQ(on_point::routeIndexForId("genesis-pasay-baguio"), 13u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-clark-airport-balanga"), 14u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-atc-greenbelt"), 15u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-starmall-alabang-starmall-shaw"), 16u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-atc-sm-megamall"), 17u);
   // Removed routes (and unknown ids) fall back to the first pair.
   EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
 
   const char* expected[][2] = {
-      {"BALAGTAS", "TRINOMA"},      {"CAYPOMBO", "SM NORTH EDSA"}, {"CLARK AIRPORT", "BAGUIO"},
-      {"CLARK AIRPORT", "BALANGA"}, {"CLARK AIRPORT", "NAIA T3"},  {"CUBAO", "BAGUIO"},
-      {"CUBAO", "CLARK AIRPORT"},   {"GUIGUINTO", "TRINOMA"},      {"MALOLOS", "TRINOMA"},
-      {"NAIA T3", "PITX"},          {"PANDI", "TRINOMA"},          {"PASAY", "BAGUIO"},
-      {"PITX", "CLARK AIRPORT"},    {"PLARIDEL", "TRINOMA"},       {"TRINOMA", "CLARK AIRPORT"},
+      {"ATC ALABANG", "GREENBELT"}, {"ATC ALABANG", "SM MEGAMALL"},
+      {"BALAGTAS", "TRINOMA"},      {"CAYPOMBO", "SM NORTH EDSA"},
+      {"CLARK AIRPORT", "BAGUIO"},  {"CLARK AIRPORT", "BALANGA"},
+      {"CLARK AIRPORT", "NAIA T3"}, {"CUBAO", "BAGUIO"},
+      {"CUBAO", "CLARK AIRPORT"},   {"GUIGUINTO", "TRINOMA"},
+      {"MALOLOS", "TRINOMA"},       {"NAIA T3", "PITX"},
+      {"PANDI", "TRINOMA"},         {"PASAY", "BAGUIO"},
+      {"PITX", "CLARK AIRPORT"},    {"PLARIDEL", "TRINOMA"},
+      {"TRINOMA", "CLARK AIRPORT"}, {"VTX ALABANG", "STARMALL SHAW"},
   };
+  static_assert(std::size(expected) == on_point::ROUTE_COUNT, "one expected entry per route");
   for (size_t position = 0; position < on_point::ROUTE_COUNT; ++position) {
     const size_t routeIndex = on_point::routeIndexInAlphabeticalOrder(position);
     EXPECT_STREQ(on_point::scheduleForRoute(routeIndex, false).origin, expected[position][0]);
