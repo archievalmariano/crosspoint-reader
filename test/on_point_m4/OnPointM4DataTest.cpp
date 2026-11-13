@@ -138,9 +138,10 @@ std::set<Date> overrideDates(const Schedule& s) {
 // ---- Catalogue shape ----
 
 TEST(OnPointM4Data, CatalogueGrewByExactlyThreeAppendedPairs) {
-  EXPECT_EQ(on_point::SCHEDULE_COUNT, 42u);
-  EXPECT_EQ(on_point::ROUTE_COUNT, 21u);
-  EXPECT_EQ(on_point::routeCount(), 21u);
+  // Later batches append after M4; their exact totals are pinned in their own tests.
+  EXPECT_GE(on_point::SCHEDULE_COUNT, 42u);
+  EXPECT_GE(on_point::ROUTE_COUNT, 21u);
+  EXPECT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
   struct Pair {
     size_t route;
     const char* id;
@@ -327,7 +328,7 @@ TEST(OnPointM4Data, BulacanHolidaysAreUnchanged) {
 // ---- Collection ----
 
 TEST(OnPointM4Data, LagunaIsAppendedWithTheThreePairs) {
-  ASSERT_EQ(on_point::regionCount(), 5u);
+  ASSERT_GE(on_point::regionCount(), 5u);  // later collections append after it
   EXPECT_EQ(on_point::regionIndexForId("laguna"), 4u);
   const on_point::Region* laguna = on_point::regionAt(4);
   ASSERT_NE(laguna, nullptr);

@@ -23,7 +23,7 @@ using on_point::RouteResolution;
 using on_point::RouteResolutionState;
 
 // Golden order of the shipped catalogue (test/on_point_route_list).
-constexpr size_t SORTED[] = {15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 18, 7, 13, 11, 8, 4, 16, 19, 20};
+constexpr size_t SORTED[] = {15, 17, 0, 21, 1, 5, 14, 3, 12, 2, 10, 9, 6, 18, 7, 13, 11, 8, 24, 22, 23, 4, 16, 19, 20};
 
 const RouteResolution UNSET{RouteResolutionState::Unset, 0};
 RouteResolution canonical(const size_t route) { return {RouteResolutionState::Canonical, route}; }
@@ -57,23 +57,26 @@ TEST(OnPointRegions, ShippedTableValidates) {
   EXPECT_TRUE(check.ok()) << static_cast<int>(check.error) << " at " << check.region;
 }
 
-TEST(OnPointRegions, ShippedCollectionsAreExactlyTheApprovedFive) {
-  ASSERT_EQ(on_point::regionCount(), 5u);
+TEST(OnPointRegions, ShippedCollectionsAreExactlyTheApprovedSix) {
+  ASSERT_EQ(on_point::regionCount(), 6u);
   const Region* bulacan = on_point::regionAt(0);
   const Region* northLuzon = on_point::regionAt(1);
   const Region* airports = on_point::regionAt(2);
   const Region* metroManila = on_point::regionAt(3);  // appended in M3-A: earlier positions unchanged
   const Region* laguna = on_point::regionAt(4);       // appended in M4
+  const Region* southLuzon = on_point::regionAt(5);   // appended in M5
   ASSERT_NE(bulacan, nullptr);
   ASSERT_NE(northLuzon, nullptr);
   ASSERT_NE(airports, nullptr);
   ASSERT_NE(metroManila, nullptr);
   ASSERT_NE(laguna, nullptr);
+  ASSERT_NE(southLuzon, nullptr);
   EXPECT_STREQ(bulacan->regionId, "bulacan");
   EXPECT_STREQ(northLuzon->regionId, "north-luzon");
   EXPECT_STREQ(airports->regionId, "airport-transfers");
   EXPECT_STREQ(metroManila->regionId, "metro-manila");
   EXPECT_STREQ(laguna->regionId, "laguna");
+  EXPECT_STREQ(southLuzon->regionId, "south-luzon");
   // Pins each member index to its route ID, so a reordered catalogue fails here.
   EXPECT_EQ(memberIds(*bulacan),
             (std::vector<std::string>{"p2p-balagtas-trinoma", "p2p-caypombo-sm-north-edsa", "p2p-pandi-trinoma",
@@ -93,6 +96,10 @@ TEST(OnPointRegions, ShippedCollectionsAreExactlyTheApprovedFive) {
   EXPECT_EQ(memberIds(*laguna),
             (std::vector<std::string>{"p2p-nuvali-one-ayala", "p2p-cabuyao-makati", "p2p-cabuyao-bgc"}));
   EXPECT_STREQ(laguna->defaultRouteId, "p2p-nuvali-one-ayala");
+  EXPECT_EQ(memberIds(*southLuzon),
+            (std::vector<std::string>{"p2p-batangas-grand-newport", "p2p-sm-lipa-newport", "p2p-sm-masinag-one-ayala",
+                                      "p2p-sierra-valley-one-ayala"}));
+  EXPECT_STREQ(southLuzon->defaultRouteId, "p2p-batangas-grand-newport");
 }
 
 TEST(OnPointRegions, EveryShippedRouteIsInExactlyOneCollection) {
@@ -107,7 +114,7 @@ TEST(OnPointRegions, EveryShippedRouteIsInExactlyOneCollection) {
 }
 
 TEST(OnPointRegions, FutureCategoriesAreNotShipped) {
-  for (const char* id : {"rizal", "cavite", "south-luzon"}) EXPECT_EQ(on_point::regionIndexForId(id), NO_REGION);
+  for (const char* id : {"rizal", "cavite"}) EXPECT_EQ(on_point::regionIndexForId(id), NO_REGION);
 }
 
 TEST(OnPointRegions, LookupsNeverFallBackToIndexZero) {
@@ -116,17 +123,19 @@ TEST(OnPointRegions, LookupsNeverFallBackToIndexZero) {
   EXPECT_EQ(on_point::regionIndexForId("airport-transfers"), 2u);
   EXPECT_EQ(on_point::regionIndexForId("metro-manila"), 3u);
   EXPECT_EQ(on_point::regionIndexForId("laguna"), 4u);
-  for (const char* id : {"", "BULACAN", "Bulacan", "bulacan ", "north luzon", "airport", "x", "metro manila",
-                         "METRO-MANILA", "metro", "LAGUNA", "laguna ", "lagun"})
+  EXPECT_EQ(on_point::regionIndexForId("south-luzon"), 5u);
+  for (const char* id :
+       {"", "BULACAN", "Bulacan", "bulacan ", "north luzon", "airport", "x", "metro manila", "METRO-MANILA", "metro",
+        "LAGUNA", "laguna ", "lagun", "south luzon", "SOUTH-LUZON", "southluzon"})
     EXPECT_EQ(on_point::regionIndexForId(id), NO_REGION) << id;
   EXPECT_EQ(on_point::regionIndexForId(nullptr), NO_REGION);
-  EXPECT_EQ(on_point::regionAt(5), nullptr);
+  EXPECT_EQ(on_point::regionAt(6), nullptr);
   EXPECT_EQ(on_point::regionAt(NO_REGION), nullptr);
 }
 
 TEST(OnPointRegions, RegionIdFormat) {
-  for (const char* id : {"bulacan", "north-luzon", "airport-transfers", "metro-manila", "laguna", "a", "a1", "x-2-y",
-                         "abcdefghijklmnopqrstuvwxyz01234"})
+  for (const char* id : {"bulacan", "north-luzon", "airport-transfers", "metro-manila", "laguna", "south-luzon", "a",
+                         "a1", "x-2-y", "abcdefghijklmnopqrstuvwxyz01234"})
     EXPECT_TRUE(on_point::isValidRegionId(id)) << id;
   for (const char* id : {"", "-a", "a-", "a--b", "A", "north_luzon", "north luzon", "é",
                          "abcdefghijklmnopqrstuvwxyz012345"})  // 32 characters
@@ -134,11 +143,11 @@ TEST(OnPointRegions, RegionIdFormat) {
   EXPECT_FALSE(on_point::isValidRegionId(nullptr));
 }
 
-// ---- Validation over synthetic tables (the shipped catalogue's 21 routes) ----
+// ---- Validation over synthetic tables (the shipped catalogue's 25 routes) ----
 
 constexpr uint8_t A[] = {0, 1, 2, 3};
 constexpr uint8_t B[] = {3, 4, 5, 6};
-constexpr uint8_t ALL[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+constexpr uint8_t ALL[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
 
 RegionTableError errorOf(const std::vector<Region>& table) {
   return on_point::validateRegionTable(table.data(), table.size(), on_point::routeCount()).error;
@@ -148,30 +157,32 @@ TEST(OnPointRegions, OverlappingMembershipValidates) {
   // Route 3 in all three, collection "a" equal to a subset of "everything".
   EXPECT_EQ(errorOf({{"a", A, 4, "p2p-clark-airport-naia-t3"},
                      {"b", B, 4, "p2p-clark-airport-naia-t3"},
-                     {"everything", ALL, 21, "p2p-balagtas-trinoma"}}),
+                     {"everything", ALL, 25, "p2p-balagtas-trinoma"}}),
             RegionTableError::None);
 }
 
 TEST(OnPointRegions, ValidationRejectsEachDefect) {
-  constexpr uint8_t dup[] = {0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
-  constexpr uint8_t outOfRange[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+  constexpr uint8_t dup[] = {0,  1,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
+                             12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
+  constexpr uint8_t outOfRange[] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
+                                    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25};
   constexpr uint8_t partial[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   EXPECT_EQ(on_point::validateRegionTable(nullptr, 0, 7).error, RegionTableError::NoRegions);
   EXPECT_EQ(errorOf({}), RegionTableError::NoRegions);
-  EXPECT_EQ(errorOf({{"Bad", ALL, 21, "p2p-naia-pitx"}}), RegionTableError::InvalidId);
-  EXPECT_EQ(errorOf({{nullptr, ALL, 21, "p2p-naia-pitx"}}), RegionTableError::InvalidId);
-  EXPECT_EQ(errorOf({{"x", ALL, 21, "p2p-naia-pitx"}, {"x", A, 4, "p2p-balagtas-trinoma"}}),
+  EXPECT_EQ(errorOf({{"Bad", ALL, 25, "p2p-naia-pitx"}}), RegionTableError::InvalidId);
+  EXPECT_EQ(errorOf({{nullptr, ALL, 25, "p2p-naia-pitx"}}), RegionTableError::InvalidId);
+  EXPECT_EQ(errorOf({{"x", ALL, 25, "p2p-naia-pitx"}, {"x", A, 4, "p2p-balagtas-trinoma"}}),
             RegionTableError::DuplicateId);
-  EXPECT_EQ(errorOf({{"x", ALL, 21, "p2p-naia-pitx"}, {"empty", A, 0, "p2p-balagtas-trinoma"}}),
+  EXPECT_EQ(errorOf({{"x", ALL, 25, "p2p-naia-pitx"}, {"empty", A, 0, "p2p-balagtas-trinoma"}}),
             RegionTableError::NoRoutes);
   EXPECT_EQ(errorOf({{"x", nullptr, 3, "p2p-naia-pitx"}}), RegionTableError::NoRoutes);
   EXPECT_EQ(errorOf({{"x", ALL, 129, "p2p-naia-pitx"}}), RegionTableError::TooManyRoutes);
-  EXPECT_EQ(errorOf({{"x", outOfRange, 22, "p2p-naia-pitx"}}), RegionTableError::RouteOutOfRange);
-  EXPECT_EQ(errorOf({{"x", dup, 22, "p2p-naia-pitx"}}), RegionTableError::DuplicateRoute);
-  EXPECT_EQ(errorOf({{"x", A, 4, "p2p-naia-pitx"}, {"y", ALL, 21, "p2p-naia-pitx"}}),
+  EXPECT_EQ(errorOf({{"x", outOfRange, 26, "p2p-naia-pitx"}}), RegionTableError::RouteOutOfRange);
+  EXPECT_EQ(errorOf({{"x", dup, 26, "p2p-naia-pitx"}}), RegionTableError::DuplicateRoute);
+  EXPECT_EQ(errorOf({{"x", A, 4, "p2p-naia-pitx"}, {"y", ALL, 25, "p2p-naia-pitx"}}),
             RegionTableError::DefaultNotMember);  // p2p-naia-pitx is route 6, not in A
-  EXPECT_EQ(errorOf({{"x", ALL, 21, nullptr}}), RegionTableError::DefaultNotMember);
-  EXPECT_EQ(errorOf({{"x", ALL, 21, "p2p-unknown"}}), RegionTableError::DefaultNotMember);
+  EXPECT_EQ(errorOf({{"x", ALL, 25, nullptr}}), RegionTableError::DefaultNotMember);
+  EXPECT_EQ(errorOf({{"x", ALL, 25, "p2p-unknown"}}), RegionTableError::DefaultNotMember);
   const auto uncovered = on_point::validateRegionTable(
       std::vector<Region>{{"x", partial, 10, "p2p-balagtas-trinoma"}}.data(), 1, on_point::routeCount());
   EXPECT_EQ(uncovered.error, RegionTableError::RouteNotCovered);
@@ -195,8 +206,8 @@ TEST(OnPointRegions, AllRoutesBuildKeepsStage1Order) {
   EXPECT_EQ(listOrder(model), (std::vector<size_t>(std::begin(SORTED), std::end(SORTED))));
   model.build(canonical(4));
   EXPECT_EQ(model.pinnedRoute(), 4u);
-  EXPECT_EQ(listOrder(model),
-            (std::vector<size_t>{4, 15, 17, 0, 1, 5, 14, 3, 12, 2, 10, 9, 6, 18, 7, 13, 11, 8, 16, 19, 20}));
+  EXPECT_EQ(listOrder(model), (std::vector<size_t>{4, 15, 17, 0,  21, 1, 5,  14, 3,  12, 2,  10, 9,
+                                                   6, 18, 7,  13, 11, 8, 24, 22, 23, 16, 19, 20}));
 }
 
 TEST(OnPointRegions, EachShippedCollectionListsItsMembersInGoldenOrder) {
@@ -236,15 +247,16 @@ TEST(OnPointRegions, PinnedMainRouteWithinACollection) {
 TEST(OnPointRegions, RebuildingForAnotherCollectionLeavesNothingStale) {
   RouteListModel model;
   model.build(canonical(4));                  // every route, TRINOMA pinned
-  ASSERT_EQ(model.positionOfRoute(20), 20u);  // last row, page 7
-  ASSERT_EQ(RouteListModel::pageStart(model.positionOfRoute(20)), 18u);
+  ASSERT_EQ(model.positionOfRoute(20), 24u);  // last row, page 8
+  ASSERT_EQ(RouteListModel::pageStart(model.positionOfRoute(20)), 21u);
 
   const Region& airports = *on_point::regionAt(2);  // members 3, 6, 11
   model.build(airports.routes, airports.routeCount, canonical(3));
   EXPECT_EQ(model.count(), 3u);
   EXPECT_EQ(model.pinnedRoute(), 3u);
   EXPECT_EQ(listOrder(model), (std::vector<size_t>{3, 6, 11}));
-  for (const size_t stale : {0u, 1u, 2u, 4u, 5u, 7u, 8u, 9u, 10u, 12u, 13u, 14u, 15u, 16u, 17u, 18u, 19u, 20u}) {
+  for (const size_t stale :
+       {0u, 1u, 2u, 4u, 5u, 7u, 8u, 9u, 10u, 12u, 13u, 14u, 15u, 16u, 17u, 18u, 19u, 20u, 21u, 22u, 23u, 24u}) {
     EXPECT_FALSE(model.contains(stale)) << stale;
     EXPECT_EQ(model.positionOfRoute(stale), 0u) << stale;  // not listed: the pinned slot
   }

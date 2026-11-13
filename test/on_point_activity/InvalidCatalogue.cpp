@@ -25,11 +25,15 @@ constexpr const char* IDS[ROUTE_COUNT] = {"p2p-balagtas-trinoma",
                                           "p2p-atc-sm-megamall",
                                           "p2p-nuvali-one-ayala",
                                           "p2p-cabuyao-makati",
-                                          "p2p-cabuyao-bgc"};
+                                          "p2p-cabuyao-bgc",
+                                          "p2p-batangas-grand-newport",
+                                          "p2p-sm-lipa-newport",
+                                          "p2p-sm-masinag-one-ayala",
+                                          "p2p-sierra-valley-one-ayala"};
 constexpr const char* ORIGINS[ROUTE_COUNT] = {
-    "BALAGTAS", "CAYPOMBO", "CUBAO",   "CLARK",     "TRINOMA", "CLARK B",    "NAIA",
-    "PANDI",    "PLARIDEL", "MALOLOS", "GUIGUINTO", "PITX",    "CUBAO B",    "PASAY",
-    "CLARK C",  "ATC",      "VTX",     "ATC B",     "NUVALI",  "WM CABUYAO", "WM CABUYAO B"};
+    "BALAGTAS", "CAYPOMBO",   "CUBAO",        "CLARK",    "TRINOMA", "CLARK B",    "NAIA",         "PANDI", "PLARIDEL",
+    "MALOLOS",  "GUIGUINTO",  "PITX",         "CUBAO B",  "PASAY",   "CLARK C",    "ATC",          "VTX",   "ATC B",
+    "NUVALI",   "WM CABUYAO", "WM CABUYAO B", "BATANGAS", "SM LIPA", "SM MASINAG", "SIERRA VALLEY"};
 Schedule schedules[SCHEDULE_COUNT];
 RoutePair routes[ROUTE_COUNT];
 bool ready = false;

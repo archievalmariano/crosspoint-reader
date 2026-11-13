@@ -1,5 +1,5 @@
 // The production OnPointActivity's collection picker with more collections than fit one page
-// (TestRegions.cpp, ON_POINT_TEST_PICKER_COLLECTIONS = 5, 8 or 9): the page label, the second and
+// (TestRegions.cpp, ON_POINT_TEST_PICKER_COLLECTIONS = 5, 6, 8 or 9): the page label, the second and
 // later pages, empty rows, wrapping, touch, swipes and reopening on the active collection's page.
 
 #include <string>
@@ -243,6 +243,39 @@ TEST_F(OnPointActivityPickerPagingTest, FiveCollectionsShowFourThenOne) {
   send(Event::Pressed, Button::NavPrevious);              // c5 -> c4
   expectPage(1);
   EXPECT_EQ(selectedPickerRow(), 3);
+}
+#elif ON_POINT_TEST_PICKER_COLLECTIONS == 6
+// The shipped shape since SOUTH LUZON: page 2 holds two collections and two empty rows.
+TEST_F(OnPointActivityPickerPagingTest, SixCollectionsShowTwoRowsOnPageTwo) {
+  static_assert(PAGES == 2);
+  openPicker();
+  send(Event::Pressed, Button::NavPrevious);  // c1 wraps to c6, page 2 row 1
+  expectPage(2);                              // c5, c6, then two empty rows
+  EXPECT_EQ(selectedPickerRow(), 1);
+  touch(Event::ScreenTouchDown, 200, PICKER_ROW_Y[0] + 30);  // c5
+  EXPECT_EQ(selectedPickerRow(), 0);
+  for (const int row : {2, 3}) {
+    touch(Event::ScreenTap, 200, PICKER_ROW_Y[row] + 30);  // empty rows do nothing
+    EXPECT_TRUE(inPicker()) << row;
+    EXPECT_EQ(selectedPickerRow(), 0) << row;
+  }
+  send(Event::Pressed, Button::NavNext);  // c5 -> c6
+  EXPECT_EQ(selectedPickerRow(), 1);
+  send(Event::Pressed, Button::NavNext);  // c6 wraps to c1 on page 1
+  expectPage(1);
+  EXPECT_EQ(selectedPickerRow(), 0);
+  send(Event::Pressed, Button::NavPrevious);           // and back to c6
+  touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 30);  // select c6 by touch
+  EXPECT_FALSE(inPicker());
+  EXPECT_TRUE(drewAt(label(6), COLLECTION_TEXT_Y));
+  EXPECT_TRUE(stored(R"("activeRegion":"c6")"));
+
+  enter();  // relaunch: the picker reopens on c6's row with CURRENT
+  send(Event::Released, Button::Back);
+  touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);
+  expectPage(2);
+  EXPECT_EQ(selectedPickerRow(), 1);
+  EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[1] + 64));
 }
 #elif ON_POINT_TEST_PICKER_COLLECTIONS == 8
 TEST_F(OnPointActivityPickerPagingTest, EightCollectionsFillTwoPages) {

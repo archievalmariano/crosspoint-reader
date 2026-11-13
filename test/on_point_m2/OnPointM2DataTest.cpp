@@ -344,7 +344,7 @@ TEST(OnPointM2Data, TheCatalogueIsAppendOnly) {
 }
 
 TEST(OnPointM2Data, EachNewRouteJoinsExactlyOneExistingCollection) {
-  EXPECT_EQ(on_point::regionCount(), 5u);  // M3-A and M4 appended collections; the three M2 ones are unchanged
+  EXPECT_EQ(on_point::regionCount(), 6u);  // M3-A, M4 and M5 appended collections; the three M2 ones are unchanged
   const auto members = [](const char* id) {
     std::vector<int> out;
     const on_point::Region* region = on_point::regionAt(on_point::regionIndexForId(id));

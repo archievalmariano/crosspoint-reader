@@ -18,6 +18,8 @@ constexpr uint8_t THURSDAY_TO_MONDAY = 0b1110011;
 constexpr uint8_t TUESDAY_WEDNESDAY = 0b0001100;
 constexpr uint8_t SATURDAY = 0b1000000;
 constexpr uint8_t SUNDAY = 0b0000001;
+constexpr uint8_t MONDAY_FRIDAY = 0b0100010;
+constexpr uint8_t TUESDAY_TO_THURSDAY = 0b0011100;
 
 // Timetables are Verified (shown as PUBLISHED) when they come from the
 // operator's own published schedule; anything else must stay Provisional
@@ -526,6 +528,50 @@ constexpr uint16_t LAGUNA_BGC_TO_CABUYAO_WEEKDAYS[] = {
     360, 480, 540, 600, 720, 840, 1020, 1080, 1140, 1260,
 };
 
+// SOUTH LUZON (RRCG), from operator boards transcribed from the owner's screenshots (records: future-expansion-
+// transcriptions). Batangas and Lipa: DAILY boards posted 2026-10-21 and 2026-10-28; RRCG's undated website feed
+// lists different trips, which is unresolved. SM Masinag: WEEKDAY board, equal to the feed. Sierra Valley: Monday &
+// Friday and Tuesday to Thursday boards; the feed has Tuesday to Thursday only. All Provisional. No holiday overrides.
+constexpr uint16_t SOUTH_LUZON_BATANGAS_TO_NEWPORT_DAILY[] = {
+    120, 240, 300, 420, 480, 600, 690, 780, 930, 1050, 1140, 1230,
+};
+constexpr uint16_t SOUTH_LUZON_NEWPORT_TO_BATANGAS_DAILY[] = {
+    300, 420, 510, 600, 720, 810, 900, 1020, 1170, 1260, 1350, 1425,
+};
+constexpr uint16_t SOUTH_LUZON_SM_LIPA_TO_NEWPORT_DAILY[] = {
+    180, 270, 330, 390, 480, 570, 720, 810, 915, 990, 1110, 1200,
+};
+constexpr uint16_t SOUTH_LUZON_NEWPORT_TO_SM_LIPA_DAILY[] = {
+    330, 390, 450, 570, 690, 840, 930, 1035, 1110, 1230, 1320, 1395,
+};
+constexpr uint16_t SOUTH_LUZON_SM_MASINAG_TO_ONE_AYALA_WEEKDAYS[] = {
+    300, 330, 360, 390, 420, 450, 480, 510, 1020, 1080,
+};
+constexpr uint16_t SOUTH_LUZON_ONE_AYALA_TO_SM_MASINAG_WEEKDAYS[] = {
+    900, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260,
+};
+constexpr uint16_t SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_MONDAY_FRIDAY[] = {
+    330,
+    360,
+    390,
+    420,
+};
+constexpr uint16_t SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_TUESDAY_TO_THURSDAY[] = {
+    330,
+    360,
+    390,
+    420,
+};
+constexpr uint16_t SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_MONDAY_FRIDAY[] = {
+    1050,
+    1080,
+    1140,
+    1200,
+};
+constexpr uint16_t SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_TUESDAY_TO_THURSDAY[] = {
+    1050, 1080, 1110, 1170, 1200,
+};
+
 constexpr ServiceRule BALAGTAS_RULES[] = {
     {WEEKDAYS, {BALAGTAS_TO_TRINOMA_WEEKDAYS, std::size(BALAGTAS_TO_TRINOMA_WEEKDAYS)}},
     {WEEKENDS, {BALAGTAS_TO_TRINOMA_WEEKENDS, std::size(BALAGTAS_TO_TRINOMA_WEEKENDS)}},
@@ -707,6 +753,41 @@ constexpr ServiceRule LAGUNA_CABUYAO_TO_BGC_RULES[] = {
 };
 constexpr ServiceRule LAGUNA_BGC_TO_CABUYAO_RULES[] = {
     {WEEKDAYS, {LAGUNA_BGC_TO_CABUYAO_WEEKDAYS, std::size(LAGUNA_BGC_TO_CABUYAO_WEEKDAYS)}},
+};
+
+constexpr ServiceRule SOUTH_LUZON_BATANGAS_TO_NEWPORT_RULES[] = {
+    {DAILY, {SOUTH_LUZON_BATANGAS_TO_NEWPORT_DAILY, std::size(SOUTH_LUZON_BATANGAS_TO_NEWPORT_DAILY)}},
+};
+constexpr ServiceRule SOUTH_LUZON_NEWPORT_TO_BATANGAS_RULES[] = {
+    {DAILY, {SOUTH_LUZON_NEWPORT_TO_BATANGAS_DAILY, std::size(SOUTH_LUZON_NEWPORT_TO_BATANGAS_DAILY)}},
+};
+constexpr ServiceRule SOUTH_LUZON_SM_LIPA_TO_NEWPORT_RULES[] = {
+    {DAILY, {SOUTH_LUZON_SM_LIPA_TO_NEWPORT_DAILY, std::size(SOUTH_LUZON_SM_LIPA_TO_NEWPORT_DAILY)}},
+};
+constexpr ServiceRule SOUTH_LUZON_NEWPORT_TO_SM_LIPA_RULES[] = {
+    {DAILY, {SOUTH_LUZON_NEWPORT_TO_SM_LIPA_DAILY, std::size(SOUTH_LUZON_NEWPORT_TO_SM_LIPA_DAILY)}},
+};
+constexpr ServiceRule SOUTH_LUZON_SM_MASINAG_TO_ONE_AYALA_RULES[] = {
+    {WEEKDAYS, {SOUTH_LUZON_SM_MASINAG_TO_ONE_AYALA_WEEKDAYS, std::size(SOUTH_LUZON_SM_MASINAG_TO_ONE_AYALA_WEEKDAYS)}},
+};
+constexpr ServiceRule SOUTH_LUZON_ONE_AYALA_TO_SM_MASINAG_RULES[] = {
+    {WEEKDAYS, {SOUTH_LUZON_ONE_AYALA_TO_SM_MASINAG_WEEKDAYS, std::size(SOUTH_LUZON_ONE_AYALA_TO_SM_MASINAG_WEEKDAYS)}},
+};
+constexpr ServiceRule SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_RULES[] = {
+    {MONDAY_FRIDAY,
+     {SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_MONDAY_FRIDAY,
+      std::size(SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_MONDAY_FRIDAY)}},
+    {TUESDAY_TO_THURSDAY,
+     {SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_TUESDAY_TO_THURSDAY,
+      std::size(SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_TUESDAY_TO_THURSDAY)}},
+};
+constexpr ServiceRule SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_RULES[] = {
+    {MONDAY_FRIDAY,
+     {SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_MONDAY_FRIDAY,
+      std::size(SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_MONDAY_FRIDAY)}},
+    {TUESDAY_TO_THURSDAY,
+     {SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_TUESDAY_TO_THURSDAY,
+      std::size(SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_TUESDAY_TO_THURSDAY)}},
 };
 
 constexpr Schedule SCHEDULES[] = {
@@ -1268,6 +1349,129 @@ constexpr Schedule SCHEDULES[] = {
      "Calamba P2P post 2026-08-31, effective 2026-09-01. BGC Taguig (Market Market) to WalterMart Cabuyao: every trip "
      "via Pulo Exit (Mayapa Exit is outbound only). Monday to Friday. Holiday service may differ.",
      SourceStatus::Provisional},
+    {"p2p-batangas-grand-newport",
+     "RRCG",
+     "BATANGAS",
+     "NEWPORT",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 10, 21},
+     SOUTH_LUZON_BATANGAS_TO_NEWPORT_RULES,
+     std::size(SOUTH_LUZON_BATANGAS_TO_NEWPORT_RULES),
+     nullptr,
+     0,
+     "RRCG DAILY board, posted 2026-10-21 (owner-reported); equals the 2026-11-01/02 board. RRCG website feed "
+     "(undated) lists 10 different trips: unresolved. Batangas Grand Terminal to Newport World Resorts (Pasay; NAIA "
+     "Terminal 3 via Runway Manila). Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-newport-batangas-grand",
+     "RRCG",
+     "NEWPORT",
+     "BATANGAS",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 10, 21},
+     SOUTH_LUZON_NEWPORT_TO_BATANGAS_RULES,
+     std::size(SOUTH_LUZON_NEWPORT_TO_BATANGAS_RULES),
+     nullptr,
+     0,
+     "RRCG DAILY board, posted 2026-10-21 (owner-reported); equals the 2026-11-01/02 board. RRCG website feed "
+     "(undated) lists 10 different trips: unresolved. Newport World Resorts (Pasay; NAIA Terminal 3 via Runway Manila) "
+     "to Batangas Grand Terminal / Pier. Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-sm-lipa-newport",
+     "RRCG",
+     "SM LIPA",
+     "NEWPORT",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 10, 28},
+     SOUTH_LUZON_SM_LIPA_TO_NEWPORT_RULES,
+     std::size(SOUTH_LUZON_SM_LIPA_TO_NEWPORT_RULES),
+     nullptr,
+     0,
+     "RRCG DAILY board, posted 2026-10-28 (owner-reported); equals the 2026-11-01/02 board. RRCG website feed "
+     "(undated) lists 9 different trips: unresolved. SM Lipa City to Newport World Resorts (Pasay; NAIA Terminal 3 via "
+     "Runway Manila). Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-newport-sm-lipa",
+     "RRCG",
+     "NEWPORT",
+     "SM LIPA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 10, 28},
+     SOUTH_LUZON_NEWPORT_TO_SM_LIPA_RULES,
+     std::size(SOUTH_LUZON_NEWPORT_TO_SM_LIPA_RULES),
+     nullptr,
+     0,
+     "RRCG DAILY board, posted 2026-10-28 (owner-reported); equals the 2026-11-01/02 board. RRCG website feed "
+     "(undated) lists 9 different trips: unresolved. Newport World Resorts (Pasay; NAIA Terminal 3 via Runway Manila) "
+     "to SM Lipa City. Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-sm-masinag-one-ayala",
+     "RRCG",
+     "SM MASINAG",
+     "ONE AYALA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 8},
+     SOUTH_LUZON_SM_MASINAG_TO_ONE_AYALA_RULES,
+     std::size(SOUTH_LUZON_SM_MASINAG_TO_ONE_AYALA_RULES),
+     nullptr,
+     0,
+     "RRCG WEEKDAY board (undated, seen 2026-11-08) equals the RRCG website feed. SM City Masinag to One Ayala; "
+     "morning boarding also at Robinsons Antipolo and Ayala Malls Feliz; Makati drop-offs Rustans, Paseo de Roxas, "
+     "PBCOM, RCBC. Monday to Friday. RRCG: no operations 2026-11-16 to 18 (ASEAN Summit; not encoded). Holiday service "
+     "may differ.",
+     SourceStatus::Provisional},
+    {"p2p-one-ayala-sm-masinag",
+     "RRCG",
+     "ONE AYALA",
+     "SM MASINAG",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 8},
+     SOUTH_LUZON_ONE_AYALA_TO_SM_MASINAG_RULES,
+     std::size(SOUTH_LUZON_ONE_AYALA_TO_SM_MASINAG_RULES),
+     nullptr,
+     0,
+     "RRCG WEEKDAY board (undated, seen 2026-11-08) equals the RRCG website feed. One Ayala to SM City Masinag; Ayala "
+     "Malls Feliz drop-off; from 17:00 also Robinsons Place Antipolo. Monday to Friday. RRCG: no operations 2026-11-16 "
+     "to 18 (ASEAN Summit; not encoded). Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-sierra-valley-one-ayala",
+     "RRCG",
+     "SIERRA VALLEY",
+     "ONE AYALA",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 8},
+     SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_RULES,
+     std::size(SOUTH_LUZON_SIERRA_VALLEY_TO_ONE_AYALA_RULES),
+     nullptr,
+     0,
+     "RRCG boards (undated, seen 2026-11-08): Monday & Friday and Tuesday to Thursday, same morning trips. The RRCG "
+     "website feed has Tuesday to Thursday only; Monday and Friday rest on the operator board. Sierra Valley (Cainta) "
+     "to One Ayala; Makati drop-offs Rustans, Paseo de Roxas, PBCOM, RCBC. RRCG: no operations 2026-11-16 to 18 (ASEAN "
+     "Summit; not encoded). Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-one-ayala-sierra-valley",
+     "RRCG",
+     "ONE AYALA",
+     "SIERRA VALLEY",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 11, 8},
+     SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_RULES,
+     std::size(SOUTH_LUZON_ONE_AYALA_TO_SIERRA_VALLEY_RULES),
+     nullptr,
+     0,
+     "RRCG boards (undated, seen 2026-11-08): Monday & Friday 4 trips, Tuesday to Thursday 5. The RRCG website feed "
+     "has Tuesday to Thursday only; Monday and Friday rest on the operator board. One Ayala to Sierra Valley (Cainta); "
+     "drop-off at Robinsons Galleria. RRCG: no operations 2026-11-16 to 18 (ASEAN Summit; not encoded). Holiday "
+     "service may differ.",
+     SourceStatus::Provisional},
 };
 
 constexpr RoutePair ROUTES[] = {
@@ -1292,6 +1496,10 @@ constexpr RoutePair ROUTES[] = {
     {"p2p-nuvali-one-ayala", 36, 37, "LAGUNA", "MAKATI"},
     {"p2p-cabuyao-makati", 38, 39, "LAGUNA", "MAKATI"},
     {"p2p-cabuyao-bgc", 40, 41, "LAGUNA", "TAGUIG"},
+    {"p2p-batangas-grand-newport", 42, 43, "BATANGAS", "PASAY"},
+    {"p2p-sm-lipa-newport", 44, 45, "BATANGAS", "PASAY"},
+    {"p2p-sm-masinag-one-ayala", 46, 47, "RIZAL", "MAKATI"},
+    {"p2p-sierra-valley-one-ayala", 48, 49, "RIZAL", "MAKATI"},
 };
 
 static_assert(std::size(SCHEDULES) == SCHEDULE_COUNT);

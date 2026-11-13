@@ -84,7 +84,7 @@ TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
 }
 
 TEST(OnPointScheduleData, EveryRoutePairIsValidAndMirrored) {
-  ASSERT_EQ(on_point::ROUTE_COUNT, 21u);
+  ASSERT_EQ(on_point::ROUTE_COUNT, 25u);
   ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
   for (size_t index = 0; index < on_point::ROUTE_COUNT; ++index) {
     const on_point::Schedule& outbound = on_point::scheduleForRoute(index, false);
@@ -168,8 +168,9 @@ TEST(OnPointScheduleData, GenesisRoutesFollowTheOperatorSchedule) {
 // PUBLISHED only where the operator states the departure pattern itself
 // (docs/onpoint/editorial/BULACAN-BATCH1.md); every other BULACAN direction is
 // PROVISIONAL, as is NAIA T3 <-> PITX (its trip list may no longer be complete) and every
-// RRCG METRO MANILA direction (its website schedule is undated) and every LAGUNA direction (no
-// current operator confirmation of the lists).
+// RRCG METRO MANILA direction (its website schedule is undated), every LAGUNA direction (no
+// current operator confirmation of the lists) and every SOUTH LUZON direction (undated or
+// conflicting operator sources).
 TEST(OnPointScheduleData, EveryScheduleCarriesItsEditorialStatus) {
   const char* const provisional[] = {
       "p2p-balagtas-trinoma",
@@ -196,6 +197,14 @@ TEST(OnPointScheduleData, EveryScheduleCarriesItsEditorialStatus) {
       "p2p-makati-cabuyao",
       "p2p-cabuyao-bgc",
       "p2p-bgc-cabuyao",
+      "p2p-batangas-grand-newport",
+      "p2p-newport-batangas-grand",
+      "p2p-sm-lipa-newport",
+      "p2p-newport-sm-lipa",
+      "p2p-sm-masinag-one-ayala",
+      "p2p-one-ayala-sm-masinag",
+      "p2p-sierra-valley-one-ayala",
+      "p2p-one-ayala-sierra-valley",
   };
   size_t provisionalCount = 0;
   for (size_t index = 0; index < on_point::SCHEDULE_COUNT; ++index) {
@@ -357,6 +366,10 @@ TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrd
   EXPECT_EQ(on_point::routeIndexForId("p2p-nuvali-one-ayala"), 18u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-cabuyao-makati"), 19u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-cabuyao-bgc"), 20u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-batangas-grand-newport"), 21u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-sm-lipa-newport"), 22u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-sm-masinag-one-ayala"), 23u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-sierra-valley-one-ayala"), 24u);
   // Removed routes (and unknown ids) fall back to the first pair.
   EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
@@ -365,6 +378,7 @@ TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrd
       {"ATC ALABANG", "GREENBELT"},
       {"ATC ALABANG", "SM MEGAMALL"},
       {"BALAGTAS", "TRINOMA"},
+      {"BATANGAS", "NEWPORT"},
       {"CAYPOMBO", "SM NORTH EDSA"},
       {"CLARK AIRPORT", "BAGUIO"},
       {"CLARK AIRPORT", "BALANGA"},
@@ -379,6 +393,9 @@ TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrd
       {"PASAY", "BAGUIO"},
       {"PITX", "CLARK AIRPORT"},
       {"PLARIDEL", "TRINOMA"},
+      {"SIERRA VALLEY", "ONE AYALA"},
+      {"SM LIPA", "NEWPORT"},
+      {"SM MASINAG", "ONE AYALA"},
       {"TRINOMA", "CLARK AIRPORT"},
       {"VTX ALABANG", "STARMALL SHAW"},
       {"WM CABUYAO", "MAKATI"},

@@ -64,9 +64,9 @@ std::vector<std::string> collectionNameKeys() {
 TEST(OnPointLabelWidth, EveryShippedCollectionHasAName) {
   for (const char* key :
        {"STR_ON_POINT_REGION_BULACAN", "STR_ON_POINT_REGION_NORTH_LUZON", "STR_ON_POINT_REGION_AIRPORT_TRANSFERS",
-        "STR_ON_POINT_REGION_METRO_MANILA", "STR_ON_POINT_REGION_LAGUNA"})
+        "STR_ON_POINT_REGION_METRO_MANILA", "STR_ON_POINT_REGION_LAGUNA", "STR_ON_POINT_REGION_SOUTH_LUZON"})
     EXPECT_FALSE(english(key).empty()) << key;
-  EXPECT_EQ(collectionNameKeys().size(), 5u);  // no names for unshipped (future) collections
+  EXPECT_EQ(collectionNameKeys().size(), 6u);  // no names for unshipped (future) collections
 }
 
 TEST(OnPointLabelWidth, CollectionNamesFitTheRow) {

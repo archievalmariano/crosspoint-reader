@@ -103,6 +103,7 @@ const char* regionLabel(const size_t index, char* fallback, const size_t size) {
     if (strcmp(region->regionId, "airport-transfers") == 0) return tr(STR_ON_POINT_REGION_AIRPORT_TRANSFERS);
     if (strcmp(region->regionId, "metro-manila") == 0) return tr(STR_ON_POINT_REGION_METRO_MANILA);
     if (strcmp(region->regionId, "laguna") == 0) return tr(STR_ON_POINT_REGION_LAGUNA);
+    if (strcmp(region->regionId, "south-luzon") == 0) return tr(STR_ON_POINT_REGION_SOUTH_LUZON);
   }
   snprintf(fallback, size, "%s %u", tr(STR_ON_POINT_COLLECTION), static_cast<unsigned>(index + 1));
   return fallback;

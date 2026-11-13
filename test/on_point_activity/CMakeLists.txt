@@ -29,9 +29,9 @@ add_executable(OnPointActivityOneCollectionTest OnPointActivityConfigTest.cpp ${
 target_compile_definitions(OnPointActivityOneCollectionTest PRIVATE ON_POINT_TEST_ONE_COLLECTION=1)
 add_executable(OnPointActivityOneRouteCollectionTest OnPointActivityConfigTest.cpp ${ON_POINT_ACTIVITY_SOURCES}
   ${SHIPPED_DATA} TestRegions.cpp)
-# Picker paging with 5, 8 and 9 test collections (two pages with one row on the second, two full
-# pages, three pages).
-foreach(collections 5 8 9)
+# Picker paging with 5, 6, 8 and 9 test collections (two pages with one or two rows on the second,
+# two full pages, three pages).
+foreach(collections 5 6 8 9)
   set(target OnPointActivityPickerPaging${collections}Test)
   add_executable(${target} OnPointActivityPickerPagingTest.cpp ${ON_POINT_ACTIVITY_SOURCES} ${SHIPPED_DATA}
     TestRegions.cpp)

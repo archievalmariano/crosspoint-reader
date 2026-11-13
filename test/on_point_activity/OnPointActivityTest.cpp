@@ -239,6 +239,7 @@ TEST_F(OnPointActivityTest, ConfirmOnTheRowOpensThePickerAndBackRestoresTheList)
   EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[3] + 64));
   EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));  // five collections: LAGUNA is on page 2
   EXPECT_FALSE(drew("STR_ON_POINT_REGION_LAGUNA"));
+  EXPECT_FALSE(drew("STR_ON_POINT_REGION_SOUTH_LUZON"));
   EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
   EXPECT_EQ(selectedPickerRow(), 0);
   EXPECT_EQ(textAt(FOOTER_Y), "STR_ON_POINT_SELECT_COLLECTION");
@@ -261,13 +262,15 @@ TEST_F(OnPointActivityTest, PickerWrapsAndSelectsWithButtons) {
   send(Event::Pressed, Button::NavNext);
   send(Event::Pressed, Button::NavPrevious);  // the row
   send(Event::Released, Button::Confirm);
-  send(Event::Pressed, Button::NavPrevious);  // wraps to LAGUNA, alone on page 2
+  send(Event::Pressed, Button::NavPrevious);  // wraps to SOUTH LUZON, page 2 row 1
   EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_LAGUNA", PICKER_ROW_Y[0] + 8));
-  EXPECT_EQ(selectedPickerRow(), 0);
+  EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_SOUTH_LUZON", PICKER_ROW_Y[1] + 8));
+  EXPECT_EQ(selectedPickerRow(), 1);
   send(Event::Pressed, Button::NavNext);  // and wraps back to BULACAN on page 1
   EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));
   EXPECT_EQ(selectedPickerRow(), 0);
+  send(Event::Pressed, Button::NavPrevious);  // SOUTH LUZON
   send(Event::Pressed, Button::NavPrevious);  // LAGUNA
   send(Event::Pressed, Button::NavPrevious);  // METRO MANILA
   send(Event::Pressed, Button::NavPrevious);  // AIRPORT TRANSFERS
@@ -302,7 +305,7 @@ TEST_F(OnPointActivityTest, TouchOpensThePickerAndSelectsACollection) {
   swipe(SwipeDir::Up);  // page 2: LAGUNA, the cursor on its first row
   EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
   EXPECT_EQ(selectedPickerRow(), 0);
-  touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 30);  // page 2 has no second row
+  touch(Event::ScreenTap, 200, PICKER_ROW_Y[2] + 30);  // page 2 has no third row
   EXPECT_TRUE(inPicker());
   swipe(SwipeDir::Down);  // back to page 1, cursor on BULACAN
   EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));
@@ -341,7 +344,8 @@ TEST_F(OnPointActivityTest, LagunaOpensOnItsShippedDefaultFromPageTwo) {
   enterList();
   touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);
   ASSERT_TRUE(inPicker());
-  send(Event::Pressed, Button::NavPrevious);  // BULACAN wraps to LAGUNA
+  send(Event::Pressed, Button::NavPrevious);  // BULACAN wraps to SOUTH LUZON
+  send(Event::Pressed, Button::NavPrevious);  // LAGUNA
   EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[0] + 64));
   send(Event::Released, Button::Confirm);
   EXPECT_FALSE(inPicker());
@@ -365,6 +369,44 @@ TEST_F(OnPointActivityTest, LagunaOpensOnItsShippedDefaultFromPageTwo) {
   EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
   EXPECT_EQ(selectedPickerRow(), 0);
   EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
+}
+
+TEST_F(OnPointActivityTest, SouthLuzonOpensOnItsShippedDefaultFromPageTwo) {
+  enterList();
+  touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);
+  ASSERT_TRUE(inPicker());
+  swipe(SwipeDir::Up);  // page 2: LAGUNA and SOUTH LUZON
+  EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
+  EXPECT_TRUE(drewAt("4 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[1] + 64));
+  EXPECT_EQ(textAt(PICKER_ROW_Y[2] + 8), "");  // empty rows
+  EXPECT_EQ(textAt(PICKER_ROW_Y[3] + 8), "");
+  touch(Event::ScreenTouchDown, 200, PICKER_ROW_Y[1] + 30);
+  EXPECT_EQ(selectedPickerRow(), 1);
+  touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 30);
+  EXPECT_FALSE(inPicker());
+  EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_SOUTH_LUZON", COLLECTION_TEXT_Y));
+  // BATANGAS > NEWPORT pinned; the others in alphabetical order, all on page 1.
+  EXPECT_EQ(textAt(PINNED_ORIGIN_Y), "BATANGAS");
+  EXPECT_TRUE(pinnedSelected());
+  EXPECT_EQ(textAt(ROW_Y[0] + 8), "SIERRA VALLEY");
+  EXPECT_EQ(textAt(ROW_Y[1] + 8), "SM LIPA");
+  EXPECT_EQ(textAt(ROW_Y[2] + 8), "SM MASINAG");
+  EXPECT_EQ(storedField("activeRegion"), "south-luzon");
+  EXPECT_EQ(storedField("defaults", "south-luzon"), "<null>");
+
+  enter();  // the next launch opens SOUTH LUZON's default board
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "BATANGAS");
+  EXPECT_TRUE(drew("STR_ON_POINT_PROVISIONAL"));
+  send(Event::Pressed, Button::NavNext);  // reverse direction
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "NEWPORT");
+  send(Event::Released, Button::Back);
+  touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);  // the picker reopens on SOUTH LUZON's row
+  EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
+  EXPECT_EQ(selectedPickerRow(), 1);
+  EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[1] + 64));
+  send(Event::Pressed, Button::NavNext);  // SOUTH LUZON wraps to BULACAN on page 1
+  EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));
+  EXPECT_EQ(selectedPickerRow(), 0);
 }
 
 TEST_F(OnPointActivityTest, SelectingTheCurrentCollectionChangesNothing) {

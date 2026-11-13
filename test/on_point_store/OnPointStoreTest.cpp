@@ -157,13 +157,13 @@ TEST(OnPointStore, InvalidRequestsChangeNothing) {
   OnPointStore store(fs);
   load(store, Legacy(BALAGTAS));
   std::string tooLong(48, 'r');
-  EXPECT_EQ(store.setActiveRegion(5), Outcome::Failed);  // the first index past the five collections
+  EXPECT_EQ(store.setActiveRegion(6), Outcome::Failed);  // the first index past the six collections
   EXPECT_EQ(store.setActiveRegion(on_point::NO_REGION), Outcome::Failed);
   EXPECT_EQ(store.setDefaultRoute(7, CAYPOMBO), Outcome::Failed);
   EXPECT_EQ(store.setDefaultRoute(BULACAN, nullptr), Outcome::Failed);
   EXPECT_EQ(store.setDefaultRoute(BULACAN, tooLong.c_str()), Outcome::Failed);
   EXPECT_STREQ(store.defaultRouteId(BULACAN), BALAGTAS);
-  EXPECT_EQ(store.defaultRouteId(5), nullptr);
+  EXPECT_EQ(store.defaultRouteId(6), nullptr);
   EXPECT_EQ(fs.mutations, 0);
   EXPECT_FALSE(store.hasUnsavedChanges());
 }
