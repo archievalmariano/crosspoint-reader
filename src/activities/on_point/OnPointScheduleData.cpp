@@ -456,6 +456,76 @@ constexpr uint16_t RRCG_SM_MEGAMALL_TO_ATC_SATURDAYS[] = {
     420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200, 1260,
 };
 
+// Nationwide non-working days (regular and special non-working holidays) from the shared marked-date list,
+// leaving out regional days such as the NCR ASEAN Summit days, for operators that don't run on holidays.
+// Special working days keep the ordinary timetable.
+constexpr auto NATIONWIDE_HOLIDAYS_2026 = [] {
+  std::array<CivilDate, marked_dates::countNationwideNonWorking(marked_dates::PHILIPPINES_2026)> dates{};
+  size_t count = 0;
+  for (const marked_dates::MarkedDate& date : marked_dates::PHILIPPINES_2026) {
+    if (!marked_dates::isNationwideNonWorking(date)) continue;
+    dates[count++] = CivilDate{static_cast<int16_t>(date.year), date.month, date.day};
+  }
+  return dates;
+}();
+static_assert(NATIONWIDE_HOLIDAYS_2026.size() == 18, "2026: 21 non-working days less the 3 NCR ASEAN Summit days");
+
+constexpr auto NATIONWIDE_HOLIDAYS_2027 = [] {
+  std::array<CivilDate, marked_dates::countNationwideNonWorking(marked_dates::PHILIPPINES_2027)> dates{};
+  size_t count = 0;
+  for (const marked_dates::MarkedDate& date : marked_dates::PHILIPPINES_2027) {
+    if (!marked_dates::isNationwideNonWorking(date)) continue;
+    dates[count++] = CivilDate{static_cast<int16_t>(date.year), date.month, date.day};
+  }
+  return dates;
+}();
+static_assert(NATIONWIDE_HOLIDAYS_2027.size() == 18, "2027: no regional days declared");
+
+// Nuvali P2P: "HOLIDAYS - NO OPERATIONS". An empty override marks each nationwide holiday as a non-service day.
+constexpr auto NUVALI_HOLIDAYS = [] {
+  std::array<DateOverride, NATIONWIDE_HOLIDAYS_2026.size() + NATIONWIDE_HOLIDAYS_2027.size()> overrides{};
+  size_t index = 0;
+  for (const CivilDate& date : NATIONWIDE_HOLIDAYS_2026) overrides[index++] = DateOverride{date, {}};
+  for (const CivilDate& date : NATIONWIDE_HOLIDAYS_2027) overrides[index++] = DateOverride{date, {}};
+  return overrides;
+}();
+
+// LAGUNA, from operator boards transcribed from the owner's screenshots (records: future-expansion-transcriptions).
+// Nuvali <-> One Ayala: Nuvali official post 2025-11-12 (TAS Trans Corp.), Monday-Friday, Saturday and Sunday
+// lists. WalterMart Cabuyao <-> Makati and <-> BGC (Market Market): Calamba P2P post 2026-08-31, Monday to Friday.
+// All Provisional: no current operator confirmation of the lists. Each duplicated printed time is stored once.
+constexpr uint16_t LAGUNA_NUVALI_TO_ONE_AYALA_WEEKDAYS[] = {
+    300, 330, 360, 380, 400, 420, 440, 460, 480, 510, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200,
+};
+constexpr uint16_t LAGUNA_NUVALI_TO_ONE_AYALA_SATURDAYS[] = {
+    360, 420, 480, 540, 580, 610, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140,
+};
+constexpr uint16_t LAGUNA_NUVALI_TO_ONE_AYALA_SUNDAYS[] = {
+    360, 420, 480, 540, 580, 610, 660, 720, 780, 840, 900, 960, 1020, 1080,
+};
+constexpr uint16_t LAGUNA_ONE_AYALA_TO_NUVALI_WEEKDAYS[] = {
+    420, 480,  520,  550,  600,  660,  720,  780,  840,  900,  960,
+    990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230, 1260, 1320,
+};
+constexpr uint16_t LAGUNA_ONE_AYALA_TO_NUVALI_SATURDAYS[] = {
+    480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1170, 1200, 1260,
+};
+constexpr uint16_t LAGUNA_ONE_AYALA_TO_NUVALI_SUNDAYS[] = {
+    480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1170, 1200,
+};
+constexpr uint16_t LAGUNA_CABUYAO_TO_MAKATI_WEEKDAYS[] = {
+    300, 360, 420, 480, 600, 720, 840, 900, 1020, 1110,
+};
+constexpr uint16_t LAGUNA_MAKATI_TO_CABUYAO_WEEKDAYS[] = {
+    360, 480, 540, 600, 720, 840, 1020, 1080, 1140, 1200,
+};
+constexpr uint16_t LAGUNA_CABUYAO_TO_BGC_WEEKDAYS[] = {
+    300, 360, 420, 480, 600, 720, 840, 900, 1020, 1140,
+};
+constexpr uint16_t LAGUNA_BGC_TO_CABUYAO_WEEKDAYS[] = {
+    360, 480, 540, 600, 720, 840, 1020, 1080, 1140, 1260,
+};
+
 constexpr ServiceRule BALAGTAS_RULES[] = {
     {WEEKDAYS, {BALAGTAS_TO_TRINOMA_WEEKDAYS, std::size(BALAGTAS_TO_TRINOMA_WEEKDAYS)}},
     {WEEKENDS, {BALAGTAS_TO_TRINOMA_WEEKENDS, std::size(BALAGTAS_TO_TRINOMA_WEEKENDS)}},
@@ -614,6 +684,29 @@ constexpr ServiceRule RRCG_ATC_TO_SM_MEGAMALL_RULES[] = {
 constexpr ServiceRule RRCG_SM_MEGAMALL_TO_ATC_RULES[] = {
     {WEEKDAYS, {RRCG_SM_MEGAMALL_TO_ATC_WEEKDAYS, std::size(RRCG_SM_MEGAMALL_TO_ATC_WEEKDAYS)}},
     {SATURDAY, {RRCG_SM_MEGAMALL_TO_ATC_SATURDAYS, std::size(RRCG_SM_MEGAMALL_TO_ATC_SATURDAYS)}},
+};
+
+constexpr ServiceRule LAGUNA_NUVALI_TO_ONE_AYALA_RULES[] = {
+    {WEEKDAYS, {LAGUNA_NUVALI_TO_ONE_AYALA_WEEKDAYS, std::size(LAGUNA_NUVALI_TO_ONE_AYALA_WEEKDAYS)}},
+    {SATURDAY, {LAGUNA_NUVALI_TO_ONE_AYALA_SATURDAYS, std::size(LAGUNA_NUVALI_TO_ONE_AYALA_SATURDAYS)}},
+    {SUNDAY, {LAGUNA_NUVALI_TO_ONE_AYALA_SUNDAYS, std::size(LAGUNA_NUVALI_TO_ONE_AYALA_SUNDAYS)}},
+};
+constexpr ServiceRule LAGUNA_ONE_AYALA_TO_NUVALI_RULES[] = {
+    {WEEKDAYS, {LAGUNA_ONE_AYALA_TO_NUVALI_WEEKDAYS, std::size(LAGUNA_ONE_AYALA_TO_NUVALI_WEEKDAYS)}},
+    {SATURDAY, {LAGUNA_ONE_AYALA_TO_NUVALI_SATURDAYS, std::size(LAGUNA_ONE_AYALA_TO_NUVALI_SATURDAYS)}},
+    {SUNDAY, {LAGUNA_ONE_AYALA_TO_NUVALI_SUNDAYS, std::size(LAGUNA_ONE_AYALA_TO_NUVALI_SUNDAYS)}},
+};
+constexpr ServiceRule LAGUNA_CABUYAO_TO_MAKATI_RULES[] = {
+    {WEEKDAYS, {LAGUNA_CABUYAO_TO_MAKATI_WEEKDAYS, std::size(LAGUNA_CABUYAO_TO_MAKATI_WEEKDAYS)}},
+};
+constexpr ServiceRule LAGUNA_MAKATI_TO_CABUYAO_RULES[] = {
+    {WEEKDAYS, {LAGUNA_MAKATI_TO_CABUYAO_WEEKDAYS, std::size(LAGUNA_MAKATI_TO_CABUYAO_WEEKDAYS)}},
+};
+constexpr ServiceRule LAGUNA_CABUYAO_TO_BGC_RULES[] = {
+    {WEEKDAYS, {LAGUNA_CABUYAO_TO_BGC_WEEKDAYS, std::size(LAGUNA_CABUYAO_TO_BGC_WEEKDAYS)}},
+};
+constexpr ServiceRule LAGUNA_BGC_TO_CABUYAO_RULES[] = {
+    {WEEKDAYS, {LAGUNA_BGC_TO_CABUYAO_WEEKDAYS, std::size(LAGUNA_BGC_TO_CABUYAO_WEEKDAYS)}},
 };
 
 constexpr Schedule SCHEDULES[] = {
@@ -1089,6 +1182,92 @@ constexpr Schedule SCHEDULES[] = {
      0,
      "RRCG website schedule, retrieved 2026-11-13; undated. No Sunday service. Holiday service may differ.",
      SourceStatus::Provisional},
+    {"p2p-nuvali-one-ayala",
+     "TAS Trans",
+     "NUVALI",
+     "ONE AYALA",
+     "Asia/Manila",
+     8 * 60,
+     {2025, 11, 12},
+     LAGUNA_NUVALI_TO_ONE_AYALA_RULES,
+     std::size(LAGUNA_NUVALI_TO_ONE_AYALA_RULES),
+     NUVALI_HOLIDAYS.data(),
+     NUVALI_HOLIDAYS.size(),
+     "Nuvali official post 2025-11-12 (TAS Trans Corp.), 'until further notice'. Nuvali Transport Terminal to Makati: "
+     "One Ayala, then Circuit Makati except the last trip. No service on nationwide regular and special non-working "
+     "holidays, 2026-2027: our reading of 'HOLIDAYS - NO OPERATIONS'. Eid and later years not covered.",
+     SourceStatus::Provisional},
+    {"p2p-one-ayala-nuvali",
+     "TAS Trans",
+     "ONE AYALA",
+     "NUVALI",
+     "Asia/Manila",
+     8 * 60,
+     {2025, 11, 12},
+     LAGUNA_ONE_AYALA_TO_NUVALI_RULES,
+     std::size(LAGUNA_ONE_AYALA_TO_NUVALI_RULES),
+     NUVALI_HOLIDAYS.data(),
+     NUVALI_HOLIDAYS.size(),
+     "Nuvali official post 2025-11-12 (TAS Trans Corp.), 'until further notice'. Nuvali Transport Terminal to Makati: "
+     "One Ayala, then Circuit Makati except the last trip. No service on nationwide regular and special non-working "
+     "holidays, 2026-2027: our reading of 'HOLIDAYS - NO OPERATIONS'. Eid and later years not covered.",
+     SourceStatus::Provisional},
+    {"p2p-cabuyao-makati",
+     "Calamba P2P",
+     "WM CABUYAO",
+     "MAKATI",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     LAGUNA_CABUYAO_TO_MAKATI_RULES,
+     std::size(LAGUNA_CABUYAO_TO_MAKATI_RULES),
+     nullptr,
+     0,
+     "Calamba P2P post 2026-08-31, effective 2026-09-01. WalterMart Cabuyao to Makati (One Ayala / Landmark): 06:00, "
+     "07:00 and 08:00 via Mayapa Exit, other trips via Pulo Exit. Monday to Friday. Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-makati-cabuyao",
+     "Calamba P2P",
+     "MAKATI",
+     "WM CABUYAO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     LAGUNA_MAKATI_TO_CABUYAO_RULES,
+     std::size(LAGUNA_MAKATI_TO_CABUYAO_RULES),
+     nullptr,
+     0,
+     "Calamba P2P post 2026-08-31, effective 2026-09-01. Makati (One Ayala / Landmark) to WalterMart Cabuyao: every "
+     "trip via Pulo Exit (Mayapa Exit is outbound only). Monday to Friday. Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-cabuyao-bgc",
+     "Calamba P2P",
+     "WM CABUYAO",
+     "MARKET MARKET",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     LAGUNA_CABUYAO_TO_BGC_RULES,
+     std::size(LAGUNA_CABUYAO_TO_BGC_RULES),
+     nullptr,
+     0,
+     "Calamba P2P post 2026-08-31, effective 2026-09-01. WalterMart Cabuyao to BGC Taguig (Market Market): 06:00, "
+     "07:00 and 08:00 via Mayapa Exit, other trips via Pulo Exit. Monday to Friday. Holiday service may differ.",
+     SourceStatus::Provisional},
+    {"p2p-bgc-cabuyao",
+     "Calamba P2P",
+     "MARKET MARKET",
+     "WM CABUYAO",
+     "Asia/Manila",
+     8 * 60,
+     {2026, 9, 1},
+     LAGUNA_BGC_TO_CABUYAO_RULES,
+     std::size(LAGUNA_BGC_TO_CABUYAO_RULES),
+     nullptr,
+     0,
+     "Calamba P2P post 2026-08-31, effective 2026-09-01. BGC Taguig (Market Market) to WalterMart Cabuyao: every trip "
+     "via Pulo Exit (Mayapa Exit is outbound only). Monday to Friday. Holiday service may differ.",
+     SourceStatus::Provisional},
 };
 
 constexpr RoutePair ROUTES[] = {
@@ -1110,6 +1289,9 @@ constexpr RoutePair ROUTES[] = {
     {"p2p-atc-greenbelt", 30, 31, "MUNTINLUPA", "MAKATI"},
     {"p2p-starmall-alabang-starmall-shaw", 32, 33, "MUNTINLUPA", "MANDALUYONG"},
     {"p2p-atc-sm-megamall", 34, 35, "MUNTINLUPA", "MANDALUYONG"},
+    {"p2p-nuvali-one-ayala", 36, 37, "LAGUNA", "MAKATI"},
+    {"p2p-cabuyao-makati", 38, 39, "LAGUNA", "MAKATI"},
+    {"p2p-cabuyao-bgc", 40, 41, "LAGUNA", "TAGUIG"},
 };
 
 static_assert(std::size(SCHEDULES) == SCHEDULE_COUNT);

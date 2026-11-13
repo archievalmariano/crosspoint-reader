@@ -6,8 +6,8 @@
 
 namespace on_point {
 
-constexpr size_t SCHEDULE_COUNT = 36;
-constexpr size_t ROUTE_COUNT = 18;
+constexpr size_t SCHEDULE_COUNT = 42;
+constexpr size_t ROUTE_COUNT = 21;
 
 struct RoutePair {
   const char* routeId = nullptr;

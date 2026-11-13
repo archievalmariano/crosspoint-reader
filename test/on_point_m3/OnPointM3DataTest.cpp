@@ -184,9 +184,10 @@ CivilDateTime manila(const int year, const int month, const int day, const int h
 // ---- Catalogue shape ----
 
 TEST(OnPointM3Data, CatalogueGrewByExactlyThreeAppendedPairs) {
-  EXPECT_EQ(on_point::SCHEDULE_COUNT, 36u);
-  EXPECT_EQ(on_point::ROUTE_COUNT, 18u);
-  EXPECT_EQ(on_point::routeCount(), 18u);
+  // Later batches append after M3-A; their exact totals are pinned in their own tests.
+  EXPECT_GE(on_point::SCHEDULE_COUNT, 36u);
+  EXPECT_GE(on_point::ROUTE_COUNT, 18u);
+  EXPECT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
   struct Pair {
     size_t route;
     const char* id;
@@ -324,7 +325,7 @@ TEST(OnPointM3Data, MarkedNonWorkingDaysUseTheOrdinaryList) {
 // ---- Collection ----
 
 TEST(OnPointM3Data, MetroManilaIsAppendedWithTheThreePairs) {
-  ASSERT_EQ(on_point::regionCount(), 4u);
+  ASSERT_GE(on_point::regionCount(), 4u);  // later collections append after it
   EXPECT_EQ(on_point::regionIndexForId("metro-manila"), 3u);
   const on_point::Region* metro = on_point::regionAt(3);
   ASSERT_NE(metro, nullptr);

@@ -84,7 +84,7 @@ TEST(OnPointScheduleData, RoutePairGroupsBothDirections) {
 }
 
 TEST(OnPointScheduleData, EveryRoutePairIsValidAndMirrored) {
-  ASSERT_EQ(on_point::ROUTE_COUNT, 18u);
+  ASSERT_EQ(on_point::ROUTE_COUNT, 21u);
   ASSERT_EQ(on_point::routeCount(), on_point::ROUTE_COUNT);
   for (size_t index = 0; index < on_point::ROUTE_COUNT; ++index) {
     const on_point::Schedule& outbound = on_point::scheduleForRoute(index, false);
@@ -168,7 +168,8 @@ TEST(OnPointScheduleData, GenesisRoutesFollowTheOperatorSchedule) {
 // PUBLISHED only where the operator states the departure pattern itself
 // (docs/onpoint/editorial/BULACAN-BATCH1.md); every other BULACAN direction is
 // PROVISIONAL, as is NAIA T3 <-> PITX (its trip list may no longer be complete) and every
-// RRCG METRO MANILA direction (its website schedule is undated).
+// RRCG METRO MANILA direction (its website schedule is undated) and every LAGUNA direction (no
+// current operator confirmation of the lists).
 TEST(OnPointScheduleData, EveryScheduleCarriesItsEditorialStatus) {
   const char* const provisional[] = {
       "p2p-balagtas-trinoma",
@@ -189,6 +190,12 @@ TEST(OnPointScheduleData, EveryScheduleCarriesItsEditorialStatus) {
       "p2p-starmall-shaw-starmall-alabang",
       "p2p-atc-sm-megamall",
       "p2p-sm-megamall-atc",
+      "p2p-nuvali-one-ayala",
+      "p2p-one-ayala-nuvali",
+      "p2p-cabuyao-makati",
+      "p2p-makati-cabuyao",
+      "p2p-cabuyao-bgc",
+      "p2p-bgc-cabuyao",
   };
   size_t provisionalCount = 0;
   for (size_t index = 0; index < on_point::SCHEDULE_COUNT; ++index) {
@@ -347,20 +354,35 @@ TEST(OnPointScheduleData, RouteCatalogHasStableIdsAndAlphabeticalPresentationOrd
   EXPECT_EQ(on_point::routeIndexForId("p2p-atc-greenbelt"), 15u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-starmall-alabang-starmall-shaw"), 16u);
   EXPECT_EQ(on_point::routeIndexForId("p2p-atc-sm-megamall"), 17u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-nuvali-one-ayala"), 18u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-cabuyao-makati"), 19u);
+  EXPECT_EQ(on_point::routeIndexForId("p2p-cabuyao-bgc"), 20u);
   // Removed routes (and unknown ids) fall back to the first pair.
   EXPECT_EQ(on_point::routeIndexForId("p2p-araneta-city-naia"), 0u);
   EXPECT_EQ(on_point::routeIndexForId("missing-route"), 0u);
 
   const char* expected[][2] = {
-      {"ATC ALABANG", "GREENBELT"}, {"ATC ALABANG", "SM MEGAMALL"},
-      {"BALAGTAS", "TRINOMA"},      {"CAYPOMBO", "SM NORTH EDSA"},
-      {"CLARK AIRPORT", "BAGUIO"},  {"CLARK AIRPORT", "BALANGA"},
-      {"CLARK AIRPORT", "NAIA T3"}, {"CUBAO", "BAGUIO"},
-      {"CUBAO", "CLARK AIRPORT"},   {"GUIGUINTO", "TRINOMA"},
-      {"MALOLOS", "TRINOMA"},       {"NAIA T3", "PITX"},
-      {"PANDI", "TRINOMA"},         {"PASAY", "BAGUIO"},
-      {"PITX", "CLARK AIRPORT"},    {"PLARIDEL", "TRINOMA"},
-      {"TRINOMA", "CLARK AIRPORT"}, {"VTX ALABANG", "STARMALL SHAW"},
+      {"ATC ALABANG", "GREENBELT"},
+      {"ATC ALABANG", "SM MEGAMALL"},
+      {"BALAGTAS", "TRINOMA"},
+      {"CAYPOMBO", "SM NORTH EDSA"},
+      {"CLARK AIRPORT", "BAGUIO"},
+      {"CLARK AIRPORT", "BALANGA"},
+      {"CLARK AIRPORT", "NAIA T3"},
+      {"CUBAO", "BAGUIO"},
+      {"CUBAO", "CLARK AIRPORT"},
+      {"GUIGUINTO", "TRINOMA"},
+      {"MALOLOS", "TRINOMA"},
+      {"NAIA T3", "PITX"},
+      {"NUVALI", "ONE AYALA"},
+      {"PANDI", "TRINOMA"},
+      {"PASAY", "BAGUIO"},
+      {"PITX", "CLARK AIRPORT"},
+      {"PLARIDEL", "TRINOMA"},
+      {"TRINOMA", "CLARK AIRPORT"},
+      {"VTX ALABANG", "STARMALL SHAW"},
+      {"WM CABUYAO", "MAKATI"},
+      {"WM CABUYAO", "MARKET MARKET"},
   };
   static_assert(std::size(expected) == on_point::ROUTE_COUNT, "one expected entry per route");
   for (size_t position = 0; position < on_point::ROUTE_COUNT; ++position) {

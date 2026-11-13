@@ -29,6 +29,19 @@ add_executable(OnPointActivityOneCollectionTest OnPointActivityConfigTest.cpp ${
 target_compile_definitions(OnPointActivityOneCollectionTest PRIVATE ON_POINT_TEST_ONE_COLLECTION=1)
 add_executable(OnPointActivityOneRouteCollectionTest OnPointActivityConfigTest.cpp ${ON_POINT_ACTIVITY_SOURCES}
   ${SHIPPED_DATA} TestRegions.cpp)
+# Picker paging with 5, 8 and 9 test collections (two pages with one row on the second, two full
+# pages, three pages).
+foreach(collections 5 8 9)
+  set(target OnPointActivityPickerPaging${collections}Test)
+  add_executable(${target} OnPointActivityPickerPagingTest.cpp ${ON_POINT_ACTIVITY_SOURCES} ${SHIPPED_DATA}
+    TestRegions.cpp)
+  target_include_directories(${target} BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs)
+  target_include_directories(${target} PRIVATE ${REPO_ROOT}/src ${REPO_ROOT}/lib/Memory ${ON_POINT_ARDUINOJSON})
+  target_compile_definitions(${target} PRIVATE ON_POINT_ENABLED=1 ON_POINT_TEST_PICKER_COLLECTIONS=${collections})
+  target_link_libraries(${target} PRIVATE crosspoint_test_common GTest::gtest_main)
+  gtest_discover_tests(${target} TEST_PREFIX "Picker${collections}.")
+endforeach()
+
 foreach(target OnPointActivityTest OnPointActivityEmptyCatalogueTest OnPointActivityInvalidCatalogueTest
     OnPointActivityOneCollectionTest OnPointActivityOneRouteCollectionTest)
   target_include_directories(${target} BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs)

@@ -131,6 +131,41 @@ TEST(MarkedDates, Lookup2027AndYearBoundary) {
   EXPECT_EQ(marked_dates::markOn(2027, 12, 31), Mark::Official);
 }
 
+TEST(MarkedDates, OnlyTheNcrAseanSummitDaysAreRegional) {
+  using marked_dates::Scope;
+  size_t regional = 0;
+  for (const MarkedDate& date : marked_dates::PHILIPPINES_2026) {
+    const bool asean = date.month == 11 && date.day >= 16 && date.day <= 18;
+    EXPECT_EQ(date.scope, asean ? Scope::MetroManila : Scope::Nationwide) << date.name << " " << +date.day;
+    regional += date.scope == Scope::MetroManila;
+  }
+  EXPECT_EQ(regional, 3u);
+  for (const MarkedDate& date : marked_dates::PHILIPPINES_2027) EXPECT_EQ(date.scope, Scope::Nationwide) << date.name;
+  for (const MarkedDate& date : marked_dates::OBSERVANCES) EXPECT_EQ(date.scope, Scope::Nationwide) << date.name;
+}
+
+TEST(MarkedDates, NationwideNonWorkingLeavesOutRegionalAndWorkingDays) {
+  EXPECT_EQ(marked_dates::countNationwideNonWorking(marked_dates::PHILIPPINES_2026), 18u);  // 21 less 3 NCR days
+  EXPECT_EQ(marked_dates::countNationwideNonWorking(marked_dates::PHILIPPINES_2027), 18u);
+  // Every non-working day is still non-working: the scope doesn't change the kind.
+  EXPECT_EQ(marked_dates::countNonWorking(marked_dates::PHILIPPINES_2026), 21u);
+  for (const MarkedDate& date : marked_dates::PHILIPPINES_2026) {
+    const bool nationwide = marked_dates::isNationwideNonWorking(date);
+    if (date.kind == Kind::SpecialWorking) EXPECT_FALSE(nationwide) << date.name;
+    if (date.month == 11 && date.day >= 16 && date.day <= 18) {
+      EXPECT_TRUE(marked_dates::isNonWorking(date.kind));
+      EXPECT_FALSE(nationwide);
+    }
+  }
+  const MarkedDate* found[2];
+  ASSERT_EQ(marked_dates::datesOn(2026, 11, 30, found, 2), 1u);  // Bonifacio Day
+  EXPECT_TRUE(marked_dates::isNationwideNonWorking(*found[0]));
+  ASSERT_EQ(marked_dates::datesOn(2026, 12, 24, found, 2), 1u);  // Christmas Eve, special non-working
+  EXPECT_TRUE(marked_dates::isNationwideNonWorking(*found[0]));
+  // The Calendar still marks regional days as official.
+  EXPECT_EQ(marked_dates::markOn(2026, 11, 17), Mark::Official);
+}
+
 TEST(MarkedDates, LookupRespectsMax) {
   const MarkedDate* found[1];
   EXPECT_EQ(marked_dates::datesOn(2026, 11, 17, found, 1), 1u);

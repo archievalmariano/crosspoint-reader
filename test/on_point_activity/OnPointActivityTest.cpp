@@ -237,8 +237,8 @@ TEST_F(OnPointActivityTest, ConfirmOnTheRowOpensThePickerAndBackRestoresTheList)
   EXPECT_TRUE(drewAt("6 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[1] + 64));
   EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[2] + 64));
   EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[3] + 64));
-  EXPECT_FALSE(drew("1 / 1"));  // four collections fit one page: no page label
-  EXPECT_FALSE(drew("1 / 2"));
+  EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));  // five collections: LAGUNA is on page 2
+  EXPECT_FALSE(drew("STR_ON_POINT_REGION_LAGUNA"));
   EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
   EXPECT_EQ(selectedPickerRow(), 0);
   EXPECT_EQ(textAt(FOOTER_Y), "STR_ON_POINT_SELECT_COLLECTION");
@@ -261,12 +261,17 @@ TEST_F(OnPointActivityTest, PickerWrapsAndSelectsWithButtons) {
   send(Event::Pressed, Button::NavNext);
   send(Event::Pressed, Button::NavPrevious);  // the row
   send(Event::Released, Button::Confirm);
-  send(Event::Pressed, Button::NavPrevious);  // wraps to METRO MANILA, the last row
-  EXPECT_EQ(selectedPickerRow(), 3);
-  send(Event::Pressed, Button::NavNext);  // and wraps back to BULACAN
+  send(Event::Pressed, Button::NavPrevious);  // wraps to LAGUNA, alone on page 2
+  EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
+  EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_LAGUNA", PICKER_ROW_Y[0] + 8));
   EXPECT_EQ(selectedPickerRow(), 0);
-  send(Event::Pressed, Button::NavPrevious);
+  send(Event::Pressed, Button::NavNext);  // and wraps back to BULACAN on page 1
+  EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));
+  EXPECT_EQ(selectedPickerRow(), 0);
+  send(Event::Pressed, Button::NavPrevious);  // LAGUNA
+  send(Event::Pressed, Button::NavPrevious);  // METRO MANILA
   send(Event::Pressed, Button::NavPrevious);  // AIRPORT TRANSFERS
+  EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));
   EXPECT_EQ(selectedPickerRow(), 2);
   send(Event::Released, Button::Confirm);
   EXPECT_FALSE(inPicker());
@@ -294,8 +299,14 @@ TEST_F(OnPointActivityTest, TouchOpensThePickerAndSelectsACollection) {
   touch(Event::ScreenTap, 200, PICKER_ROW_Y[3] + 104 + 22 + 30);  // no fifth row on the page
   EXPECT_TRUE(inPicker());
   EXPECT_EQ(selectedPickerRow(), 1);
-  swipe(SwipeDir::Up);  // four collections: one page only
-  EXPECT_EQ(selectedPickerRow(), 1);
+  swipe(SwipeDir::Up);  // page 2: LAGUNA, the cursor on its first row
+  EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
+  EXPECT_EQ(selectedPickerRow(), 0);
+  touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 30);  // page 2 has no second row
+  EXPECT_TRUE(inPicker());
+  swipe(SwipeDir::Down);  // back to page 1, cursor on BULACAN
+  EXPECT_TRUE(drewAt("1 / 2", HEADING_Y));
+  EXPECT_EQ(selectedPickerRow(), 0);
   touch(Event::ScreenTap, 200, PICKER_ROW_Y[1] + 30);
   EXPECT_FALSE(inPicker());
   EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_NORTH_LUZON", COLLECTION_TEXT_Y));
@@ -324,6 +335,36 @@ TEST_F(OnPointActivityTest, MetroManilaOpensOnItsShippedDefault) {
   EXPECT_TRUE(drew("STR_ON_POINT_PROVISIONAL"));
   send(Event::Pressed, Button::NavNext);  // reverse direction
   EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "GREENBELT");
+}
+
+TEST_F(OnPointActivityTest, LagunaOpensOnItsShippedDefaultFromPageTwo) {
+  enterList();
+  touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);
+  ASSERT_TRUE(inPicker());
+  send(Event::Pressed, Button::NavPrevious);  // BULACAN wraps to LAGUNA
+  EXPECT_TRUE(drewAt("3 STR_ON_POINT_ROUTE_COUNT_MANY", PICKER_ROW_Y[0] + 64));
+  send(Event::Released, Button::Confirm);
+  EXPECT_FALSE(inPicker());
+  EXPECT_TRUE(drewAt("STR_ON_POINT_REGION_LAGUNA", COLLECTION_TEXT_Y));
+  // NUVALI > ONE AYALA pinned; the two Cabuyao pairs in alphabetical order.
+  EXPECT_EQ(textAt(PINNED_ORIGIN_Y), "NUVALI");
+  EXPECT_TRUE(pinnedSelected());
+  EXPECT_EQ(textAt(ROW_Y[0] + 8), "WM CABUYAO");  // > MAKATI
+  EXPECT_EQ(textAt(ROW_Y[1] + 8), "WM CABUYAO");  // > MARKET MARKET
+  EXPECT_EQ(textAt(ROW_Y[2] + 8), "");
+  EXPECT_EQ(storedField("activeRegion"), "laguna");
+  EXPECT_EQ(storedField("defaults", "laguna"), "<null>");
+
+  enter();  // the next launch opens LAGUNA's default board
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "NUVALI");
+  EXPECT_TRUE(drew("STR_ON_POINT_PROVISIONAL"));
+  send(Event::Pressed, Button::NavNext);  // reverse direction
+  EXPECT_EQ(textAt(ROUTE_ORIGIN_Y), "ONE AYALA");
+  send(Event::Released, Button::Back);
+  touch(Event::ScreenTap, 200, COLLECTION_ROW_Y + 20);  // the picker reopens on LAGUNA's page
+  EXPECT_TRUE(drewAt("2 / 2", HEADING_Y));
+  EXPECT_EQ(selectedPickerRow(), 0);
+  EXPECT_TRUE(drewAt("STR_ON_POINT_CURRENT_COLLECTION", PICKER_ROW_Y[0] + 64));
 }
 
 TEST_F(OnPointActivityTest, SelectingTheCurrentCollectionChangesNothing) {

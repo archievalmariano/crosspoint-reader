@@ -24,6 +24,12 @@ constexpr bool isOfficial(const Kind kind) {
 }
 constexpr bool isNonWorking(const Kind kind) { return kind == Kind::RegularHoliday || kind == Kind::SpecialNonWorking; }
 
+// Where an official day applies. Nationwide unless a proclamation limits it to a region.
+enum class Scope : uint8_t {
+  Nationwide,
+  MetroManila,  // NCR only, e.g. the 2026 ASEAN Summit days
+};
+
 // Observances repeat every year; official days are listed per year.
 constexpr uint16_t EVERY_YEAR = 0;
 
@@ -34,7 +40,12 @@ struct MarkedDate {
   Kind kind;
   const char* name;
   const char* note;  // optional one-line description, may be nullptr
+  Scope scope = Scope::Nationwide;
 };
+
+constexpr bool isNationwideNonWorking(const MarkedDate& date) {
+  return isNonWorking(date.kind) && date.scope == Scope::Nationwide;
+}
 
 // 2026: Proclamation No. 1006 (Official Gazette, nationwide holidays), plus the
 // NCR special non-working days for the ASEAN Summit (November 16-18). Sorted by
@@ -53,9 +64,9 @@ inline constexpr std::array<MarkedDate, 22> PHILIPPINES_2026 = {{
     {2026, 8, 31, Kind::RegularHoliday, "National Heroes Day", "Last Monday of August."},
     {2026, 11, 1, Kind::SpecialNonWorking, "All Saints' Day", nullptr},
     {2026, 11, 2, Kind::SpecialNonWorking, "All Souls' Day", nullptr},
-    {2026, 11, 16, Kind::SpecialNonWorking, "ASEAN Summit", "Metro Manila only."},
-    {2026, 11, 17, Kind::SpecialNonWorking, "ASEAN Summit", "Metro Manila only."},
-    {2026, 11, 18, Kind::SpecialNonWorking, "ASEAN Summit", "Metro Manila only."},
+    {2026, 11, 16, Kind::SpecialNonWorking, "ASEAN Summit", "Metro Manila only.", Scope::MetroManila},
+    {2026, 11, 17, Kind::SpecialNonWorking, "ASEAN Summit", "Metro Manila only.", Scope::MetroManila},
+    {2026, 11, 18, Kind::SpecialNonWorking, "ASEAN Summit", "Metro Manila only.", Scope::MetroManila},
     {2026, 11, 30, Kind::RegularHoliday, "Bonifacio Day", nullptr},
     {2026, 12, 8, Kind::SpecialNonWorking, "Feast of the Immaculate Conception", nullptr},
     {2026, 12, 24, Kind::SpecialNonWorking, "Christmas Eve", nullptr},
@@ -120,6 +131,11 @@ template <size_t N>
 constexpr size_t countNonWorking(const std::array<MarkedDate, N>& dates) {
   return static_cast<size_t>(
       std::count_if(dates.begin(), dates.end(), [](const MarkedDate& date) { return isNonWorking(date.kind); }));
+}
+
+template <size_t N>
+constexpr size_t countNationwideNonWorking(const std::array<MarkedDate, N>& dates) {
+  return static_cast<size_t>(std::count_if(dates.begin(), dates.end(), isNationwideNonWorking));
 }
 
 constexpr bool matches(const MarkedDate& date, const int year, const int month, const int day) {
