@@ -143,7 +143,7 @@ jobs:
     # unless each required E3 test ran once and passed, none skipped.
     name: E3 host tests (this commit)
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
